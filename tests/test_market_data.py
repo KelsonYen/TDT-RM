@@ -137,3 +137,70 @@ def test_derive_price_features_builds_required_ma_inputs():
 def test_market_data_status_constants_are_spec_labels():
     assert FORMAL_DATA_STATUS == "正式版"
     assert PROVISIONAL_DATA_STATUS == "暫估版"
+
+
+def test_historical_input_schema_exposes_required_csv_columns():
+    from tdt_rm import historical_input_schema
+
+    schema = {field.name: field for field in historical_input_schema()}
+
+    assert schema["observed_at"].required is True
+    assert schema["observed_at"].data_type == "date"
+    assert "date" in schema["observed_at"].aliases
+    assert schema["close"].required is True
+    assert schema["realized_event"].data_type == "bool"
+
+
+def test_validate_market_data_csv_collects_row_errors(tmp_path: Path):
+    from tdt_rm import validate_market_data_csv
+
+    csv_path = tmp_path / "bad-market.csv"
+    csv_path.write_text(
+        "date,taiex_close,taiex_ma5,taiex_ma20,taiex_ma60,taiex_ma20_slope\n"
+        "2026-01-05,94,100,95,90,-1\n"
+        "2026-01-06,not-a-number,100,95,90,-1\n",
+        encoding="utf-8",
+    )
+
+    result = validate_market_data_csv(csv_path)
+
+    assert result.is_valid is False
+    assert len(result.observations) == 1
+    assert result.issues[0].row_number == 3
+    assert "not-a-number" in result.issues[0].message
+
+
+def test_load_historical_input_csv_returns_backtest_observations(tmp_path: Path):
+    from tdt_rm import load_historical_input_csv
+
+    csv_path = tmp_path / "historical.csv"
+    csv_path.write_text(
+        "date,taiex_close,taiex_ma5,taiex_ma20,taiex_ma60,taiex_ma20_slope,realized_event\n"
+        "2026-01-06,94,100,95,90,-1,yes\n"
+        "2026-01-05,101,100,99,98,0.5,no\n",
+        encoding="utf-8",
+    )
+
+    observations = load_historical_input_csv(csv_path)
+
+    assert [observation.observed_at.isoformat() for observation in observations] == [
+        "2026-01-05",
+        "2026-01-06",
+    ]
+    assert observations[1].realized_event is True
+
+
+def test_load_historical_input_csv_strict_mode_raises_aggregate_error(tmp_path: Path):
+    from tdt_rm import HistoricalInputValidationError, load_historical_input_csv
+
+    csv_path = tmp_path / "bad-historical.csv"
+    csv_path.write_text(
+        "date,taiex_close,taiex_ma5,taiex_ma20,taiex_ma60,taiex_ma20_slope\n"
+        "2026-01-05,bad,100,95,90,-1\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(HistoricalInputValidationError) as error:
+        load_historical_input_csv(csv_path)
+
+    assert error.value.issues[0].row_number == 2

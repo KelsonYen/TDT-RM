@@ -153,6 +153,9 @@ print(result.as_dict()["signals"][0]["trace_output"])
 - 自訂 `field_map`，將 vendor 欄名映射到模型標準欄位。
 - ETI-5 欄位可共用 TCWRS 的 `close` / `ma20`，也可用 `eti5_close` / `eti5_ma20` 覆寫。
 - `tail_risk`、`bcd` 與 `realized_event` 可一併匯入，方便接續 Crash Probability 與 historical backtest。
+- `historical_input_schema()` 可輸出機器可讀的 historical CSV schema（欄位名稱、型別、必填狀態與別名）。
+- `validate_market_data_csv()` / `validate_market_data_rows()` 可在匯入前彙整所有 row-level validation issue，不會只停在第一筆錯誤。
+- `load_historical_input_csv()` 可直接讀取 historical CSV 並轉成 `HistoricalBacktestObservation`，方便接續 `run_historical_backtest()`。
 - `derive_price_features()` 可由 60 筆以上日線 bar 產生 `close`、`ma5`、`ma20`、`ma60`、`ma20_slope`、報酬率與 20 日均量/成交值。
 
 ```python
@@ -182,6 +185,51 @@ result = score_tcwrs(observation.tcwrs_input)
 print(observation.data_status)
 print(result.total_score)
 print(observation.as_dict()["completeness"])
+```
+
+### Historical CSV input format
+
+Historical CSV 是 flat row 格式；每一列代表一個交易日的可用輸入快照。最小必填欄位如下：
+
+```csv
+date,taiex_close,taiex_ma5,taiex_ma20,taiex_ma60,taiex_ma20_slope,realized_event
+2026-01-05,94,100,95,90,-1,no
+2026-01-06,90,95,96,92,-1,yes
+```
+
+必填欄位可使用 canonical name 或內建 alias：
+
+| Canonical 欄位 | 常見 alias | 型別 | 說明 |
+| --- | --- | --- | --- |
+| `observed_at` | `date`, `trade_date`, `資料日期` | date | 交易/觀測日期，支援 `YYYY-MM-DD` 與 `YYYY/MM/DD`。 |
+| `close` | `taiex_close`, `index_close`, `收盤價` | float | 指數收盤價。 |
+| `ma5` | `taiex_ma5`, `index_ma5` | float | 5 日均線。 |
+| `ma20` | `taiex_ma20`, `index_ma20` | float | 20 日均線。 |
+| `ma60` | `taiex_ma60`, `index_ma60` | float | 60 日均線。 |
+| `ma20_slope` | `taiex_ma20_slope`, `index_ma20_slope` | float | 當日 MA20 減前一日 MA20。 |
+
+選填欄位包含其他 `TCWRSInput` / `ETI5Input` 欄位、`tail_risk`、`bcd` 與 `realized_event`。ETI-5 可共用 `close` / `ma20`，也可用 `eti5_close` / `eti5_ma20` 覆寫。
+
+```python
+from tdt_rm import (
+    historical_input_schema,
+    load_historical_input_csv,
+    run_historical_backtest,
+    validate_market_data_csv,
+)
+
+# Inspect the accepted schema.
+schema = [field.as_dict() for field in historical_input_schema()]
+
+# Validate first to collect all row errors.
+validation = validate_market_data_csv("historical.csv")
+if not validation.is_valid:
+    print(validation.as_dict()["issues"])
+
+# Load directly into backtest observations.
+observations = load_historical_input_csv("historical.csv")
+result = run_historical_backtest(observations)
+print(result.metrics.as_dict())
 ```
 
 ## 安裝與測試
