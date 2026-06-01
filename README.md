@@ -142,6 +142,48 @@ print(result.metrics.as_dict())
 print(result.as_dict()["signals"][0]["trace_output"])
 ```
 
+
+## Market Data Ingestion 模組
+
+本倉庫新增 dependency-free 的 Market Data Ingestion layer，可將券商、資料商或 CSV 欄位正規化為模型可直接使用的 `TCWRSInput`、`ETI5Input`，並保留資料完整性與原始列 trace。
+
+`ingest_market_data_row()` / `load_market_data_csv()` 支援：
+
+- 常見欄位別名（例如 `date`、`taiex_close`、`taiex_ma20`）。
+- 自訂 `field_map`，將 vendor 欄名映射到模型標準欄位。
+- ETI-5 欄位可共用 TCWRS 的 `close` / `ma20`，也可用 `eti5_close` / `eti5_ma20` 覆寫。
+- `tail_risk`、`bcd` 與 `realized_event` 可一併匯入，方便接續 Crash Probability 與 historical backtest。
+- `derive_price_features()` 可由 60 筆以上日線 bar 產生 `close`、`ma5`、`ma20`、`ma60`、`ma20_slope`、報酬率與 20 日均量/成交值。
+
+```python
+from tdt_rm import ingest_market_data_row, score_tcwrs
+
+observation = ingest_market_data_row(
+    {
+        "date": "2026-01-05",
+        "taiex_close": "94",
+        "taiex_ma5": "100",
+        "taiex_ma20": "95",
+        "taiex_ma60": "90",
+        "taiex_ma20_slope": "-1",
+        "foreign_spot_net_sell_consecutive_days": "2",
+        "usd_twd_3d_change_pct": "0.6",
+        "index_down": "true",
+        "declining_issues_significantly_gt_advancing": "1",
+        "count_main_7_below_ma20": "4",
+        "tail_risk": "60",
+        "bcd": "70",
+    },
+    require_eti5=True,
+    require_crash_probability=True,
+)
+
+result = score_tcwrs(observation.tcwrs_input)
+print(observation.data_status)
+print(result.total_score)
+print(observation.as_dict()["completeness"])
+```
+
 ## 安裝與測試
 
 本專案使用 `src/` layout，Python 版本需求為 3.11 以上。
