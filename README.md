@@ -18,6 +18,7 @@ TCWRS（Taiwan Crash Warning Risk Score，台股結構風險）模組。
   - 實際得分（`score` / `factor_score`）
   - 命中的規則（`matched_rule`）
   - 所有中間條件與原始輸入值（`conditions` / `trace_output`）
+- `score_tcwrs()` 彙總 `P + V + F + X + M + B + L + G`，並回傳 `total_score`、`factor_scores`、`factor_traces` 三個主要輸出；`total` / `factors` 仍保留為相容別名。
 - 當多個風險條件同時成立時，依規格權重採用最高分的命中規則，並仍在 trace 中保留所有中間條件，確保模型分數可追蹤且可重現。
 - 高估值不會被納入 `TCWRS_G`，依規格應由 `MHS_VAL_MHS` 處理。
 - 指數上漲但廣度惡化不會計入 `TCWRS_B`，依規格應由 BCD 模組處理。
@@ -61,8 +62,10 @@ data = TCWRSInput(
 )
 
 result = score_tcwrs(data)
-print(result.total)
+print(result.total_score)
+print(result.factor_scores)
+print(result.factor_traces)
 print(result.as_dict())
 ```
 
-`result.as_dict()` 會輸出完整 audit trace，包含所有子因子的中間計算欄位，方便回查分數來源。
+`result.as_dict()` 會輸出完整 audit trace，頂層包含 `total_score`、`factor_scores`、`factor_traces`，並保留舊版 `total` / `factors` 別名，方便回查分數來源。
