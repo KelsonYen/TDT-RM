@@ -24,6 +24,8 @@ FieldMap = Mapping[str, str]
 
 FORMAL_DATA_STATUS = "正式版"
 PROVISIONAL_DATA_STATUS = "暫估版"
+VALIDATION_ERROR_SEVERITY = "error"
+VALIDATION_WARNING_SEVERITY = "warning"
 
 _TCWRS_FIELD_NAMES = {field.name for field in fields(TCWRSInput)}
 _ETI5_FIELD_NAMES = {field.name for field in fields(ETI5Input)}
@@ -68,6 +70,85 @@ _DEFAULT_ALIASES: dict[str, tuple[str, ...]] = {
     "bcd": ("bcd", "bcd_score"),
     "realized_event": ("realized_event", "event", "crash_event"),
 }
+
+
+@dataclass(frozen=True)
+class DataFieldSchema:
+    """Machine-readable schema entry for supported historical CSV fields."""
+
+    name: str
+    data_type: str
+    required: bool
+    aliases: tuple[str, ...] = ()
+    description: str = ""
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return a serializable schema row."""
+
+        return {
+            "name": self.name,
+            "data_type": self.data_type,
+            "required": self.required,
+            "aliases": list(self.aliases),
+            "description": self.description,
+        }
+
+
+@dataclass(frozen=True)
+class MarketDataValidationIssue:
+    """One validation issue found while checking a raw market-data row."""
+
+    row_number: int | None
+    field: str | None
+    message: str
+    severity: str = VALIDATION_ERROR_SEVERITY
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return a serializable validation issue."""
+
+        return {
+            "row_number": self.row_number,
+            "field": self.field,
+            "message": self.message,
+            "severity": self.severity,
+        }
+
+
+@dataclass(frozen=True)
+class MarketDataValidationResult:
+    """Validation summary for raw historical market-data rows."""
+
+    issues: tuple[MarketDataValidationIssue, ...] = ()
+    observations: tuple["MarketDataObservation", ...] = ()
+
+    @property
+    def is_valid(self) -> bool:
+        """Return true when no error-severity validation issues were found."""
+
+        return not any(issue.severity == VALIDATION_ERROR_SEVERITY for issue in self.issues)
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return a serializable validation result."""
+
+        return {
+            "is_valid": self.is_valid,
+            "issues": [issue.as_dict() for issue in self.issues],
+            "observations": [observation.as_dict() for observation in self.observations],
+        }
+
+
+class HistoricalInputValidationError(ValueError):
+    """Raised when strict historical CSV validation fails."""
+
+    def __init__(self, issues: Sequence[MarketDataValidationIssue]):
+        self.issues = tuple(issues)
+        details = "; ".join(
+            f"row {issue.row_number}: {issue.message}"
+            if issue.row_number is not None
+            else issue.message
+            for issue in self.issues
+        )
+        super().__init__(f"historical input validation failed: {details}")
 
 
 @dataclass(frozen=True)
@@ -167,6 +248,184 @@ class MarketDataObservation:
             "completeness": self.completeness.as_dict(),
             "raw": dict(self.raw),
         }
+
+
+_FIELD_DESCRIPTIONS: dict[str, str] = {
+    "observed_at": "Observation/trading date. Accepted formats: YYYY-MM-DD, YYYY/MM/DD, or ISO date.",
+    "close": "Index close used by TCWRS price and ETI-5 checks.",
+    "ma5": "5-day moving average of the index close.",
+    "ma20": "20-day moving average of the index close.",
+    "ma60": "60-day moving average of the index close.",
+    "ma20_slope": "Current 20-day moving average minus the prior 20-day moving average.",
+    "tail_risk": "Tail-risk score used by Crash Probability.",
+    "bcd": "Breadth/credit deterioration score used by Crash Probability.",
+    "realized_event": "Historical event label, such as a realized crash/drawdown breach.",
+}
+
+
+def historical_input_schema(
+    *,
+    require_eti5: bool = False,
+    require_crash_probability: bool = False,
+) -> tuple[DataFieldSchema, ...]:
+    """Return the supported canonical schema for historical CSV input.
+
+    The schema is intentionally flat because ``csv.DictReader`` produces flat
+    row mappings.  ETI-5 may reuse ``close`` and ``ma20``; prefixed ETI-5 names
+    such as ``eti5_close`` and ``eti5_ma20`` are also accepted when a separate
+    ETI-5 snapshot is required.
+    """
+
+    required = {"observed_at", *_TCWRS_REQUIRED_FIELDS}
+    if require_eti5:
+        required.update(
+            f"eti5_{name}"
+            for name in _ETI5_REQUIRED_FIELDS
+            if name not in _TCWRS_REQUIRED_FIELDS
+        )
+    if require_crash_probability:
+        required.update({"tail_risk", "bcd"})
+
+    names = ["observed_at", *sorted(_TCWRS_FIELD_NAMES)]
+    names.extend(f"eti5_{name}" for name in sorted(_ETI5_FIELD_NAMES))
+    names.extend(["tail_risk", "bcd", "realized_event"])
+
+    deduped_names = tuple(dict.fromkeys(names))
+    return tuple(
+        DataFieldSchema(
+            name=name,
+            data_type=_schema_data_type(name),
+            required=name in required,
+            aliases=_schema_aliases(name),
+            description=_FIELD_DESCRIPTIONS.get(_unprefixed_field_name(name), ""),
+        )
+        for name in deduped_names
+    )
+
+
+def validate_market_data_row(
+    row: RawRow,
+    *,
+    row_number: int | None = None,
+    field_map: FieldMap | None = None,
+    require_eti5: bool = False,
+    require_crash_probability: bool = False,
+    metadata: Mapping[str, Any] | None = None,
+) -> MarketDataValidationResult:
+    """Validate and normalize one historical market-data row.
+
+    Validation uses the same coercion path as ingestion so successful rows are
+    guaranteed to produce the same ``MarketDataObservation`` as
+    ``ingest_market_data_row``.
+    """
+
+    try:
+        observation = ingest_market_data_row(
+            row,
+            field_map=field_map,
+            require_eti5=require_eti5,
+            require_crash_probability=require_crash_probability,
+            metadata=metadata,
+        )
+    except ValueError as error:
+        return MarketDataValidationResult(
+            issues=(
+                MarketDataValidationIssue(
+                    row_number=row_number,
+                    field=_field_from_error_message(str(error)),
+                    message=str(error),
+                ),
+            )
+        )
+    return MarketDataValidationResult(observations=(observation,))
+
+
+def validate_market_data_rows(
+    rows: Iterable[RawRow],
+    *,
+    field_map: FieldMap | None = None,
+    require_eti5: bool = False,
+    require_crash_probability: bool = False,
+    metadata: Mapping[str, Any] | None = None,
+    first_data_row_number: int = 2,
+) -> MarketDataValidationResult:
+    """Validate many historical market-data rows and collect all row errors."""
+
+    issues: list[MarketDataValidationIssue] = []
+    observations: list[MarketDataObservation] = []
+    for offset, row in enumerate(rows):
+        result = validate_market_data_row(
+            row,
+            row_number=first_data_row_number + offset,
+            field_map=field_map,
+            require_eti5=require_eti5,
+            require_crash_probability=require_crash_probability,
+            metadata=metadata,
+        )
+        issues.extend(result.issues)
+        observations.extend(result.observations)
+    return MarketDataValidationResult(
+        issues=tuple(issues),
+        observations=tuple(sorted(observations, key=lambda observation: observation.observed_at)),
+    )
+
+
+def validate_market_data_csv(
+    path: str | Path,
+    *,
+    field_map: FieldMap | None = None,
+    require_eti5: bool = False,
+    require_crash_probability: bool = False,
+    metadata: Mapping[str, Any] | None = None,
+) -> MarketDataValidationResult:
+    """Validate a historical market-data CSV file without stopping at first row error."""
+
+    with Path(path).open(newline="", encoding="utf-8-sig") as handle:
+        reader = csv.DictReader(handle)
+        header_issues = _validate_csv_header(reader.fieldnames or [], field_map)
+        row_result = validate_market_data_rows(
+            reader,
+            field_map=field_map,
+            require_eti5=require_eti5,
+            require_crash_probability=require_crash_probability,
+            metadata=metadata,
+        )
+    return MarketDataValidationResult(
+        issues=tuple(header_issues) + row_result.issues,
+        observations=row_result.observations,
+    )
+
+
+def load_historical_input_csv(
+    path: str | Path,
+    *,
+    field_map: FieldMap | None = None,
+    require_eti5: bool = False,
+    require_crash_probability: bool = False,
+    metadata: Mapping[str, Any] | None = None,
+    strict: bool = True,
+) -> list[HistoricalBacktestObservation]:
+    """Load historical backtest observations from the supported CSV format.
+
+    When ``strict`` is true, all rows are validated and a
+    ``HistoricalInputValidationError`` containing every row issue is raised if
+    any row is invalid.  When ``strict`` is false, invalid rows are skipped and
+    the successfully normalized observations are returned.
+    """
+
+    validation = validate_market_data_csv(
+        path,
+        field_map=field_map,
+        require_eti5=require_eti5,
+        require_crash_probability=require_crash_probability,
+        metadata=metadata,
+    )
+    if strict and not validation.is_valid:
+        raise HistoricalInputValidationError(validation.issues)
+    return [
+        observation.to_backtest_observation()
+        for observation in validation.observations
+    ]
 
 
 def ingest_market_data_row(
@@ -355,6 +614,52 @@ def derive_price_features(bars: Sequence[MarketPriceBar]) -> dict[str, Any]:
         "turnover_amount": turnover[-1],
         "ma20_turnover": turnover_ma20,
     }
+
+
+def _schema_data_type(name: str) -> str:
+    unprefixed = _unprefixed_field_name(name)
+    if unprefixed == "observed_at":
+        return "date"
+    if unprefixed in _BOOL_FIELD_NAMES or unprefixed == "realized_event":
+        return "bool"
+    if unprefixed in _INT_FIELD_NAMES:
+        return "int"
+    if unprefixed in _NUMERIC_FIELD_NAMES or unprefixed in {"tail_risk", "bcd"}:
+        return "float"
+    return "string"
+
+
+def _schema_aliases(name: str) -> tuple[str, ...]:
+    if name.startswith("eti5_"):
+        unprefixed = _unprefixed_field_name(name)
+        return (name, *_DEFAULT_ALIASES.get(unprefixed, ()))
+    return _DEFAULT_ALIASES.get(name, (name,))
+
+
+def _unprefixed_field_name(name: str) -> str:
+    return name.removeprefix("eti5_")
+
+
+def _field_from_error_message(message: str) -> str | None:
+    for field_name in ("observed_at", *_TCWRS_FIELD_NAMES, *_ETI5_FIELD_NAMES, "tail_risk", "bcd"):
+        if field_name in message:
+            return field_name
+    return None
+
+
+def _validate_csv_header(
+    fieldnames: Sequence[str],
+    field_map: FieldMap | None,
+) -> tuple[MarketDataValidationIssue, ...]:
+    if fieldnames:
+        return ()
+    return (
+        MarketDataValidationIssue(
+            row_number=None,
+            field=None,
+            message="CSV header row is missing or empty",
+        ),
+    )
 
 
 def _lookup(row: RawRow, canonical_name: str, field_map: FieldMap | None) -> Any | None:
