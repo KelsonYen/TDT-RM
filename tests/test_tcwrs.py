@@ -200,3 +200,119 @@ def test_complete_tcwrs_result_preserves_all_factor_scores_and_conditions():
     trace = result.as_dict()
     assert trace["factors"]["P"]["conditions"]["raw"]["close"] == 94
     assert trace["factors"]["G"]["max_score"] == 9
+
+@pytest.mark.parametrize(
+    ("factor_fn", "overrides", "expected_score", "expected_rule", "expected_trace_key"),
+    [
+        (
+            score_p,
+            {
+                "close": 89,
+                "ma20": 95,
+                "ma60": 90,
+                "close_below_ma20_consecutive_days": 2,
+                "one_day_return_pct": -3.5,
+            },
+            18,
+            "one_day_return <= -3.5% OR two_day_return <= -5.5%",
+            "one_day_return_lte_minus_3_5_or_two_day_return_lte_minus_5_5",
+        ),
+        (
+            score_v,
+            {
+                "close": 94,
+                "ma20": 95,
+                "turnover_amount": 151,
+                "ma20_turnover": 100,
+                "close_is_black": True,
+                "long_black_candle": True,
+            },
+            12,
+            "high_volume AND long_black_candle AND close < MA20",
+            "high_volume_and_long_black_candle_and_close_lt_ma20",
+        ),
+        (
+            score_x,
+            {
+                "usd_twd_3d_change_pct": 0.6,
+                "usd_twd_5d_change_pct": 1.2,
+                "index_down": True,
+                "twd_depreciates_significantly": True,
+                "foreign_spot_net_sell": True,
+            },
+            12,
+            "index_down AND TWD_depreciates_significantly AND foreign_spot_net_sell",
+            "index_down_and_twd_depreciates_significantly_and_foreign_spot_net_sell",
+        ),
+        (
+            score_m,
+            {
+                "margin_balance_5d_increases": True,
+                "index_5d_return_pct": -3.5,
+                "margin_balance_5d_decline_pct": 0.4,
+                "index_down": True,
+                "margin_not_retreating": True,
+                "hot_stock_margin_fast_increase": True,
+            },
+            12,
+            "index_down AND margin_not_retreating AND hot_stock_margin_fast_increase",
+            "index_down_and_margin_not_retreating_and_hot_stock_margin_fast_increase",
+        ),
+        (
+            score_b,
+            {
+                "close": 94,
+                "ma20": 95,
+                "index_down": True,
+                "declining_issues_significantly_gt_advancing": True,
+                "declining_gt_advancing_consecutive_days": 2,
+            },
+            12,
+            "close < MA20 AND declining_issues >> advancing_issues for 2 consecutive days",
+            "close_lt_ma20_and_declining_gt_advancing_for_2_consecutive_days",
+        ),
+        (
+            score_l,
+            {"count_main_7_below_ma20": 5, "count_main_7_below_ma60": 4},
+            10,
+            "count_main_7_below_MA60 > 3",
+            "count_main_7_below_ma60_gt_3",
+        ),
+        (
+            score_g,
+            {
+                "close": 94,
+                "ma20": 95,
+                "sox": 89,
+                "sox_ma20": 100,
+                "sox_ma60": 90,
+                "us_tech_leadership_weakens": True,
+                "vix_spikes": True,
+            },
+            9,
+            "US_tech_leadership_weakens AND VIX_spikes AND (TAIEX < MA20 OR TAIEX < MA60)",
+            "us_tech_leadership_weakens_and_vix_spikes_and_taiex_lt_ma20_or_ma60",
+        ),
+    ],
+)
+def test_remaining_tcwrs_factors_return_highest_matched_score_rule_and_trace(
+    factor_fn, overrides, expected_score, expected_rule, expected_trace_key
+):
+    result = factor_fn(base_input(**overrides))
+    trace = result.as_dict()
+
+    assert result.score == expected_score
+    assert result.matched_rule == expected_rule
+    assert result.conditions[expected_trace_key] is True
+    assert trace["factor_score"] == expected_score
+    assert trace["matched_rule"] == expected_rule
+    assert trace["trace_output"][expected_trace_key] is True
+
+
+def test_complete_tcwrs_trace_output_includes_factor_score_aliases():
+    result = score_tcwrs(base_input(usd_twd_5d_change_pct=1.01)).as_dict()
+
+    assert result["factors"]["X"]["score"] == 8
+    assert result["factors"]["X"]["factor_score"] == 8
+    assert result["factors"]["X"]["trace_output"]["usd_twd_5d_change_gt_1_0"] is True
+    assert result["factors"]["X"]["conditions"] == result["factors"]["X"]["trace_output"]

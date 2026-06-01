@@ -118,6 +118,21 @@ class TCWRSFactorResult:
     matched_rule: str
     conditions: Mapping[str, Any] = field(default_factory=dict)
 
+    def as_dict(self) -> dict[str, Any]:
+        """Return a serializable factor result with the requested trace output."""
+
+        trace_output = dict(self.conditions)
+        return {
+            "code": self.code,
+            "name": self.name,
+            "max_score": self.max_score,
+            "score": self.score,
+            "factor_score": self.score,
+            "matched_rule": self.matched_rule,
+            "conditions": trace_output,
+            "trace_output": trace_output,
+        }
+
 
 @dataclass(frozen=True)
 class TCWRSResult:
@@ -132,15 +147,7 @@ class TCWRSResult:
         return {
             "total": self.total,
             "factors": {
-                code: {
-                    "code": factor.code,
-                    "name": factor.name,
-                    "max_score": factor.max_score,
-                    "score": factor.score,
-                    "matched_rule": factor.matched_rule,
-                    "conditions": dict(factor.conditions),
-                }
-                for code, factor in self.factors.items()
+                code: factor.as_dict() for code, factor in self.factors.items()
             },
         }
 
@@ -181,18 +188,18 @@ def score_p(data: TCWRSInput) -> TCWRSFactorResult:
             "two_day_return_pct": data.two_day_return_pct,
         },
     }
-    if conditions["close_gt_ma20_and_ma20_slope_gt_0"]:
-        score, rule = 0, "close > MA20 AND MA20_slope > 0"
-    elif conditions["close_lt_ma5_and_close_gte_ma20"]:
-        score, rule = 4, "close < MA5 AND close >= MA20"
-    elif conditions["close_below_ma20_for_1_day"]:
-        score, rule = 8, "close < MA20 for 1 day"
-    elif conditions["close_below_ma20_for_2_consecutive_days"]:
-        score, rule = 12, "close < MA20 for 2 consecutive days"
+    if conditions["one_day_return_lte_minus_3_5_or_two_day_return_lte_minus_5_5"]:
+        score, rule = 18, "one_day_return <= -3.5% OR two_day_return <= -5.5%"
     elif conditions["close_lt_ma60"]:
         score, rule = 15, "close < MA60"
-    elif conditions["one_day_return_lte_minus_3_5_or_two_day_return_lte_minus_5_5"]:
-        score, rule = 18, "one_day_return <= -3.5% OR two_day_return <= -5.5%"
+    elif conditions["close_below_ma20_for_2_consecutive_days"]:
+        score, rule = 12, "close < MA20 for 2 consecutive days"
+    elif conditions["close_below_ma20_for_1_day"]:
+        score, rule = 8, "close < MA20 for 1 day"
+    elif conditions["close_lt_ma5_and_close_gte_ma20"]:
+        score, rule = 4, "close < MA5 AND close >= MA20"
+    elif conditions["close_gt_ma20_and_ma20_slope_gt_0"]:
+        score, rule = 0, "close > MA20 AND MA20_slope > 0"
     else:
         score, rule = 0, "no TCWRS_P risk condition matched"
     return _factor("P", "價格趨勢與跌速", 18, score, rule, conditions)
@@ -228,16 +235,16 @@ def score_v(data: TCWRSInput) -> TCWRSFactorResult:
             "ma20": data.ma20,
         },
     }
-    if conditions["volume_up_and_price_up_and_close_is_red"]:
-        score, rule = 0, "volume_up AND price_up AND close_is_red"
-    elif conditions["high_level_and_high_volume_and_close_is_red"]:
-        score, rule = 3, "high_level AND high_volume AND close_is_red"
-    elif conditions["high_level_and_long_upper_shadow"]:
-        score, rule = 6, "high_level AND long_upper_shadow"
+    if conditions["high_volume_and_long_black_candle_and_close_lt_ma20"]:
+        score, rule = 12, "high_volume AND long_black_candle AND close < MA20"
     elif conditions["high_volume_and_close_is_black"]:
         score, rule = 9, "high_volume AND close_is_black"
-    elif conditions["high_volume_and_long_black_candle_and_close_lt_ma20"]:
-        score, rule = 12, "high_volume AND long_black_candle AND close < MA20"
+    elif conditions["high_level_and_long_upper_shadow"]:
+        score, rule = 6, "high_level AND long_upper_shadow"
+    elif conditions["high_level_and_high_volume_and_close_is_red"]:
+        score, rule = 3, "high_level AND high_volume AND close_is_red"
+    elif conditions["volume_up_and_price_up_and_close_is_red"]:
+        score, rule = 0, "volume_up AND price_up AND close_is_red"
     else:
         score, rule = 0, "no TCWRS_V risk condition matched"
     return _factor("V", "成交量與價量效率", 12, score, rule, conditions)
@@ -300,14 +307,14 @@ def score_x(data: TCWRSInput) -> TCWRSFactorResult:
             "foreign_spot_net_sell": data.foreign_spot_net_sell,
         },
     }
-    if conditions["twd_appreciates_or_twd_stable"]:
-        score, rule = 0, "TWD_appreciates OR TWD_stable"
-    elif conditions["usd_twd_3d_change_gt_0_5"]:
-        score, rule = 4, "USD_TWD_3d_change > 0.5%"
+    if conditions["index_down_and_twd_depreciates_significantly_and_foreign_spot_net_sell"]:
+        score, rule = 12, "index_down AND TWD_depreciates_significantly AND foreign_spot_net_sell"
     elif conditions["usd_twd_5d_change_gt_1_0"]:
         score, rule = 8, "USD_TWD_5d_change > 1.0%"
-    elif conditions["index_down_and_twd_depreciates_significantly_and_foreign_spot_net_sell"]:
-        score, rule = 12, "index_down AND TWD_depreciates_significantly AND foreign_spot_net_sell"
+    elif conditions["usd_twd_3d_change_gt_0_5"]:
+        score, rule = 4, "USD_TWD_3d_change > 0.5%"
+    elif conditions["twd_appreciates_or_twd_stable"]:
+        score, rule = 0, "TWD_appreciates OR TWD_stable"
     else:
         score, rule = 0, "no TCWRS_X risk condition matched"
     return _factor("X", "新台幣與跨境資金", 12, score, rule, conditions)
@@ -333,14 +340,14 @@ def score_m(data: TCWRSInput) -> TCWRSFactorResult:
             "ma20": data.ma20,
         },
     }
-    if conditions["margin_balance_5d_flat_or_down_and_not_hot_stock_margin_fast_increase"]:
-        score, rule = 0, "margin_balance_5d_flat_or_down AND NOT hot_stock_margin_fast_increase"
-    elif conditions["margin_balance_5d_increases_and_close_gte_ma20"]:
-        score, rule = 4, "margin_balance_5d_increases AND close >= MA20"
+    if conditions["index_down_and_margin_not_retreating_and_hot_stock_margin_fast_increase"]:
+        score, rule = 12, "index_down AND margin_not_retreating AND hot_stock_margin_fast_increase"
     elif conditions["index_5d_return_lt_minus_3_and_margin_balance_5d_decline_lt_0_5"]:
         score, rule = 8, "index_5d_return < -3% AND margin_balance_5d_decline < 0.5%"
-    elif conditions["index_down_and_margin_not_retreating_and_hot_stock_margin_fast_increase"]:
-        score, rule = 12, "index_down AND margin_not_retreating AND hot_stock_margin_fast_increase"
+    elif conditions["margin_balance_5d_increases_and_close_gte_ma20"]:
+        score, rule = 4, "margin_balance_5d_increases AND close >= MA20"
+    elif conditions["margin_balance_5d_flat_or_down_and_not_hot_stock_margin_fast_increase"]:
+        score, rule = 0, "margin_balance_5d_flat_or_down AND NOT hot_stock_margin_fast_increase"
     else:
         score, rule = 0, "no TCWRS_M risk condition matched"
     return _factor("M", "融資槓桿與散戶風險", 12, score, rule, conditions)
@@ -368,14 +375,14 @@ def score_b(data: TCWRSInput) -> TCWRSFactorResult:
             "ma20": data.ma20,
         },
     }
-    if conditions["index_up_or_flat_and_advancing_gt_declining"]:
-        score, rule = 0, "index_up_or_flat AND advancing_issues > declining_issues"
-    elif conditions["index_down_and_not_declining_issues_significantly_expand"]:
-        score, rule = 4, "index_down AND NOT declining_issues_significantly_expand"
+    if conditions["close_lt_ma20_and_declining_gt_advancing_for_2_consecutive_days"]:
+        score, rule = 12, "close < MA20 AND declining_issues >> advancing_issues for 2 consecutive days"
     elif conditions["index_down_and_declining_issues_significantly_gt_advancing"]:
         score, rule = 8, "index_down AND declining_issues >> advancing_issues"
-    elif conditions["close_lt_ma20_and_declining_gt_advancing_for_2_consecutive_days"]:
-        score, rule = 12, "close < MA20 AND declining_issues >> advancing_issues for 2 consecutive days"
+    elif conditions["index_down_and_not_declining_issues_significantly_expand"]:
+        score, rule = 4, "index_down AND NOT declining_issues_significantly_expand"
+    elif conditions["index_up_or_flat_and_advancing_gt_declining"]:
+        score, rule = 0, "index_up_or_flat AND advancing_issues > declining_issues"
     else:
         score, rule = 0, "no TCWRS_B risk condition matched"
     return _factor("B", "市場廣度惡化", 12, score, rule, conditions)
@@ -395,16 +402,16 @@ def score_l(data: TCWRSInput) -> TCWRSFactorResult:
             "count_main_7_below_ma60": data.count_main_7_below_ma60,
         },
     }
-    if conditions["majority_main_7_assets_above_ma20"]:
-        score, rule = 0, "majority_main_7_assets_above_MA20"
-    elif conditions["count_main_7_below_ma20_eq_2"]:
-        score, rule = 3, "count_main_7_below_MA20 == 2"
-    elif conditions["count_main_7_below_ma20_eq_4"]:
-        score, rule = 6, "count_main_7_below_MA20 == 4"
+    if conditions["count_main_7_below_ma60_gt_3"]:
+        score, rule = 10, "count_main_7_below_MA60 > 3"
     elif conditions["count_main_7_below_ma20_eq_5"]:
         score, rule = 8, "count_main_7_below_MA20 == 5"
-    elif conditions["count_main_7_below_ma60_gt_3"]:
-        score, rule = 10, "count_main_7_below_MA60 > 3"
+    elif conditions["count_main_7_below_ma20_eq_4"]:
+        score, rule = 6, "count_main_7_below_MA20 == 4"
+    elif conditions["count_main_7_below_ma20_eq_2"]:
+        score, rule = 3, "count_main_7_below_MA20 == 2"
+    elif conditions["majority_main_7_assets_above_ma20"]:
+        score, rule = 0, "majority_main_7_assets_above_MA20"
     else:
         score, rule = 0, "no TCWRS_L risk condition matched"
     return _factor("L", "權值股與主流股健康度", 10, score, rule, conditions)
@@ -434,14 +441,14 @@ def score_g(data: TCWRSInput) -> TCWRSFactorResult:
             "ma60": data.ma60,
         },
     }
-    if conditions["us_stocks_stable_and_sox_stable_and_vix_stable"]:
-        score, rule = 0, "US_stocks_stable AND SOX_stable AND VIX_stable"
-    elif conditions["sox_lt_sox_ma20_or_nasdaq_lt_nasdaq_ma20"]:
-        score, rule = 3, "SOX < SOX_MA20 OR Nasdaq < Nasdaq_MA20"
+    if conditions["us_tech_leadership_weakens_and_vix_spikes_and_taiex_lt_ma20_or_ma60"]:
+        score, rule = 9, "US_tech_leadership_weakens AND VIX_spikes AND (TAIEX < MA20 OR TAIEX < MA60)"
     elif conditions["sox_lt_sox_ma60_or_vix_rises_fast"]:
         score, rule = 6, "SOX < SOX_MA60 OR VIX_rises_fast"
-    elif conditions["us_tech_leadership_weakens_and_vix_spikes_and_taiex_lt_ma20_or_ma60"]:
-        score, rule = 9, "US_tech_leadership_weakens AND VIX_spikes AND (TAIEX < MA20 OR TAIEX < MA60)"
+    elif conditions["sox_lt_sox_ma20_or_nasdaq_lt_nasdaq_ma20"]:
+        score, rule = 3, "SOX < SOX_MA20 OR Nasdaq < Nasdaq_MA20"
+    elif conditions["us_stocks_stable_and_sox_stable_and_vix_stable"]:
+        score, rule = 0, "US_stocks_stable AND SOX_stable AND VIX_stable"
     else:
         score, rule = 0, "no TCWRS_G risk condition matched"
     return _factor("G", "全球風險與外部壓力", 9, score, rule, conditions)
