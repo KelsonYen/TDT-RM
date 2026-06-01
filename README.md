@@ -59,6 +59,44 @@ print(result.trace_output)
 print(result.as_dict())
 ```
 
+## Crash Probability 模組
+
+本倉庫也實作規格書第 11 章 Crash Probability（CP，崩跌機率輔助分數）模組。
+
+`score_crash_probability()` 依照固定權重計算：
+
+```text
+CP_raw = TCWRS * 0.40 + (ETI5_total * 20) * 0.30 + TailRisk * 0.20 + BCD * 0.10
+CP = min(CP_raw, 100)
+```
+
+回傳內容包含 `cp_score`、`cp_level` 與 `trace_output`；`cp_raw` 也會保留為未封頂的公式結果。
+
+CP 等級如下：
+
+- `Low`：0–30
+- `Medium`：31–55
+- `High`：56–75
+- `Extreme`：76–100
+
+```python
+from tdt_rm import CrashProbabilityInput, score_crash_probability
+
+result = score_crash_probability(
+    CrashProbabilityInput(
+        tcwrs=50,
+        eti5_total=2,
+        tail_risk=60,
+        bcd=70,
+    )
+)
+
+print(result.cp_score)
+print(result.cp_level)
+print(result.trace_output)
+print(result.as_dict())
+```
+
 ## 安裝與測試
 
 本專案使用 `src/` layout，Python 版本需求為 3.11 以上。
