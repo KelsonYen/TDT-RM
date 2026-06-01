@@ -290,3 +290,16 @@ print(result.as_dict())
 ```
 
 `result.as_dict()` 會輸出完整 audit trace，頂層包含 `total_score`、`factor_scores`、`factor_traces`，並保留舊版 `total` / `factors` 別名，方便回查分數來源。
+
+## Performance Report
+
+`generate_performance_report.py` compares the existing signal CSV against a fully invested baseline and writes both Markdown and JSON output.  The default comparison uses the 2022 bear-market CSV, treats `Red` and `Orange` as risk-off TDT-RM signals, applies signals to the next observed session to avoid same-day lookahead, and reports CAGR, max drawdown, annualized Sharpe Ratio, and signal count.
+
+```bash
+python scripts/generate_performance_report.py
+```
+
+Default outputs:
+
+- `outputs/tdt_rm_v5_1_3_2022_performance_report.md`
+- `outputs/tdt_rm_v5_1_3_2022_performance_report.json`

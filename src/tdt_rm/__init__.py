@@ -20,6 +20,14 @@ from .crash_probability import (
     score_crash_probability,
 )
 from .eti5 import ETI5Input, ETI5Result, ETI5SignalResult, score_eti5
+from .performance import (
+    DEFAULT_RISK_OFF_SIGNALS,
+    PerformanceObservation,
+    PerformanceReport,
+    StrategyPerformance,
+    generate_performance_report,
+    load_performance_observations_csv,
+)
 from .market_data import (
     FORMAL_DATA_STATUS,
     PROVISIONAL_DATA_STATUS,
@@ -87,6 +95,12 @@ __all__ = [
     "validate_market_data_csv",
     "validate_market_data_row",
     "validate_market_data_rows",
+    "DEFAULT_RISK_OFF_SIGNALS",
+    "PerformanceObservation",
+    "PerformanceReport",
+    "StrategyPerformance",
+    "generate_performance_report",
+    "load_performance_observations_csv",
     "ETI5Input",
     "ETI5Result",
     "ETI5SignalResult",
