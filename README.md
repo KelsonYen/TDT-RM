@@ -15,10 +15,10 @@ TCWRS（Taiwan Crash Warning Risk Score，台股結構風險）模組。
 - 每個子因子都保留：
   - 子因子代碼與名稱
   - 最高分
-  - 實際得分
-  - 命中的規則
-  - 所有中間條件與原始輸入值
-- 條件判斷順序依照規格書 pseudocode 的 `IF / ELIF` 順序執行，確保模型分數可追蹤且可重現。
+  - 實際得分（`score` / `factor_score`）
+  - 命中的規則（`matched_rule`）
+  - 所有中間條件與原始輸入值（`conditions` / `trace_output`）
+- 當多個風險條件同時成立時，依規格權重採用最高分的命中規則，並仍在 trace 中保留所有中間條件，確保模型分數可追蹤且可重現。
 - 高估值不會被納入 `TCWRS_G`，依規格應由 `MHS_VAL_MHS` 處理。
 - 指數上漲但廣度惡化不會計入 `TCWRS_B`，依規格應由 BCD 模組處理。
 
