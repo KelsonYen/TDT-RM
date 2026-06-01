@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>TDT-RM Performance Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; line-height: 1.5; color: #17202a; }
+    table { border-collapse: collapse; margin: 1rem 0; min-width: 760px; }
+    th, td { border: 1px solid #d5d8dc; padding: 0.5rem 0.75rem; text-align: right; }
+    th:first-child, td:first-child { text-align: left; }
+    th { background: #f4f6f7; }
+    code { background: #f4f6f7; padding: 0.1rem 0.25rem; }
+  </style>
+</head>
+<body>
+  <h1>TDT-RM Performance Report</h1>
+  <p>Period: 2022-01-03 to 2022-12-30</p>
+  <p>Risk-off signals: Orange, Red</p>
+  <table><thead><tr><th>Strategy</th><th>CAGR</th><th>Max Drawdown</th><th>Sharpe Ratio</th><th>Signal Count</th></tr></thead><tbody><tr><td>Buy and Hold</td><td>-23.10%</td><td>-31.63%</td><td>-1.22</td><td>0</td></tr><tr><td>TDT-RM Signals</td><td>-30.09%</td><td>-36.86%</td><td>-2.00</td><td>57</td></tr></tbody></table>
+  <h2>Notes</h2>
+  <ul>
+    <li>TDT-RM Signals uses next-session execution: today's signal controls exposure to the next observed return.</li>
+    <li>Red and Orange are treated as risk-off by default; risk-off days earn a 0% cash return.</li>
+    <li>Sharpe Ratio is annualized with 252 trading days and a 0% risk-free rate.</li>
+  </ul>
+</body>
+</html>
