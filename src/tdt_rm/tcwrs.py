@@ -268,16 +268,16 @@ def score_f(data: TCWRSInput) -> TCWRSFactorResult:
             "vix_rises": data.vix_rises,
         },
     }
-    if conditions["foreign_spot_net_buy_gt_0_and_futures_net_short_decreases_and_pcr_stable_and_vix_stable"]:
-        score, rule = 0, "foreign_spot_net_buy > 0 AND futures_net_short_decreases AND PCR_stable AND VIX_stable"
-    elif conditions["foreign_spot_small_sell_and_not_futures_hedging_significant"]:
-        score, rule = 4, "foreign_spot_small_sell AND NOT futures_hedging_significant"
-    elif conditions["foreign_spot_net_sell_for_2_consecutive_days"]:
-        score, rule = 8, "foreign_spot_net_sell for 2 consecutive days"
+    if conditions["foreign_spot_large_sell_and_futures_net_short_increases_and_pcr_or_vix_rises"]:
+        score, rule = 15, "foreign_spot_large_sell AND futures_net_short_increases AND (PCR_rises OR VIX_rises)"
     elif conditions["foreign_spot_net_sell_for_3_consecutive_days_and_futures_net_short_increases"]:
         score, rule = 11, "foreign_spot_net_sell for 3 consecutive days AND futures_net_short_increases"
-    elif conditions["foreign_spot_large_sell_and_futures_net_short_increases_and_pcr_or_vix_rises"]:
-        score, rule = 15, "foreign_spot_large_sell AND futures_net_short_increases AND (PCR_rises OR VIX_rises)"
+    elif conditions["foreign_spot_net_sell_for_2_consecutive_days"]:
+        score, rule = 8, "foreign_spot_net_sell for 2 consecutive days"
+    elif conditions["foreign_spot_small_sell_and_not_futures_hedging_significant"]:
+        score, rule = 4, "foreign_spot_small_sell AND NOT futures_hedging_significant"
+    elif conditions["foreign_spot_net_buy_gt_0_and_futures_net_short_decreases_and_pcr_stable_and_vix_stable"]:
+        score, rule = 0, "foreign_spot_net_buy > 0 AND futures_net_short_decreases AND PCR_stable AND VIX_stable"
     else:
         score, rule = 0, "no TCWRS_F risk condition matched"
     return _factor("F", "外資現貨、期貨、選擇權避險", 15, score, rule, conditions)

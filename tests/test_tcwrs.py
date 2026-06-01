@@ -59,6 +59,24 @@ def test_foreign_investor_spot_futures_options_scores():
     assert result.conditions["foreign_spot_large_sell_and_futures_net_short_increases_and_pcr_or_vix_rises"] is True
 
 
+def test_foreign_investor_two_day_net_sell_scores_eight_without_futures_short_increase():
+    result = score_f(base_input(foreign_spot_net_sell_consecutive_days=2, futures_net_short_increases=False))
+
+    assert result.score == 8
+    assert result.matched_rule == "foreign_spot_net_sell for 2 consecutive days"
+    assert result.conditions["foreign_spot_net_sell_for_2_consecutive_days"] is True
+    assert result.conditions["foreign_spot_net_sell_for_3_consecutive_days_and_futures_net_short_increases"] is False
+
+
+def test_foreign_investor_three_day_net_sell_with_futures_short_increase_scores_eleven():
+    result = score_f(base_input(foreign_spot_net_sell_consecutive_days=3, futures_net_short_increases=True))
+
+    assert result.score == 11
+    assert result.matched_rule == "foreign_spot_net_sell for 3 consecutive days AND futures_net_short_increases"
+    assert result.conditions["foreign_spot_net_sell_for_2_consecutive_days"] is True
+    assert result.conditions["foreign_spot_net_sell_for_3_consecutive_days_and_futures_net_short_increases"] is True
+
+
 def test_fx_cross_border_capital_scores():
     assert score_x(base_input(twd_stable=True)).score == 0
     assert score_x(base_input(usd_twd_3d_change_pct=0.51)).score == 4
