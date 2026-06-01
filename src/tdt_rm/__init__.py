@@ -8,6 +8,11 @@ from .backtest import (
     HistoricalBacktestObservation,
     run_historical_backtest,
 )
+from .decision_matrix import (
+    DecisionMatrixInput,
+    DecisionMatrixResult,
+    resolve_five_light_signal,
+)
 from .crash_probability import (
     CrashProbabilityInput,
     CrashProbabilityResult,
@@ -57,6 +62,9 @@ __all__ = [
     "BacktestSignal",
     "HistoricalBacktestObservation",
     "run_historical_backtest",
+    "DecisionMatrixInput",
+    "DecisionMatrixResult",
+    "resolve_five_light_signal",
     "CrashProbabilityInput",
     "CrashProbabilityResult",
     "cp_level_for_score",
