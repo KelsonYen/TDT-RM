@@ -1,5 +1,13 @@
 """Public package API for TDT-RM scoring modules."""
 
+from .backtest import (
+    BacktestConfig,
+    BacktestMetrics,
+    BacktestResult,
+    BacktestSignal,
+    HistoricalBacktestObservation,
+    run_historical_backtest,
+)
 from .crash_probability import (
     CrashProbabilityInput,
     CrashProbabilityResult,
@@ -23,6 +31,12 @@ from .tcwrs import (
 )
 
 __all__ = [
+    "BacktestConfig",
+    "BacktestMetrics",
+    "BacktestResult",
+    "BacktestSignal",
+    "HistoricalBacktestObservation",
+    "run_historical_backtest",
     "CrashProbabilityInput",
     "CrashProbabilityResult",
     "cp_level_for_score",

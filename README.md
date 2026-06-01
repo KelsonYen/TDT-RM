@@ -97,6 +97,51 @@ print(result.trace_output)
 print(result.as_dict())
 ```
 
+## Historical Backtest 模組
+
+本倉庫新增 dependency-free 的 Historical Backtest 框架，可將歷史每日輸入列逐筆套用 TCWRS、ETI-5 與 Crash Probability，並用未來事件標籤評估訊號命中率。
+
+`run_historical_backtest()` 會：
+
+- 依日期排序 `HistoricalBacktestObservation`。
+- 對每筆資料計算 TCWRS，並在提供 `ETI5Input`、`tail_risk` 與 `bcd` 時同步計算 ETI-5 與 CP。
+- 依 `BacktestConfig.signal_mode`（`any`、`all`、`tcwrs`、`eti5`、`cp`）與門檻產生風險訊號。
+- 以 `forward_window` 檢查未來 N 筆觀測內是否出現 `realized_event=True`。
+- 回傳逐筆可稽核 trace 與 precision、recall、F1、false-positive rate、average lead days 等統計。
+
+```python
+from tdt_rm import (
+    BacktestConfig,
+    ETI5Input,
+    HistoricalBacktestObservation,
+    TCWRSInput,
+    run_historical_backtest,
+)
+
+observations = [
+    HistoricalBacktestObservation(
+        observed_at="2026-01-01",
+        tcwrs_input=TCWRSInput(close=94, ma5=100, ma20=95, ma60=90, ma20_slope=-1),
+        eti5_input=ETI5Input(close=94, ma20=95),
+        tail_risk=60,
+        bcd=70,
+    ),
+    HistoricalBacktestObservation(
+        observed_at="2026-01-05",
+        tcwrs_input=TCWRSInput(close=90, ma5=95, ma20=96, ma60=92, ma20_slope=-1),
+        realized_event=True,
+    ),
+]
+
+result = run_historical_backtest(
+    observations,
+    BacktestConfig(forward_window=5, signal_mode="any", tcwrs_threshold=55),
+)
+
+print(result.metrics.as_dict())
+print(result.as_dict()["signals"][0]["trace_output"])
+```
+
 ## 安裝與測試
 
 本專案使用 `src/` layout，Python 版本需求為 3.11 以上。
