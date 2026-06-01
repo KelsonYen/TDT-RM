@@ -1,5 +1,6 @@
 """Public package API for TDT-RM scoring modules."""
 
+from .eti5 import ETI5Input, ETI5Result, ETI5SignalResult, score_eti5
 from .tcwrs import (
     TCWRSFactorResult,
     TCWRSInput,
@@ -16,6 +17,10 @@ from .tcwrs import (
 )
 
 __all__ = [
+    "ETI5Input",
+    "ETI5Result",
+    "ETI5SignalResult",
+    "score_eti5",
     "TCWRSFactorResult",
     "TCWRSInput",
     "TCWRSResult",

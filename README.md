@@ -23,6 +23,42 @@ TCWRS（Taiwan Crash Warning Risk Score，台股結構風險）模組。
 - 高估值不會被納入 `TCWRS_G`，依規格應由 `MHS_VAL_MHS` 處理。
 - 指數上漲但廣度惡化不會計入 `TCWRS_B`，依規格應由 BCD 模組處理。
 
+
+## ETI-5 模組
+
+本倉庫也實作規格書第 8 章 ETI-5（Exit Trigger Index 5，風險落地確認）模組。
+
+ETI-5 是五個二元訊號的加總，分數範圍為 0–5：
+
+- `ETI-1`：Index below 20MA
+- `ETI-2`：Foreign selling
+- `ETI-3`：TWD depreciation
+- `ETI-4`：Breadth deterioration
+- `ETI-5`：Leadership breakdown
+
+`score_eti5()` 回傳 `eti_score`、`triggered_signals` 與 `trace_output`，並保留規格用語 `eti5_total` 作為相容別名。
+
+```python
+from tdt_rm import ETI5Input, score_eti5
+
+result = score_eti5(
+    ETI5Input(
+        close=94,
+        ma20=95,
+        foreign_spot_net_sell_consecutive_days=2,
+        usd_twd_3d_change_pct=0.51,
+        index_down=True,
+        declining_issues_significantly_gt_advancing=True,
+        count_main_7_below_ma20=4,
+    )
+)
+
+print(result.eti_score)
+print(result.triggered_signals)
+print(result.trace_output)
+print(result.as_dict())
+```
+
 ## 安裝與測試
 
 本專案使用 `src/` layout，Python 版本需求為 3.11 以上。
