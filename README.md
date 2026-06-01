@@ -143,6 +143,18 @@ print(result.as_dict()["signals"][0]["trace_output"])
 ```
 
 
+
+## COVID Crash 2020 Stress Test
+
+`stress_test_covid_crash_2020.py` replays the 2020 TAIEX COVID-crash window with the same dependency-free, price-proxy stress harness used by the 2022 bear-market script.  It writes an auditable daily CSV and JSON summary under `outputs/` by default:
+
+```bash
+python scripts/stress_test_covid_crash_2020.py
+```
+
+The embedded tape covers 2020-02-03 through 2020-04-13 and seeds the pre-crash high with the January 2020 TAIEX peak close so drawdown-derived Tail Risk and BCD proxies reflect the pre-COVID high-water mark.
+
+
 ## Market Data Ingestion 模組
 
 本倉庫新增 dependency-free 的 Market Data Ingestion layer，可將券商、資料商或 CSV 欄位正規化為模型可直接使用的 `TCWRSInput`、`ETI5Input`，並保留資料完整性與原始列 trace。
