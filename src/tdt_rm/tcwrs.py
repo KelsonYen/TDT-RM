@@ -136,19 +136,46 @@ class TCWRSFactorResult:
 
 @dataclass(frozen=True)
 class TCWRSResult:
-    """Auditable TCWRS result with all intermediate factor traces."""
+    """Auditable TCWRS aggregate result.
+
+    ``total_score``, ``factor_scores``, and ``factor_traces`` are the primary
+    aggregator outputs requested by the public API.  ``total`` and ``factors``
+    remain available as compatibility aliases for callers that need the full
+    factor result objects.
+    """
 
     total: int
     factors: Mapping[str, TCWRSFactorResult]
 
+    @property
+    def total_score(self) -> int:
+        """Return the aggregate TCWRS score across all eight factors."""
+
+        return self.total
+
+    @property
+    def factor_scores(self) -> dict[str, int]:
+        """Return each TCWRS factor score keyed by factor code."""
+
+        return {code: factor.score for code, factor in self.factors.items()}
+
+    @property
+    def factor_traces(self) -> dict[str, dict[str, Any]]:
+        """Return each TCWRS factor's auditable trace keyed by factor code."""
+
+        return {code: factor.as_dict() for code, factor in self.factors.items()}
+
     def as_dict(self) -> dict[str, Any]:
         """Return a serializable dict preserving all score traces."""
 
+        factor_traces = self.factor_traces
         return {
+            "total_score": self.total_score,
+            "factor_scores": self.factor_scores,
+            "factor_traces": factor_traces,
+            # Compatibility aliases for existing integrations.
             "total": self.total,
-            "factors": {
-                code: factor.as_dict() for code, factor in self.factors.items()
-            },
+            "factors": factor_traces,
         }
 
 

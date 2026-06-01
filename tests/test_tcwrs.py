@@ -316,3 +316,58 @@ def test_complete_tcwrs_trace_output_includes_factor_score_aliases():
     assert result["factors"]["X"]["factor_score"] == 8
     assert result["factors"]["X"]["trace_output"]["usd_twd_5d_change_gt_1_0"] is True
     assert result["factors"]["X"]["conditions"] == result["factors"]["X"]["trace_output"]
+
+
+def test_complete_tcwrs_aggregator_exposes_requested_total_scores_and_traces():
+    result = score_tcwrs(
+        base_input(
+            close=89,
+            ma20=95,
+            ma60=90,
+            one_day_return_pct=-3.5,
+            turnover_top_10pct_1y=True,
+            long_black_candle=True,
+            foreign_spot_large_sell=True,
+            futures_net_short_increases=True,
+            pcr_rises=True,
+            index_down=True,
+            twd_depreciates_significantly=True,
+            foreign_spot_net_sell=True,
+            margin_not_retreating=True,
+            hot_stock_margin_fast_increase=True,
+            declining_gt_advancing_consecutive_days=2,
+            count_main_7_below_ma60=4,
+            us_tech_leadership_weakens=True,
+            vix_spikes=True,
+        )
+    )
+
+    expected_scores = {
+        "P": 18,
+        "V": 12,
+        "F": 15,
+        "X": 12,
+        "M": 12,
+        "B": 12,
+        "L": 10,
+        "G": 9,
+    }
+
+    assert result.total_score == 100
+    assert result.factor_scores == expected_scores
+    assert result.factor_traces["P"]["factor_score"] == 18
+    assert (
+        result.factor_traces["G"]["trace_output"][
+            "us_tech_leadership_weakens_and_vix_spikes_and_taiex_lt_ma20_or_ma60"
+        ]
+        is True
+    )
+
+    serialized = result.as_dict()
+    assert serialized["total_score"] == 100
+    assert serialized["factor_scores"] == expected_scores
+    assert serialized["factor_traces"]["F"]["matched_rule"] == (
+        "foreign_spot_large_sell AND futures_net_short_increases AND (PCR_rises OR VIX_rises)"
+    )
+    assert serialized["total"] == serialized["total_score"]
+    assert serialized["factors"] == serialized["factor_traces"]
