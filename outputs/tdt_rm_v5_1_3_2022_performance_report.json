@@ -1,0 +1,30 @@
+{
+  "period_start": "2022-01-03",
+  "period_end": "2022-12-30",
+  "risk_off_signals": [
+    "Orange",
+    "Red"
+  ],
+  "strategies": [
+    {
+      "strategy": "Buy and Hold",
+      "cagr": -0.23102647325563752,
+      "max_drawdown": -0.3163186488434039,
+      "sharpe_ratio": -1.2195278548824706,
+      "signal_count": 0,
+      "total_return": -0.22620167690994886,
+      "observations": 247,
+      "exposure_days": 246
+    },
+    {
+      "strategy": "TDT-RM Signals",
+      "cagr": -0.3008847697887095,
+      "max_drawdown": -0.3685867412103855,
+      "sharpe_ratio": -1.9976063205066747,
+      "signal_count": 57,
+      "total_return": -0.2949011875103561,
+      "observations": 247,
+      "exposure_days": 189
+    }
+  ]
+}
