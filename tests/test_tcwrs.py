@@ -1,3 +1,5 @@
+import pytest
+
 from tdt_rm import TCWRSInput, score_tcwrs
 from tdt_rm.tcwrs import score_b, score_f, score_g, score_l, score_m, score_p, score_v, score_x
 
@@ -48,15 +50,56 @@ def test_volume_price_efficiency_uses_spec_high_volume_definition():
     assert result.conditions["raw"]["turnover_top_10pct_1y"] is True
 
 
-def test_foreign_investor_spot_futures_options_scores():
-    assert score_f(base_input(foreign_spot_net_buy=1, futures_net_short_decreases=True, pcr_stable=True, vix_stable=True)).score == 0
-    assert score_f(base_input(foreign_spot_small_sell=True, futures_hedging_significant=False)).score == 4
-    assert score_f(base_input(foreign_spot_net_sell_consecutive_days=2)).score == 8
+@pytest.mark.parametrize(
+    ("overrides", "expected_score", "expected_rule", "expected_condition"),
+    [
+        (
+            {
+                "foreign_spot_net_buy": 1,
+                "futures_net_short_decreases": True,
+                "pcr_stable": True,
+                "vix_stable": True,
+            },
+            0,
+            "foreign_spot_net_buy > 0 AND futures_net_short_decreases AND PCR_stable AND VIX_stable",
+            "foreign_spot_net_buy_gt_0_and_futures_net_short_decreases_and_pcr_stable_and_vix_stable",
+        ),
+        (
+            {"foreign_spot_small_sell": True, "futures_hedging_significant": False},
+            4,
+            "foreign_spot_small_sell AND NOT futures_hedging_significant",
+            "foreign_spot_small_sell_and_not_futures_hedging_significant",
+        ),
+        (
+            {"foreign_spot_net_sell_consecutive_days": 2},
+            8,
+            "foreign_spot_net_sell for 2 consecutive days",
+            "foreign_spot_net_sell_for_2_consecutive_days",
+        ),
+        (
+            {"foreign_spot_net_sell_consecutive_days": 3, "futures_net_short_increases": True},
+            11,
+            "foreign_spot_net_sell for 3 consecutive days AND futures_net_short_increases",
+            "foreign_spot_net_sell_for_3_consecutive_days_and_futures_net_short_increases",
+        ),
+        (
+            {"foreign_spot_large_sell": True, "futures_net_short_increases": True, "vix_rises": True},
+            15,
+            "foreign_spot_large_sell AND futures_net_short_increases AND (PCR_rises OR VIX_rises)",
+            "foreign_spot_large_sell_and_futures_net_short_increases_and_pcr_or_vix_rises",
+        ),
+    ],
+)
+def test_foreign_investor_spot_futures_options_scores_all_levels(
+    overrides, expected_score, expected_rule, expected_condition
+):
+    result = score_f(base_input(**overrides))
 
-    result = score_f(base_input(foreign_spot_large_sell=True, futures_net_short_increases=True, vix_rises=True))
-
-    assert result.score == 15
-    assert result.conditions["foreign_spot_large_sell_and_futures_net_short_increases_and_pcr_or_vix_rises"] is True
+    assert result.code == "F"
+    assert result.max_score == 15
+    assert result.score == expected_score
+    assert result.matched_rule == expected_rule
+    assert result.conditions[expected_condition] is True
 
 
 def test_foreign_investor_two_day_net_sell_scores_eight_without_futures_short_increase():
