@@ -1,0 +1,217 @@
+{
+  "period": "2020 COVID crash",
+  "simulation": "daily",
+  "framework": "Same daily price-proxy COVID stress-test framework and V5.1.4 outcome annotations used by the 2022 bear-market backtest.",
+  "models": {
+    "v5_1_3_final_freeze": {
+      "model": "TDT-RM V5.1.3 Rev.3 Final Freeze",
+      "source_csv": "outputs/tdt_rm_v5_1_3_2020_covid_crash_stress.csv",
+      "observations": 48,
+      "first_date": "2020-02-03",
+      "last_date": "2020-04-13",
+      "red_signals": 12,
+      "orange_signals": 0,
+      "false_positives": 2,
+      "maximum_drawdown_avoided_pct": 24.74,
+      "average_cp": 31.39,
+      "average_cp_during_risk_off_periods": 57.95,
+      "first_red_signal": "2020-02-18",
+      "first_orange_signal": null,
+      "signal_distribution": {
+        "Green": 11,
+        "Red": 12,
+        "Strengthened Yellow": 17,
+        "Yellow": 8
+      },
+      "first_risk_off_observation": {
+        "date": "2020-02-18",
+        "signal": "Red",
+        "close": 11648.98,
+        "tcwrs": 35.0,
+        "eti5": 5.0,
+        "tail_risk": 16.3,
+        "bcd": 24.0,
+        "cp": 49.66,
+        "forward_20d_max_drawdown_pct": -20.86,
+        "false_positive": false,
+        "drawdown_avoided_pct": 20.86
+      },
+      "worst_forward_20d_drawdown_observations": [
+        {
+          "date": "2020-02-19",
+          "signal": "Green",
+          "close": 11758.84,
+          "tcwrs": 0.0,
+          "eti5": 0.0,
+          "tail_risk": 16.0,
+          "bcd": 6.91,
+          "cp": 3.89,
+          "forward_20d_max_drawdown_pct": -26.17,
+          "false_positive": false,
+          "drawdown_avoided_pct": 0.0
+        },
+        {
+          "date": "2020-02-20",
+          "signal": "Green",
+          "close": 11725.09,
+          "tcwrs": 8.0,
+          "eti5": 0.0,
+          "tail_risk": 15.62,
+          "bcd": 12.0,
+          "cp": 7.52,
+          "forward_20d_max_drawdown_pct": -25.96,
+          "false_positive": false,
+          "drawdown_avoided_pct": 0.0
+        },
+        {
+          "date": "2020-02-21",
+          "signal": "Yellow",
+          "close": 11686.35,
+          "tcwrs": 8.0,
+          "eti5": 1.0,
+          "tail_risk": 15.3,
+          "bcd": 24.0,
+          "cp": 14.66,
+          "forward_20d_max_drawdown_pct": -25.71,
+          "false_positive": false,
+          "drawdown_avoided_pct": 0.0
+        },
+        {
+          "date": "2020-02-25",
+          "signal": "Strengthened Yellow",
+          "close": 11540.23,
+          "tcwrs": 23.0,
+          "eti5": 3.0,
+          "tail_risk": 15.74,
+          "bcd": 10.5,
+          "cp": 31.4,
+          "forward_20d_max_drawdown_pct": -24.77,
+          "false_positive": false,
+          "drawdown_avoided_pct": 0.0
+        },
+        {
+          "date": "2020-02-24",
+          "signal": "Red",
+          "close": 11534.87,
+          "tcwrs": 35.0,
+          "eti5": 5.0,
+          "tail_risk": 16.25,
+          "bcd": 36.0,
+          "cp": 50.85,
+          "forward_20d_max_drawdown_pct": -24.74,
+          "false_positive": false,
+          "drawdown_avoided_pct": 24.74
+        }
+      ]
+    },
+    "v5_1_4_backtest_calibration_patch": {
+      "model": "TDT-RM V5.1.4 Backtest Calibration Patch",
+      "source_csv": "outputs/covid_2020_backtest.csv",
+      "observations": 48,
+      "first_date": "2020-02-03",
+      "last_date": "2020-04-13",
+      "red_signals": 0,
+      "orange_signals": 0,
+      "false_positives": 0,
+      "maximum_drawdown_avoided_pct": 0.0,
+      "average_cp": 22.14,
+      "average_cp_during_risk_off_periods": null,
+      "first_red_signal": null,
+      "first_orange_signal": null,
+      "signal_distribution": {
+        "Green": 14,
+        "Strengthened Yellow": 24,
+        "Yellow": 10
+      },
+      "first_risk_off_observation": null,
+      "worst_forward_20d_drawdown_observations": [
+        {
+          "date": "2020-02-19",
+          "signal": "Green",
+          "close": 11758.84,
+          "tcwrs": 0.0,
+          "eti5": 0.0,
+          "tail_risk": 16.0,
+          "bcd": 6.91,
+          "cp": 3.89,
+          "forward_20d_max_drawdown_pct": -26.17,
+          "false_positive": false,
+          "drawdown_avoided_pct": 0.0
+        },
+        {
+          "date": "2020-02-20",
+          "signal": "Green",
+          "close": 11725.09,
+          "tcwrs": 8.0,
+          "eti5": 0.0,
+          "tail_risk": 15.62,
+          "bcd": 12.0,
+          "cp": 7.52,
+          "forward_20d_max_drawdown_pct": -25.96,
+          "false_positive": false,
+          "drawdown_avoided_pct": 0.0
+        },
+        {
+          "date": "2020-02-21",
+          "signal": "Green",
+          "close": 11686.35,
+          "tcwrs": 8.0,
+          "eti5": 0.0,
+          "tail_risk": 15.3,
+          "bcd": 24.0,
+          "cp": 8.66,
+          "forward_20d_max_drawdown_pct": -25.71,
+          "false_positive": false,
+          "drawdown_avoided_pct": 0.0
+        },
+        {
+          "date": "2020-02-25",
+          "signal": "Yellow",
+          "close": 11540.23,
+          "tcwrs": 23.0,
+          "eti5": 1.0,
+          "tail_risk": 15.74,
+          "bcd": 10.5,
+          "cp": 19.4,
+          "forward_20d_max_drawdown_pct": -24.77,
+          "false_positive": false,
+          "drawdown_avoided_pct": 0.0
+        },
+        {
+          "date": "2020-02-24",
+          "signal": "Yellow",
+          "close": 11534.87,
+          "tcwrs": 35.0,
+          "eti5": 1.0,
+          "tail_risk": 16.25,
+          "bcd": 36.0,
+          "cp": 26.85,
+          "forward_20d_max_drawdown_pct": -24.74,
+          "false_positive": false,
+          "drawdown_avoided_pct": 0.0
+        }
+      ]
+    }
+  },
+  "verification": {
+    "maximum_drawdown_avoided_at_least_20_pct": {
+      "passed": false,
+      "actual": 0.0,
+      "threshold": 20.0
+    },
+    "false_positives_reduced": {
+      "passed": true,
+      "v5_1_3": 2,
+      "v5_1_4": 0
+    },
+    "orange_signals_appear": {
+      "passed": false,
+      "actual": 0
+    },
+    "red_signals_reduced_vs_v5_1_3": {
+      "passed": true,
+      "v5_1_3": 12,
+      "v5_1_4": 0
+    }
+  }
+}
