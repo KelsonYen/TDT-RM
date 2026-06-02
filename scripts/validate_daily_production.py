@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from tdt_rm.daily_validation import build_daily_run_manifest, validate_daily_artifacts, validate_daily_payload
+from tdt_rm.daily_validation import build_daily_run_manifest, validate_daily_artifacts
 
 
 def main() -> int:
@@ -22,7 +22,7 @@ def main() -> int:
     parser.add_argument("--manifest-out", help="Optional path to write a validation run manifest JSON.")
     args = parser.parse_args()
 
-    result = validate_daily_artifacts(args.json_path, args.markdown_path)
+    result = validate_daily_artifacts(args.json_path, args.markdown_path, as_of=args.as_of)
     payload = None
     json_path = Path(args.json_path)
     if json_path.exists():
@@ -30,11 +30,6 @@ def main() -> int:
             loaded = json.loads(json_path.read_text(encoding="utf-8"))
             if isinstance(loaded, dict):
                 payload = loaded
-                if args.as_of is not None:
-                    result = validate_daily_payload(payload, as_of=args.as_of)
-                    # Preserve companion Markdown checks when as_of is requested.
-                    artifact_result = validate_daily_artifacts(args.json_path, args.markdown_path)
-                    result = type(result)(tuple(result.issues + artifact_result.issues))
         except json.JSONDecodeError:
             payload = None
 

@@ -367,8 +367,11 @@ To validate already-written daily artifacts, run the standalone validation gate:
 python scripts/validate_daily_production.py \
   --json-path outputs/daily/tdt_rm_daily_YYYY-MM-DD.json \
   --markdown-path outputs/daily/tdt_rm_daily_YYYY-MM-DD.md \
+  --as-of YYYY-MM-DD \
   --manifest-out outputs/daily/tdt_rm_daily_YYYY-MM-DD_manifest.json
 ```
+
+The optional `--as-of` argument applies the same stale-data gate used by the daily runner manifest: recent lag is reported as a warning, while older stale data is a blocking validation error.
 
 The manifest records the run timestamp, model version, trade date, data source and status, artifact paths, optional command/git SHA metadata, and the validation result. `validation_status` means:
 

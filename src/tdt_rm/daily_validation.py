@@ -188,7 +188,12 @@ def validate_daily_payload(payload: Mapping[str, Any], *, as_of: date | None = N
     return DailyValidationResult(tuple(issues))
 
 
-def validate_daily_artifacts(json_path: str | Path, markdown_path: str | Path) -> DailyValidationResult:
+def validate_daily_artifacts(
+    json_path: str | Path,
+    markdown_path: str | Path,
+    *,
+    as_of: date | None = None,
+) -> DailyValidationResult:
     """Validate a JSON daily artifact and its Markdown companion."""
 
     issues: list[DailyValidationIssue] = []
@@ -209,7 +214,7 @@ def validate_daily_artifacts(json_path: str | Path, markdown_path: str | Path) -
             issues.append(_error("invalid_json", f"JSON artifact is not valid JSON: {exc}", "json_path"))
 
     if payload is not None:
-        issues.extend(validate_daily_payload(payload).issues)
+        issues.extend(validate_daily_payload(payload, as_of=as_of).issues)
 
     if not markdown_artifact.exists():
         issues.append(_error("missing_markdown_artifact", f"Markdown artifact does not exist: {markdown_artifact}", "markdown_path"))

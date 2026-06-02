@@ -155,7 +155,7 @@ def run_daily_production(
 
     manifest_path: Path | None = None
     if write_manifest:
-        validation = validate_daily_artifacts(json_path, markdown_path)
+        validation = validate_daily_artifacts(json_path, markdown_path, as_of=effective_as_of)
         manifest = build_daily_run_manifest(
             payload,
             json_path,
