@@ -380,3 +380,75 @@ The manifest records the run timestamp, model version, trade date, data source a
 - `failed`: at least one blocking error exists; do not treat the daily artifacts as usable operator output until corrected.
 
 Current production limitations remain explicit in the artifacts and manifest: daily data is `price_only_provisional`, and ETF Exit is still a `not_integrated` placeholder. This validation layer does not implement ETF-specific exit policy and does not change model scoring logic, TCWRS weights, ETI-5 rules, Bear Trend Filter, CAL, Crash Probability, or the decision matrix.
+
+## Daily Market Snapshot Bridge
+
+Production daily runs can now consume a local enriched daily snapshot when one
+is available, while the default path still downloads public TWSE TAIEX price
+bars and uses the existing price-only provisional behavior.
+
+### Build a normalized snapshot from CSV
+
+The CSV input must contain exactly one daily row. Use canonical field names or a
+JSON field map when vendor headers differ:
+
+```bash
+python scripts/build_daily_snapshot.py \
+  --input-csv data/daily_snapshot.csv \
+  --field-map data/daily_field_map.json \
+  --output-json outputs/daily/snapshot_2026-03-31.json \
+  --as-of 2026-03-31 \
+  --validate
+```
+
+### Build a normalized snapshot from JSON
+
+```bash
+python scripts/build_daily_snapshot.py \
+  --input-json data/daily_snapshot.json \
+  --output-json outputs/daily/snapshot_2026-03-31.json \
+  --validate
+```
+
+A snapshot JSON can include:
+
+- `trade_date` / `observed_at`
+- `canonical_row` using fields accepted by `market_data.py`
+- optional chronological `price_bars`
+- `field_sources` mapping canonical fields to source IDs
+- `source_metadata` with source names, retrieval timestamps, and notes
+- `data_status`, `limitations`, and `warnings`
+
+### Run production with an enriched snapshot
+
+```bash
+python scripts/run_daily_production.py \
+  --as-of 2026-03-31 \
+  --snapshot-path outputs/daily/snapshot_2026-03-31.json
+```
+
+When `--snapshot-path` is omitted, the runner remains backward-compatible and
+uses the TWSE price-only path.
+
+### Source coverage and fallback proxies
+
+The daily JSON, Markdown report, and manifest metadata expose enriched-data
+choices under the `data` section:
+
+- `field_sources` and `source_metadata` show where each canonical field came from.
+- `missing_fields` records required canonical fields that are absent.
+- `available_eti_components` is derived from actual supplied fields. ETI
+  components are not assumed available merely because default ETI input values
+  can be constructed.
+- `fallback_proxies` records when formal `tail_risk` or `bcd` is absent and the
+  existing price-only proxy is used instead.
+- `data_status`, `limitations`, and `warnings` summarize operator caveats.
+
+### Current limitations
+
+- No paid/live provider, broker-login, or credentialed API implementation is
+  included; the bridge supports local CSV/JSON snapshots and provider-facing
+  interfaces only.
+- MHS remains `0.0` unless a snapshot directly supplies `mhs`; no formal MHS
+  scorer is implemented in this task.
+- ETF Exit policy remains a placeholder and is not integrated.
