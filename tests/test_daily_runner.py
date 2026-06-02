@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, date, datetime
 from pathlib import Path
 
@@ -96,3 +97,25 @@ def test_run_daily_production_writes_json_and_markdown(tmp_path: Path):
     assert result.json_path.parent == tmp_path
     assert result.markdown_path.read_text(encoding="utf-8").startswith("# TDT-RM Daily Report")
     assert '"signal"' in result.json_path.read_text(encoding="utf-8")
+
+
+def test_run_daily_production_optionally_writes_manifest(tmp_path: Path):
+    fetcher = FakeFetcher(sample_bars())
+
+    result = run_daily_production(
+        as_of=date(2026, 3, 31),
+        output_dir=tmp_path,
+        fetcher=fetcher,
+        timestamp=datetime(2026, 3, 31, 9, 0, tzinfo=UTC),
+        write_manifest=True,
+        command="pytest daily runner",
+        git_sha="abc123",
+    )
+
+    assert result.manifest_path is not None
+    assert result.manifest_path.exists()
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["artifact_paths"] == {"json": str(result.json_path), "markdown": str(result.markdown_path)}
+    assert manifest["validation_status"] == "warning"
+    assert manifest["command"] == "pytest daily runner"
+    assert manifest["git_sha"] == "abc123"
