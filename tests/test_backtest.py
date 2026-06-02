@@ -168,3 +168,24 @@ def test_backtest_can_include_same_day_events():
     assert excluded.signals[0].event_within_window is False
     assert included.signals[0].event_within_window is True
     assert included.signals[0].days_to_event == 0
+
+
+def test_backtest_serializes_v514_eti_availability_fields():
+    result = run_historical_backtest(
+        [
+            HistoricalBacktestObservation(
+                "2026-01-01",
+                _tcwrs_high_risk(),
+                ETI5Input(close=80, ma20=95, available_components={"ETI-1"}),
+                70,
+                70,
+            )
+        ],
+        BacktestConfig(signal_mode="eti5", eti5_threshold=1),
+    )
+
+    row = result.as_dict()["signals"][0]
+    assert row["eti_available_count"] == 1
+    assert row["eti_raw_score"] == 1
+    assert row["eti_capped_score"] == 1
+    assert row["eti_cap_reason"] == "available components <= 2; capped at 2"

@@ -68,6 +68,10 @@ class BacktestSignal:
     tcwrs_score: int
     tcwrs_triggered: bool
     eti5_score: int | None
+    eti_available_count: int | None
+    eti_raw_score: int | None
+    eti_capped_score: int | None
+    eti_cap_reason: str | None
     eti5_triggered: bool | None
     cp_score: float | None
     cp_level: str | None
@@ -87,6 +91,10 @@ class BacktestSignal:
             "tcwrs_score": self.tcwrs_score,
             "tcwrs_triggered": self.tcwrs_triggered,
             "eti5_score": self.eti5_score,
+            "eti_available_count": self.eti_available_count,
+            "eti_raw_score": self.eti_raw_score,
+            "eti_capped_score": self.eti_capped_score,
+            "eti_cap_reason": self.eti_cap_reason,
             "eti5_triggered": self.eti5_triggered,
             "cp_score": self.cp_score,
             "cp_level": self.cp_level,
@@ -201,10 +209,18 @@ def _score_observation(
 
     eti5_score: int | None = None
     eti5_triggered: bool | None = None
+    eti_available_count: int | None = None
+    eti_raw_score: int | None = None
+    eti_capped_score: int | None = None
+    eti_cap_reason: str | None = None
     eti5_trace: dict[str, Any] | None = None
     if observation.eti5_input is not None:
         eti5_result = score_eti5(observation.eti5_input)
         eti5_score = eti5_result.eti_score
+        eti_available_count = eti5_result.eti_available_count
+        eti_raw_score = eti5_result.eti_raw_score
+        eti_capped_score = eti5_result.eti_capped_score
+        eti_cap_reason = eti5_result.eti_cap_reason
         eti5_triggered = eti5_score >= config.eti5_threshold
         eti5_trace = eti5_result.as_dict()
 
@@ -244,6 +260,10 @@ def _score_observation(
         tcwrs_score=tcwrs_score,
         tcwrs_triggered=tcwrs_triggered,
         eti5_score=eti5_score,
+        eti_available_count=eti_available_count,
+        eti_raw_score=eti_raw_score,
+        eti_capped_score=eti_capped_score,
+        eti_cap_reason=eti_cap_reason,
         eti5_triggered=eti5_triggered,
         cp_score=cp_score,
         cp_level=cp_level,

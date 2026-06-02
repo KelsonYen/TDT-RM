@@ -1,9 +1,9 @@
-"""Run the TDT-RM V5.1.3 2022 TAIEX bear-market daily backtest.
+"""Run the TDT-RM V5.1.4 2022 TAIEX bear-market daily backtest.
 
 The repository does not ship licensed institutional breadth/foreign-flow feeds,
 so this reproducible script uses an embedded public TAIEX daily close tape and
-conservative price-derived proxies for unavailable inputs.  The five-light
-signal itself is the V5.1.3 Rev.3 Final Freeze decision matrix.
+only the permitted ETI-1 price proxy while marking unavailable ETI inputs unavailable.  The five-light
+signal itself is the V5.1.4 Backtest Calibration Patch decision matrix.
 """
 
 from __future__ import annotations
@@ -21,9 +21,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from tdt_rm import (
     CrashProbabilityInput,
+    BearTrendInput,
     DecisionMatrixInput,
     ETI5Input,
     TCWRSInput,
+    score_bear_trend_filter,
     score_crash_probability,
     score_eti5,
     score_tcwrs,
@@ -312,8 +314,8 @@ class Bar:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", default="outputs/tdt_rm_v5_1_3_2022_bear_market_backtest.csv")
-    parser.add_argument("--summary", default="outputs/tdt_rm_v5_1_3_2022_bear_market_summary.json")
+    parser.add_argument("--output", default="outputs/tdt_rm_v5_1_4_2022_bear_market_backtest.csv")
+    parser.add_argument("--summary", default="outputs/tdt_rm_v5_1_4_2022_bear_market_summary.json")
     args = parser.parse_args()
 
     bars = _load_bars()
@@ -327,6 +329,7 @@ def main() -> None:
         row = _score_day(history, peak)
         rows.append(row)
 
+    _apply_stability_rules(rows)
     _annotate_outcomes(rows)
     summary = _summarize(rows)
     out = Path(args.output)
@@ -356,6 +359,8 @@ def _score_day(history: list[Bar], peak: float) -> dict[str, object]:
     ma20 = _ma(closes, 20)
     ma60 = _ma(closes, 60)
     previous_ma20 = _ma(closes[:-1], 20)
+    previous_ma60 = _ma(closes[:-1], 60)
+    return_60d = _pct(closes[-61], close) if len(closes) >= 61 else 0.0
     one_day = _pct(prev_close, close)
     two_day = _pct(closes[-3], close) if len(closes) >= 3 else 0.0
     five_day = _pct(closes[-6], close) if len(closes) >= 6 else 0.0
@@ -392,15 +397,20 @@ def _score_day(history: list[Bar], peak: float) -> dict[str, object]:
         ETI5Input(
             close=close,
             ma20=ma20,
-            foreign_spot_net_sell_consecutive_days=down_days,
-            usd_twd_3d_change_pct=max(0.0, -two_day / 2.0),
-            index_down=one_day < 0,
-            declining_issues_significantly_gt_advancing=one_day < -0.75,
-            count_main_7_below_ma20=5 if close < ma20 else 0,
+            available_components={"ETI-1"},
         )
     )
     cp = score_crash_probability(
         CrashProbabilityInput(tcwrs=tcwrs.total_score, eti5_total=eti5.eti_score, tail_risk=tail_risk, bcd=bcd)
+    )
+    bear_trend = score_bear_trend_filter(
+        BearTrendInput(
+            close=close,
+            ma20=ma20,
+            ma60=ma60,
+            previous_ma60=previous_ma60,
+            return_60d_pct=return_60d,
+        )
     )
     signal = resolve_five_light_signal(
         DecisionMatrixInput(
@@ -408,38 +418,105 @@ def _score_day(history: list[Bar], peak: float) -> dict[str, object]:
             eti5_total=eti5.eti_score,
             tail_risk=tail_risk,
             bcd=bcd,
+            cp_score=cp.cp_score,
+            eti_available_count=eti5.eti_available_count,
             taiex=close,
             ma20=ma20,
             consecutive_down_days=down_days,
-        )
+        ),
+        bear_trend=bear_trend,
     )
     return {
         "Date": history[-1].observed_at.isoformat(),
         "TCWRS": tcwrs.total_score,
         "ETI-5": eti5.eti_score,
+        "eti_available_count": eti5.eti_available_count,
+        "eti_raw_score": eti5.eti_raw_score,
+        "eti_capped_score": eti5.eti_capped_score,
+        "eti_cap_reason": eti5.eti_cap_reason or "",
         "Tail Risk": round(tail_risk, 2),
         "BCD": round(bcd, 2),
         "CP": round(cp.cp_score, 2),
+        "bear_trend_score": bear_trend.score,
+        "bear_trend_floor_signal": bear_trend.floor_signal or "",
+        "red_confirmed_by": signal.trace_output.get("red_confirmed_by") or "",
+        "signal_before_stability_rule": signal.signal,
+        "signal_after_stability_rule": signal.signal,
+        "red_lock_active": False,
         "Signal": signal.signal,
         "Close": round(close, 2),
+        "forward_5d_max_drawdown": "",
+        "forward_10d_max_drawdown": "",
+        "forward_20d_max_drawdown": "",
+        "forward_40d_max_drawdown": "",
+        "forward_60d_max_drawdown": "",
         "Forward 20D Max Drawdown %": "",
+        "false_positive_20d": "",
+        "false_positive_40d": "",
+        "false_positive_60d": "",
+        "delayed_valid_signal": "",
         "False Positive": "",
         "Drawdown Avoided %": "",
     }
 
 
+def _apply_stability_rules(rows: list[dict[str, object]]) -> None:
+    red_remaining = 0
+    red_clear_days = 0
+    previous_signal = "Green"
+    for row in rows:
+        base_signal = str(row["signal_before_stability_rule"])
+        raw_red = base_signal == "Red"
+        if raw_red:
+            red_remaining = max(red_remaining, 3)
+            red_clear_days = 0
+        elif previous_signal == "Red":
+            red_clear_days += 1
+        else:
+            red_clear_days = 0
+
+        locked = False
+        final_signal = base_signal
+        if previous_signal == "Red":
+            if red_remaining > 0 or red_clear_days < 2:
+                final_signal = "Red"
+                locked = not raw_red
+            elif base_signal == "Green":
+                final_signal = "Strengthened Yellow"
+        if previous_signal == "Red" and final_signal == "Green":
+            final_signal = "Strengthened Yellow"
+        if final_signal == "Red":
+            red_remaining = max(0, red_remaining - 1)
+        row["signal_after_stability_rule"] = final_signal
+        row["red_lock_active"] = locked
+        row["Signal"] = final_signal
+        previous_signal = final_signal
+
+
 def _annotate_outcomes(rows: list[dict[str, object]]) -> None:
     closes = [float(row["Close"]) for row in rows]
     for idx, row in enumerate(rows):
-        future = closes[idx + 1 : idx + 21]
-        if not future:
-            max_dd = 0.0
-        else:
-            max_dd = min(_pct(closes[idx], value) for value in future)
+        drawdowns = {window: _forward_max_drawdown(closes, idx, window) for window in (5, 10, 20, 40, 60)}
         risk = row["Signal"] in {"Red", "Orange"}
-        row["Forward 20D Max Drawdown %"] = round(max_dd, 2)
-        row["False Positive"] = bool(risk and max_dd > -5.0)
-        row["Drawdown Avoided %"] = round(abs(min(0.0, max_dd)), 2) if risk else 0.0
+        row["forward_5d_max_drawdown"] = round(drawdowns[5], 2)
+        row["forward_10d_max_drawdown"] = round(drawdowns[10], 2)
+        row["forward_20d_max_drawdown"] = round(drawdowns[20], 2)
+        row["forward_40d_max_drawdown"] = round(drawdowns[40], 2)
+        row["forward_60d_max_drawdown"] = round(drawdowns[60], 2)
+        row["Forward 20D Max Drawdown %"] = round(drawdowns[20], 2)
+        row["false_positive_20d"] = bool(risk and drawdowns[20] > -5.0)
+        row["false_positive_40d"] = bool(risk and drawdowns[40] > -8.0)
+        row["false_positive_60d"] = bool(risk and drawdowns[60] > -10.0)
+        row["delayed_valid_signal"] = bool(risk and drawdowns[20] > -5.0 and (drawdowns[40] <= -8.0 or drawdowns[60] <= -10.0))
+        row["False Positive"] = bool(row["false_positive_20d"] and row["false_positive_40d"] and row["false_positive_60d"] and not row["delayed_valid_signal"])
+        row["Drawdown Avoided %"] = round(abs(min(0.0, drawdowns[20], drawdowns[40], drawdowns[60])), 2) if risk else 0.0
+
+
+def _forward_max_drawdown(closes: list[float], idx: int, window: int) -> float:
+    future = closes[idx + 1 : idx + 1 + window]
+    if not future:
+        return 0.0
+    return min(_pct(closes[idx], value) for value in future)
 
 
 def _summarize(rows: list[dict[str, object]]) -> dict[str, object]:
@@ -448,7 +525,7 @@ def _summarize(rows: list[dict[str, object]]) -> dict[str, object]:
     false_positive = sum(row["False Positive"] is True for row in rows)
     max_avoided = max(float(row["Drawdown Avoided %"]) for row in rows)
     return {
-        "model": "TDT-RM V5.1.3 Rev.3 Final Freeze",
+        "model": "TDT-RM V5.1.4 Backtest Calibration Patch",
         "simulation": "daily",
         "period": "2022 bear market",
         "observations": len(rows),

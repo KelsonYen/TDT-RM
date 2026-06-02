@@ -9,9 +9,13 @@ from .backtest import (
     run_historical_backtest,
 )
 from .decision_matrix import (
+    BearTrendInput,
+    BearTrendResult,
     DecisionMatrixInput,
     DecisionMatrixResult,
+    apply_signal_floor,
     resolve_five_light_signal,
+    score_bear_trend_filter,
 )
 from .crash_probability import (
     CrashProbabilityInput,
@@ -70,9 +74,13 @@ __all__ = [
     "BacktestSignal",
     "HistoricalBacktestObservation",
     "run_historical_backtest",
+    "BearTrendInput",
+    "BearTrendResult",
     "DecisionMatrixInput",
     "DecisionMatrixResult",
+    "apply_signal_floor",
     "resolve_five_light_signal",
+    "score_bear_trend_filter",
     "CrashProbabilityInput",
     "CrashProbabilityResult",
     "cp_level_for_score",
