@@ -103,10 +103,10 @@ def test_run_daily_production_optionally_writes_manifest(tmp_path: Path):
     fetcher = FakeFetcher(sample_bars())
 
     result = run_daily_production(
-        as_of=date(2026, 3, 31),
+        as_of=date(2026, 3, 11),
         output_dir=tmp_path,
         fetcher=fetcher,
-        timestamp=datetime(2026, 3, 31, 9, 0, tzinfo=UTC),
+        timestamp=datetime(2026, 3, 11, 9, 0, tzinfo=UTC),
         write_manifest=True,
         command="pytest daily runner",
         git_sha="abc123",

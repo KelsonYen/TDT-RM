@@ -119,6 +119,41 @@ def test_manifest_includes_artifact_paths_and_validation_result(tmp_path: Path):
     assert manifest["git_sha"] == "abc123"
 
 
+def test_validate_daily_artifacts_applies_as_of_staleness(tmp_path: Path):
+    json_path, markdown_path, _ = write_artifacts(tmp_path)
+
+    result = validate_daily_artifacts(json_path, markdown_path, as_of=date(2026, 3, 16))
+
+    assert result.has_errors
+    assert any(issue.code == "stale_trade_date" for issue in result.errors)
+
+
+def test_cli_as_of_staleness_does_not_duplicate_payload_warnings(tmp_path: Path):
+    json_path, markdown_path, _ = write_artifacts(tmp_path)
+
+    valid = subprocess.run(
+        [
+            sys.executable,
+            "scripts/validate_daily_production.py",
+            "--json-path",
+            str(json_path),
+            "--markdown-path",
+            str(markdown_path),
+            "--as-of",
+            "2026-03-12",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert valid.returncode == 0, valid.stdout + valid.stderr
+    validation = json.loads(valid.stdout)
+    warning_codes = [warning["code"] for warning in validation["warnings"]]
+    assert warning_codes.count("price_only_provisional") == 1
+    assert warning_codes.count("stale_trade_date") == 1
+
+
 def test_cli_exits_zero_for_valid_artifacts_and_nonzero_for_invalid_artifacts(tmp_path: Path):
     json_path, markdown_path, _ = write_artifacts(tmp_path)
     manifest_path = tmp_path / "manifest.json"
