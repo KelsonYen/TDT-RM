@@ -8,6 +8,14 @@ from .backtest import (
     HistoricalBacktestObservation,
     run_historical_backtest,
 )
+from .daily_validation import (
+    DailyRunManifest,
+    DailyValidationIssue,
+    DailyValidationResult,
+    build_daily_run_manifest,
+    validate_daily_artifacts,
+    validate_daily_payload,
+)
 from .daily_runner import (
     DEFAULT_OUTPUT_DIR,
     DEFAULT_TWSE_URL,
@@ -93,6 +101,12 @@ __all__ = [
     "DEFAULT_TWSE_URL",
     "MODEL_VERSION",
     "DailyRunResult",
+    "DailyRunManifest",
+    "DailyValidationIssue",
+    "DailyValidationResult",
+    "build_daily_run_manifest",
+    "validate_daily_artifacts",
+    "validate_daily_payload",
     "ETFExitHook",
     "TWSETAIEXFetcher",
     "build_daily_payload",

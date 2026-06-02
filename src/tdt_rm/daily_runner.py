@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import math
 import statistics
+import subprocess
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
@@ -28,6 +29,7 @@ from .decision_matrix import (
 from .eti5 import ETI5Input, score_eti5
 from .market_data import MarketPriceBar, derive_price_features
 from .tcwrs import TCWRSInput, score_tcwrs
+from .daily_validation import build_daily_run_manifest, validate_daily_artifacts
 
 DEFAULT_OUTPUT_DIR = Path("outputs/daily")
 DEFAULT_TWSE_URL = "https://www.twse.com.tw/rwd/en/TAIEX/MI_5MINS_HIST"
@@ -112,6 +114,7 @@ class DailyRunResult:
     json_path: Path
     markdown_path: Path
     payload: Mapping[str, Any]
+    manifest_path: Path | None = None
 
 
 def run_daily_production(
@@ -121,6 +124,9 @@ def run_daily_production(
     fetcher: DailyDataFetcher | None = None,
     timestamp: datetime | None = None,
     etf_exit_hook: ETFExitHook | None = None,
+    write_manifest: bool = False,
+    command: str | None = None,
+    git_sha: str | None = None,
 ) -> DailyRunResult:
     """Download latest Taiwan market data, run V5.1.4, and save daily artifacts."""
 
@@ -146,7 +152,29 @@ def run_daily_production(
         encoding="utf-8",
     )
     markdown_path.write_text(render_daily_markdown(payload), encoding="utf-8")
-    return DailyRunResult(json_path=json_path, markdown_path=markdown_path, payload=payload)
+
+    manifest_path: Path | None = None
+    if write_manifest:
+        validation = validate_daily_artifacts(json_path, markdown_path)
+        manifest = build_daily_run_manifest(
+            payload,
+            json_path,
+            markdown_path,
+            command=command,
+            git_sha=git_sha if git_sha is not None else _detect_git_sha(),
+            validation=validation,
+        )
+        manifest_path = destination / f"tdt_rm_daily_{trade_date}_manifest.json"
+        manifest_path.write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    return DailyRunResult(
+        json_path=json_path,
+        markdown_path=markdown_path,
+        payload=payload,
+        manifest_path=manifest_path,
+    )
 
 
 def build_daily_payload(
@@ -510,3 +538,17 @@ def _iso_timestamp(value: datetime) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=UTC)
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _detect_git_sha() -> str | None:
+    try:
+        completed = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    sha = completed.stdout.strip()
+    return sha or None

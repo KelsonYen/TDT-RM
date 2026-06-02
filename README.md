@@ -346,3 +346,34 @@ Each daily JSON/Markdown output includes:
 - an `etf_exit` placeholder reserved for future ETF Exit integration
 
 The runner is an orchestration layer only and does not modify model scoring logic. Because this repository does not yet contain standalone formal MHS, Tail Risk, or BCD scorer modules, the daily production runner marks the data as `price_only_provisional`: ETI-5 is limited to available ETI-1 price data, Tail Risk/BCD use the existing price-only proxy approach from the scenario scripts, and MHS is set to `0.0` until a formal scorer or external input is integrated.
+
+## Daily production validation
+
+`run_daily_production.py` runs the dependency-free TDT-RM V5.1.4 daily production path against the latest available public TWSE TAIEX price bars. By default, it writes the JSON report, Markdown operator report, and a production validation manifest under `outputs/daily/`:
+
+```bash
+python scripts/run_daily_production.py
+```
+
+You can pin the data download date or output directory when needed:
+
+```bash
+python scripts/run_daily_production.py --as-of 2026-06-02 --output-dir outputs/daily
+```
+
+To validate already-written daily artifacts, run the standalone validation gate:
+
+```bash
+python scripts/validate_daily_production.py \
+  --json-path outputs/daily/tdt_rm_daily_YYYY-MM-DD.json \
+  --markdown-path outputs/daily/tdt_rm_daily_YYYY-MM-DD.md \
+  --manifest-out outputs/daily/tdt_rm_daily_YYYY-MM-DD_manifest.json
+```
+
+The manifest records the run timestamp, model version, trade date, data source and status, artifact paths, optional command/git SHA metadata, and the validation result. `validation_status` means:
+
+- `passed`: no validation warnings or blocking errors.
+- `warning`: artifacts are usable, but operators should review warnings such as stale data or provisional data status.
+- `failed`: at least one blocking error exists; do not treat the daily artifacts as usable operator output until corrected.
+
+Current production limitations remain explicit in the artifacts and manifest: daily data is `price_only_provisional`, and ETF Exit is still a `not_integrated` placeholder. This validation layer does not implement ETF-specific exit policy and does not change model scoring logic, TCWRS weights, ETI-5 rules, Bear Trend Filter, CAL, Crash Probability, or the decision matrix.
