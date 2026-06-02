@@ -317,6 +317,36 @@ Default outputs:
 - `outputs/tdt_rm_v5_1_3_2022_performance_report.md`
 - `outputs/tdt_rm_v5_1_3_2022_performance_report.json`
 
+## Daily provider snapshots
+
+The provider-based snapshot assembler can combine local public-data rows for price, foreign flow, FX, breadth, margin, and formal/manual Tail Risk/BCD/MHS into one enriched `DailyMarketSnapshot`. See [Daily Public-Data Provider Guide](docs/DAILY_PROVIDER_GUIDE.md) for provider architecture, field mapping, precedence, conflict handling, and current limitations.
+
+```bash
+python scripts/assemble_daily_snapshot.py \
+  --as-of 2026-05-29 \
+  --price-csv examples/provider_inputs/sample_price.csv \
+  --foreign-csv examples/provider_inputs/sample_foreign_flow.csv \
+  --fx-csv examples/provider_inputs/sample_fx.csv \
+  --breadth-csv examples/provider_inputs/sample_breadth.csv \
+  --margin-csv examples/provider_inputs/sample_margin.csv \
+  --scores-csv examples/provider_inputs/sample_scores.csv \
+  --field-map examples/provider_inputs/sample_provider_field_map.json \
+  --output-json outputs/daily/assembled_snapshot_2026-05-29.json \
+  --validate \
+  --allow-warnings
+
+python scripts/run_daily_production.py \
+  --as-of 2026-05-29 \
+  --snapshot-path outputs/daily/assembled_snapshot_2026-05-29.json \
+  --output-dir outputs/daily
+
+python scripts/validate_daily_production.py \
+  --json-path outputs/daily/tdt_rm_daily_2026-05-29.json \
+  --markdown-path outputs/daily/tdt_rm_daily_2026-05-29.md \
+  --as-of 2026-05-29 \
+  --manifest-out outputs/daily/tdt_rm_daily_2026-05-29_manifest.json
+```
+
 ## Daily Production Runner
 
 `scripts/run_daily_production.py` runs the frozen `TDT-RM V5.1.4` model as a daily production job. It downloads the latest public TAIEX index bars from TWSE, derives the required price features, runs the existing TCWRS, ETI-5, Crash Probability, Bear Trend, and five-light decision matrix modules, and writes both JSON and Markdown artifacts under `outputs/daily/`.
