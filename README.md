@@ -452,3 +452,34 @@ choices under the `data` section:
 - MHS remains `0.0` unless a snapshot directly supplies `mhs`; no formal MHS
   scorer is implemented in this task.
 - ETF Exit policy remains a placeholder and is not integrated.
+
+### Operator runbook and smoke test
+
+See the [Daily Production Runbook](docs/DAILY_PRODUCTION_RUNBOOK.md) for the end-to-end operator workflow, manifest interpretation, enriched versus `price_only_provisional` runs, and current production limitations.
+
+Run the reproducible enriched snapshot smoke path with the committed examples:
+
+```bash
+python scripts/build_daily_snapshot.py \
+  --input-csv examples/daily_snapshots/sample_enriched_snapshot.csv \
+  --field-map examples/daily_snapshots/sample_field_map.json \
+  --output-json /tmp/tdt_rm_sample_snapshot.json \
+  --as-of 2026-05-29 \
+  --validate
+
+python scripts/run_daily_production.py \
+  --snapshot-path /tmp/tdt_rm_sample_snapshot.json \
+  --as-of 2026-05-29 \
+  --output-dir /tmp/tdt_rm_daily
+
+python scripts/validate_daily_production.py \
+  --json-path /tmp/tdt_rm_daily/tdt_rm_daily_2026-05-29.json \
+  --markdown-path /tmp/tdt_rm_daily/tdt_rm_daily_2026-05-29.md \
+  --as-of 2026-05-29 \
+  --manifest-out /tmp/tdt_rm_daily/tdt_rm_daily_2026-05-29_manifest.json
+
+python scripts/smoke_daily_production.py \
+  --snapshot-path examples/daily_snapshots/sample_enriched_snapshot.json \
+  --output-dir /tmp/tdt_rm_daily_smoke \
+  --as-of 2026-05-29
+```
