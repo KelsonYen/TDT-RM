@@ -64,3 +64,59 @@ def test_bear_trend_filter_applies_floor_without_changing_tcwrs():
     assert bear.floor_signal == "Orange"
     assert result.signal == "Orange"
     assert result.trace_output["tcwrs"] == 0
+
+
+def test_cal_stays_dormant_for_slow_bear_deterioration_without_acute_velocity():
+    from tdt_rm import CrashAccelerationInput, score_crash_acceleration_layer
+
+    cal = score_crash_acceleration_layer(
+        CrashAccelerationInput(
+            short_window_return_pct=-1.5,
+            drawdown_velocity_pct=-2.0,
+            volatility_expansion=2.25,
+            liquidity_stress=85,
+            limit_down_pressure=False,
+        )
+    )
+
+    assert cal.cal_score == 0
+    assert cal.floor_signal is None
+    assert cal.conditions["volatility_expansion"] is True
+    assert cal.conditions["liquidity_stress"] is True
+
+
+def test_cal_acute_crash_override_responds_to_velocity_stress_and_limit_pressure():
+    from tdt_rm import CrashAccelerationInput, score_crash_acceleration_layer
+
+    cal = score_crash_acceleration_layer(
+        CrashAccelerationInput(
+            short_window_return_pct=-5.5,
+            drawdown_velocity_pct=-6.25,
+            volatility_expansion=2.0,
+            liquidity_stress=75,
+            limit_down_pressure=True,
+        )
+    )
+
+    assert cal.cal_score == 5
+    assert cal.floor_signal == "Red"
+
+
+def test_signal_after_cal_only_upgrades_and_never_downgrades_baseline_signal():
+    from tdt_rm import CrashAccelerationResult
+
+    red_baseline = resolve_five_light_signal(
+        DecisionMatrixInput(tcwrs=76, eti5_total=0, tail_risk=0, bcd=0, taiex=100, ma20=100, consecutive_down_days=0),
+        cal=CrashAccelerationResult(score=2, floor_signal="Orange", conditions={"synthetic": True}),
+    )
+    upgraded = resolve_five_light_signal(
+        DecisionMatrixInput(tcwrs=0, eti5_total=0, tail_risk=0, bcd=0, taiex=100, ma20=100, consecutive_down_days=0),
+        cal=CrashAccelerationResult(score=2, floor_signal="Orange", conditions={"synthetic": True}),
+    )
+
+    assert red_baseline.signal == "Red"
+    assert red_baseline.trace_output["signal_before_cal"] == "Red"
+    assert red_baseline.trace_output["signal_after_cal"] == "Red"
+    assert upgraded.signal == "Orange"
+    assert upgraded.trace_output["signal_before_cal"] == "Green"
+    assert upgraded.trace_output["signal_after_cal"] == "Orange"

@@ -73,6 +73,47 @@ class BearTrendResult:
 
 
 @dataclass(frozen=True)
+class CrashAccelerationInput:
+    """Inputs for the Crash Acceleration Layer (CAL) acute-crash override.
+
+    CAL is intentionally velocity-gated: slow bear-market deterioration alone
+    must not produce a CAL score or floor. Returns are percentages, where
+    downside moves are negative. ``volatility_expansion`` is the short-window
+    volatility divided by its baseline, ``liquidity_stress`` is a 0..100 stress
+    proxy, and ``limit_down_pressure`` can represent either a boolean limit-down
+    event or a 0..100 pressure proxy.
+    """
+
+    short_window_return_pct: float = 0.0
+    drawdown_velocity_pct: float = 0.0
+    volatility_expansion: float = 1.0
+    liquidity_stress: float = 0.0
+    limit_down_pressure: float | bool = False
+
+
+@dataclass(frozen=True)
+class CrashAccelerationResult:
+    """CAL result used only as an acute-crash floor, never as a bear detector."""
+
+    score: int
+    floor_signal: SignalColor | None
+    conditions: Mapping[str, bool]
+
+    @property
+    def cal_score(self) -> int:
+        """Alias used by audit output and callers that name the layer explicitly."""
+
+        return self.score
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "cal_score": self.score,
+            "floor_signal": self.floor_signal,
+            "conditions": dict(self.conditions),
+        }
+
+
+@dataclass(frozen=True)
 class DecisionMatrixResult:
     """First-match five-light signal with an auditable rule trace."""
 
@@ -112,6 +153,43 @@ def score_bear_trend_filter(data: BearTrendInput) -> BearTrendResult:
     return BearTrendResult(score=score, floor_signal=floor, conditions=conditions)
 
 
+def score_crash_acceleration_layer(data: CrashAccelerationInput) -> CrashAccelerationResult:
+    """Score CAL as an acute-crash override, not a slow bear-market detector.
+
+    CAL remains dormant unless there is short-window downside acceleration,
+    crash-like drawdown velocity, or limit-down pressure. Volatility expansion
+    and liquidity stress can strengthen an acute signal but cannot activate CAL
+    by themselves. This keeps gradual bear-market deterioration at
+    ``cal_score=0`` and ``floor_signal=None``.
+    """
+
+    limit_down_pressure_value = _pressure_value(data.limit_down_pressure)
+    conditions = {
+        "short_window_downside_acceleration": data.short_window_return_pct <= -4.0,
+        "crash_like_drawdown_velocity": data.drawdown_velocity_pct <= -5.0,
+        "volatility_expansion": data.volatility_expansion >= 1.75,
+        "liquidity_stress": data.liquidity_stress >= 70.0,
+        "limit_down_pressure": limit_down_pressure_value >= 80.0,
+    }
+    acute_velocity_present = (
+        conditions["short_window_downside_acceleration"]
+        or conditions["crash_like_drawdown_velocity"]
+        or conditions["limit_down_pressure"]
+    )
+    if not acute_velocity_present:
+        return CrashAccelerationResult(score=0, floor_signal=None, conditions=conditions)
+
+    score = sum(conditions.values())
+    floor: SignalColor | None
+    if score >= 4 or (conditions["limit_down_pressure"] and score >= 3):
+        floor = "Red"
+    elif score >= 2:
+        floor = "Orange"
+    else:
+        floor = None
+    return CrashAccelerationResult(score=score, floor_signal=floor, conditions=conditions)
+
+
 def apply_signal_floor(signal: SignalColor, floor_signal: SignalColor | None) -> SignalColor:
     """Raise ``signal`` to ``floor_signal`` when the floor is more conservative."""
 
@@ -123,8 +201,9 @@ def apply_signal_floor(signal: SignalColor, floor_signal: SignalColor | None) ->
 def resolve_five_light_signal(
     data: DecisionMatrixInput,
     bear_trend: BearTrendResult | None = None,
+    cal: CrashAccelerationResult | None = None,
 ) -> DecisionMatrixResult:
-    """Apply V5.1.4 rules: red, orange, strengthened yellow, yellow, green, then bear floor."""
+    """Apply V5.1.4 rules, then non-downgrading bear/CAL floors."""
 
     trace = {
         "tcwrs": data.tcwrs,
@@ -139,6 +218,7 @@ def resolve_five_light_signal(
         "cp_score": data.cp_score,
         "cp_red_confirmation": data.cp_score is not None and data.cp_score >= 55,
         "bear_trend": bear_trend.as_dict() if bear_trend is not None else None,
+        "cal": cal.as_dict() if cal is not None else None,
     }
     eti_available_count = data.eti_available_count if data.eti_available_count is not None else 5
     eti_red_allowed = eti_available_count >= 3
@@ -151,7 +231,7 @@ def resolve_five_light_signal(
     for matched, rule, confirmed_by in red_rules:
         if matched:
             trace["red_confirmed_by"] = _append_cp_confirmation(confirmed_by, data.cp_score)
-            return _with_floor("Red", rule, trace, bear_trend)
+            return _with_floor("Red", rule, trace, bear_trend, cal)
 
     orange_rules = (
         (61 <= data.tcwrs <= 75 and data.eti5_total >= 2, "61 <= TCWRS <= 75 AND ETI5_total >= 2"),
@@ -163,7 +243,7 @@ def resolve_five_light_signal(
     for matched, rule in orange_rules:
         if matched:
             trace["red_confirmed_by"] = None
-            return _with_floor("Orange", rule, trace, bear_trend)
+            return _with_floor("Orange", rule, trace, bear_trend, cal)
 
     strengthened_yellow_rules = (
         (41 <= data.tcwrs <= 60, "41 <= TCWRS <= 60"),
@@ -175,7 +255,7 @@ def resolve_five_light_signal(
     for matched, rule in strengthened_yellow_rules:
         if matched:
             trace["red_confirmed_by"] = None
-            return _with_floor("Strengthened Yellow", rule, trace, bear_trend)
+            return _with_floor("Strengthened Yellow", rule, trace, bear_trend, cal)
 
     yellow_rules = (
         (21 <= data.tcwrs <= 40, "21 <= TCWRS <= 40"),
@@ -187,10 +267,10 @@ def resolve_five_light_signal(
     for matched, rule in yellow_rules:
         if matched:
             trace["red_confirmed_by"] = None
-            return _with_floor("Yellow", rule, trace, bear_trend)
+            return _with_floor("Yellow", rule, trace, bear_trend, cal)
 
     trace["red_confirmed_by"] = None
-    return _with_floor("Green", "Default/green light conditions", trace, bear_trend)
+    return _with_floor("Green", "Default/green light conditions", trace, bear_trend, cal)
 
 
 def _append_cp_confirmation(confirmed_by: str, cp_score: float | None) -> str:
@@ -199,16 +279,40 @@ def _append_cp_confirmation(confirmed_by: str, cp_score: float | None) -> str:
     return confirmed_by
 
 
-def _with_floor(signal: SignalColor, rule: str, trace: dict[str, Any], bear_trend: BearTrendResult | None) -> DecisionMatrixResult:
-    floor_signal = bear_trend.floor_signal if bear_trend is not None else None
-    floored_signal = apply_signal_floor(signal, floor_signal)
+def _with_floor(
+    signal: SignalColor,
+    rule: str,
+    trace: dict[str, Any],
+    bear_trend: BearTrendResult | None,
+    cal: CrashAccelerationResult | None,
+) -> DecisionMatrixResult:
+    bear_floor_signal = bear_trend.floor_signal if bear_trend is not None else None
+    signal_after_bear = apply_signal_floor(signal, bear_floor_signal)
+
+    cal_floor_signal = cal.floor_signal if cal is not None else None
+    signal_after_cal = apply_signal_floor(signal_after_bear, cal_floor_signal)
+
     resolved_rule = rule
-    if floored_signal != signal:
-        resolved_rule = f"{rule}; Bear Trend Filter floor -> {floored_signal}"
+    rule_suffixes = []
+    if signal_after_bear != signal:
+        rule_suffixes.append(f"Bear Trend Filter floor -> {signal_after_bear}")
+    if signal_after_cal != signal_after_bear:
+        rule_suffixes.append(f"CAL acute-crash floor -> {signal_after_cal}")
+    if rule_suffixes:
+        resolved_rule = f"{rule}; {'; '.join(rule_suffixes)}"
+
     resolved_trace = dict(trace)
     resolved_trace["signal_before_bear_trend_floor"] = signal
-    resolved_trace["signal_after_bear_trend_floor"] = floored_signal
-    return _result(floored_signal, _EXPOSURE_LIMITS[floored_signal], resolved_rule, resolved_trace)
+    resolved_trace["signal_after_bear_trend_floor"] = signal_after_bear
+    resolved_trace["signal_before_cal"] = signal_after_bear
+    resolved_trace["signal_after_cal"] = signal_after_cal
+    return _result(signal_after_cal, _EXPOSURE_LIMITS[signal_after_cal], resolved_rule, resolved_trace)
+
+
+def _pressure_value(value: float | bool) -> float:
+    if isinstance(value, bool):
+        return 100.0 if value else 0.0
+    return float(value)
 
 
 def _result(signal: SignalColor, exposure: str, rule: str, trace: Mapping[str, Any]) -> DecisionMatrixResult:
