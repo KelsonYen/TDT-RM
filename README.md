@@ -316,3 +316,33 @@ Default outputs:
 
 - `outputs/tdt_rm_v5_1_3_2022_performance_report.md`
 - `outputs/tdt_rm_v5_1_3_2022_performance_report.json`
+
+## Daily Production Runner
+
+`scripts/run_daily_production.py` runs the frozen `TDT-RM V5.1.4` model as a daily production job. It downloads the latest public TAIEX index bars from TWSE, derives the required price features, runs the existing TCWRS, ETI-5, Crash Probability, Bear Trend, and five-light decision matrix modules, and writes both JSON and Markdown artifacts under `outputs/daily/`.
+
+```bash
+python scripts/run_daily_production.py
+```
+
+Optional arguments:
+
+```bash
+python scripts/run_daily_production.py --as-of 2026-06-02 --output-dir outputs/daily
+```
+
+Each daily JSON/Markdown output includes:
+
+- timestamp
+- market regime
+- TCWRS
+- MHS
+- ETI-5
+- Tail Risk
+- BCD
+- CP
+- signal and equity exposure limit
+- trace output for the underlying V5.1.4 scoring modules
+- an `etf_exit` placeholder reserved for future ETF Exit integration
+
+The runner is an orchestration layer only and does not modify model scoring logic. Because this repository does not yet contain standalone formal MHS, Tail Risk, or BCD scorer modules, the daily production runner marks the data as `price_only_provisional`: ETI-5 is limited to available ETI-1 price data, Tail Risk/BCD use the existing price-only proxy approach from the scenario scripts, and MHS is set to `0.0` until a formal scorer or external input is integrated.
