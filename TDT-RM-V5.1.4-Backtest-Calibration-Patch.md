@@ -33,3 +33,6 @@ V5.1.4 preserves the six core outputs (`MHS`, `TCWRS`, `ETI-5`, `Tail Risk`, `BC
 
 6. **False-positive analysis**
    - Backtest CSV output now includes forward 5D/10D/20D/40D/60D max-drawdown fields, false-positive flags for 20D/40D/60D, and delayed-valid-signal tagging.
+
+7. **2022 validation gates**
+   - `validate_2022_bear_market_backtest()` and `scripts/validate_2022_bear_market.py` verify the generated 2022 V5.1.4 artifacts for the expected bear-market window, price-only ETI controls, red-signal confirmation, populated outcome annotations, and CSV/summary aggregate consistency.

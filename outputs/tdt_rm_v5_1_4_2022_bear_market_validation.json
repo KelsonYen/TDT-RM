@@ -1,0 +1,89 @@
+{
+  "is_valid": true,
+  "checks": [
+    {
+      "name": "observation_window",
+      "passed": true,
+      "message": "CSV contains the expected 247-session 2022 bear-market window.",
+      "details": {
+        "observations": 247,
+        "first_date": "2022-01-03",
+        "last_date": "2022-12-30",
+        "expected_observations": 247,
+        "expected_first_date": "2022-01-03",
+        "expected_last_date": "2022-12-30"
+      }
+    },
+    {
+      "name": "required_columns",
+      "passed": true,
+      "message": "CSV includes all V5.1.4 validation/audit columns.",
+      "details": {
+        "missing_columns": [],
+        "required_columns": [
+          "Close",
+          "Date",
+          "Drawdown Avoided %",
+          "ETI-5",
+          "False Positive",
+          "Signal",
+          "TCWRS",
+          "delayed_valid_signal",
+          "eti_available_count",
+          "eti_cap_reason",
+          "eti_capped_score",
+          "eti_raw_score",
+          "false_positive_20d",
+          "false_positive_40d",
+          "false_positive_60d",
+          "forward_20d_max_drawdown",
+          "forward_40d_max_drawdown",
+          "forward_60d_max_drawdown"
+        ]
+      }
+    },
+    {
+      "name": "price_only_eti_controls",
+      "passed": true,
+      "message": "Price-only tape keeps only ETI-1 available and applies the V5.1.4 ETI cap.",
+      "details": {
+        "violation_dates": [],
+        "violation_count": 0
+      }
+    },
+    {
+      "name": "red_signal_confirmation",
+      "passed": true,
+      "message": "No red signal is created by unavailable ETI components or CP alone.",
+      "details": {
+        "red_signals": 0,
+        "violation_dates": [],
+        "violation_count": 0
+      }
+    },
+    {
+      "name": "outcome_annotations",
+      "passed": true,
+      "message": "Forward drawdown and false-positive annotations are populated for every row.",
+      "details": {
+        "invalid_dates": [],
+        "invalid_count": 0
+      }
+    },
+    {
+      "name": "summary_matches_rows",
+      "passed": true,
+      "message": "Summary JSON agrees with the generated CSV aggregates.",
+      "details": {
+        "mismatches": {},
+        "expected": {
+          "observations": 247,
+          "red_signals": 0,
+          "orange_signals": 150,
+          "false_positives": 40,
+          "maximum_drawdown_avoided_pct": 19.17
+        }
+      }
+    }
+  ]
+}

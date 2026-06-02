@@ -24,6 +24,11 @@ from .crash_probability import (
     score_crash_probability,
 )
 from .eti5 import ETI5Input, ETI5Result, ETI5SignalResult, score_eti5
+from .backtest_validation import (
+    BacktestValidationCheck,
+    BacktestValidationResult,
+    validate_2022_bear_market_backtest,
+)
 from .performance import (
     DEFAULT_RISK_OFF_SIGNALS,
     PerformanceObservation,
@@ -74,6 +79,9 @@ __all__ = [
     "BacktestSignal",
     "HistoricalBacktestObservation",
     "run_historical_backtest",
+    "BacktestValidationCheck",
+    "BacktestValidationResult",
+    "validate_2022_bear_market_backtest",
     "BearTrendInput",
     "BearTrendResult",
     "DecisionMatrixInput",
