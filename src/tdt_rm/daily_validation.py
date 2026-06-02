@@ -114,6 +114,7 @@ class DailyRunManifest:
     data_status: str | None
     artifact_paths: Mapping[str, str]
     validation: Mapping[str, Any]
+    data_quality: Mapping[str, Any] = field(default_factory=dict)
     command: str | None = None
     git_sha: str | None = None
 
@@ -127,6 +128,7 @@ class DailyRunManifest:
             "artifact_paths": dict(self.artifact_paths),
             "validation_status": self.validation.get("status"),
             "validation": dict(self.validation),
+            "data_quality": dict(self.data_quality),
             "command": self.command,
             "git_sha": self.git_sha,
         }
@@ -251,6 +253,14 @@ def build_daily_run_manifest(
         data_status=_optional_str(data.get("status")),
         artifact_paths={"json": str(Path(json_path)), "markdown": str(Path(markdown_path))},
         validation=validation_dict,
+        data_quality={
+            "fallback_proxies": dict(data.get("fallback_proxies", {})) if isinstance(data.get("fallback_proxies"), Mapping) else {},
+            "field_sources": dict(data.get("field_sources", {})) if isinstance(data.get("field_sources"), Mapping) else {},
+            "source_metadata": dict(data.get("source_metadata", {})) if isinstance(data.get("source_metadata"), Mapping) else {},
+            "missing_fields": list(data.get("missing_fields", [])) if isinstance(data.get("missing_fields", []), list) else [],
+            "available_eti_components": list(data.get("available_eti_components", [])) if isinstance(data.get("available_eti_components", []), list) else [],
+            "data_status": data.get("data_status") or data.get("status"),
+        },
         command=command,
         git_sha=git_sha,
     )

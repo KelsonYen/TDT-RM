@@ -26,6 +26,10 @@ def main() -> int:
         action="store_true",
         help="Do not write the daily production validation manifest JSON.",
     )
+    parser.add_argument(
+        "--snapshot-path",
+        help="Optional enriched daily market snapshot JSON. Defaults to TWSE price-only fetching when omitted.",
+    )
     args = parser.parse_args()
 
     result = run_daily_production(
@@ -33,6 +37,7 @@ def main() -> int:
         output_dir=args.output_dir,
         write_manifest=not args.no_manifest,
         command="scripts/run_daily_production.py",
+        snapshot_path=args.snapshot_path,
     )
     print(f"JSON: {result.json_path}")
     print(f"Markdown: {result.markdown_path}")

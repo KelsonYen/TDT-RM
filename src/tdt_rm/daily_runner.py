@@ -14,7 +14,7 @@ import statistics
 import subprocess
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Protocol, Sequence
@@ -29,6 +29,14 @@ from .decision_matrix import (
 from .eti5 import ETI5Input, score_eti5
 from .market_data import MarketPriceBar, derive_price_features
 from .tcwrs import TCWRSInput, score_tcwrs
+from .daily_snapshot import (
+    DailyMarketSnapshot,
+    build_source_coverage,
+    derive_eti_available_components,
+    load_daily_snapshot_json,
+    snapshot_to_market_observation,
+    validate_daily_snapshot,
+)
 from .daily_validation import build_daily_run_manifest, validate_daily_artifacts
 
 DEFAULT_OUTPUT_DIR = Path("outputs/daily")
@@ -127,21 +135,37 @@ def run_daily_production(
     write_manifest: bool = False,
     command: str | None = None,
     git_sha: str | None = None,
+    snapshot_path: str | Path | None = None,
+    snapshot: DailyMarketSnapshot | None = None,
 ) -> DailyRunResult:
-    """Download latest Taiwan market data, run V5.1.4, and save daily artifacts."""
+    """Download latest Taiwan market data or load a snapshot, run V5.1.4, and save artifacts."""
 
+    if snapshot_path is not None and snapshot is not None:
+        raise ValueError("provide either snapshot_path or snapshot, not both")
     run_timestamp = timestamp or datetime.now(UTC)
     effective_as_of = as_of or run_timestamp.date()
-    data_fetcher = fetcher or TWSETAIEXFetcher()
-    bars = list(data_fetcher.fetch_bars(as_of=effective_as_of, min_bars=DEFAULT_MIN_BARS))
-    if len(bars) < DEFAULT_MIN_BARS:
-        raise ValueError(f"at least {DEFAULT_MIN_BARS} bars are required")
+    if snapshot_path is not None or snapshot is not None:
+        effective_snapshot = snapshot or load_daily_snapshot_json(snapshot_path)  # type: ignore[arg-type]
+        snapshot_validation = validate_daily_snapshot(effective_snapshot, as_of=effective_as_of)
+        if not snapshot_validation.is_valid:
+            details = "; ".join(issue.message for issue in snapshot_validation.issues if issue.severity == "error")
+            raise ValueError(f"daily snapshot validation failed: {details}")
+        payload = build_daily_payload_from_snapshot(
+            effective_snapshot,
+            timestamp=run_timestamp,
+            etf_exit_hook=etf_exit_hook or ETFExitHook(),
+        )
+    else:
+        data_fetcher = fetcher or TWSETAIEXFetcher()
+        bars = list(data_fetcher.fetch_bars(as_of=effective_as_of, min_bars=DEFAULT_MIN_BARS))
+        if len(bars) < DEFAULT_MIN_BARS:
+            raise ValueError(f"at least {DEFAULT_MIN_BARS} bars are required")
 
-    payload = build_daily_payload(
-        bars,
-        timestamp=run_timestamp,
-        etf_exit_hook=etf_exit_hook or ETFExitHook(),
-    )
+        payload = build_daily_payload(
+            bars,
+            timestamp=run_timestamp,
+            etf_exit_hook=etf_exit_hook or ETFExitHook(),
+        )
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=True)
     trade_date = payload["trade_date"]
@@ -327,6 +351,190 @@ def build_daily_payload(
     }
 
 
+def build_daily_payload_from_snapshot(
+    snapshot: DailyMarketSnapshot,
+    *,
+    timestamp: datetime | None = None,
+    etf_exit_hook: ETFExitHook | None = None,
+) -> dict[str, Any]:
+    """Run existing V5.1.4 modules against an enriched canonical daily snapshot."""
+
+    validation = validate_daily_snapshot(snapshot)
+    if not validation.is_valid:
+        details = "; ".join(issue.message for issue in validation.issues if issue.severity == "error")
+        raise ValueError(f"daily snapshot validation failed: {details}")
+    observation = snapshot_to_market_observation(snapshot)
+    coverage = build_source_coverage(snapshot)
+    available_components = derive_eti_available_components(snapshot)
+    tcwrs = score_tcwrs(observation.tcwrs_input)
+    eti_input = observation.eti5_input or ETI5Input(
+        close=observation.tcwrs_input.close,
+        ma20=observation.tcwrs_input.ma20,
+    )
+    eti_input = _eti_input_with_available_components(eti_input, available_components)
+    eti5 = score_eti5(eti_input)
+
+    proxy_info: dict[str, Any] = {}
+    closes = [float(bar.close) for bar in sorted(snapshot.price_bars, key=lambda bar: _coerce_date(bar.observed_at))]
+    close = float(observation.tcwrs_input.close)
+    ma20 = float(observation.tcwrs_input.ma20)
+    ma60 = float(observation.tcwrs_input.ma60)
+    one_day_return = float(observation.tcwrs_input.one_day_return_pct)
+    two_day_return = float(observation.tcwrs_input.two_day_return_pct)
+    consecutive_down_days = int(observation.tcwrs_input.declining_gt_advancing_consecutive_days)
+    if closes:
+        peak = max(closes)
+        drawdown = max(0.0, -_pct_change(peak, close))
+        consecutive_down_days = _consecutive_down_days(closes)
+    else:
+        drawdown = max(0.0, (ma20 - close) / ma20 * 100.0) if ma20 else 0.0
+
+    if observation.tail_risk is None:
+        source_closes = closes if len(closes) >= 2 else [close, close]
+        tail_risk = _price_proxy_tail_risk(source_closes, drawdown, one_day_return, two_day_return)
+        proxy_info["tail_risk"] = {
+            "status": "price_only_proxy",
+            "reason": "formal tail_risk absent from daily snapshot",
+        }
+    else:
+        tail_risk = float(observation.tail_risk)
+    if observation.bcd is None:
+        bcd = _price_proxy_bcd(close, ma20, drawdown, consecutive_down_days)
+        proxy_info["bcd"] = {
+            "status": "price_only_proxy",
+            "reason": "formal bcd absent from daily snapshot",
+        }
+    else:
+        bcd = float(observation.bcd)
+
+    mhs = float(snapshot.canonical_row.get("mhs", 0.0) or 0.0)
+    previous_ma60 = _previous_ma60_from_snapshot(snapshot, ma60)
+    return_60d = _return_60d_from_snapshot(snapshot, close)
+    five_day_return = float(observation.tcwrs_input.index_5d_return_pct)
+    close_below_ma20_days = int(observation.tcwrs_input.close_below_ma20_consecutive_days)
+
+    cp = score_crash_probability(
+        CrashProbabilityInput(
+            tcwrs=tcwrs.total_score,
+            eti5_total=eti5.eti_score,
+            tail_risk=tail_risk,
+            bcd=bcd,
+        )
+    )
+    bear_trend = score_bear_trend_filter(
+        BearTrendInput(
+            close=close,
+            ma20=ma20,
+            ma60=ma60,
+            previous_ma60=previous_ma60,
+            return_60d_pct=return_60d,
+        )
+    )
+    decision = resolve_five_light_signal(
+        DecisionMatrixInput(
+            tcwrs=tcwrs.total_score,
+            eti5_total=eti5.eti_score,
+            tail_risk=tail_risk,
+            bcd=bcd,
+            taiex=close,
+            ma20=ma20,
+            consecutive_down_days=consecutive_down_days,
+            mhs=mhs,
+            cp_score=cp.cp_score,
+            eti_available_count=eti5.eti_available_count,
+        ),
+        bear_trend=bear_trend,
+    )
+    market_regime = classify_market_regime(decision.signal, tcwrs.total_score, close, ma20, ma60)
+    run_timestamp = timestamp or datetime.now(UTC)
+    etf_hook = etf_exit_hook or ETFExitHook()
+    latest_bar_date = str(_coerce_date(snapshot.price_bars[-1].observed_at)) if snapshot.price_bars else str(snapshot.trade_date)
+    limitations = list(snapshot.limitations)
+    limitations.append("MHS uses snapshot field mhs when supplied; no formal MHS scorer is implemented.")
+    if proxy_info:
+        limitations.append("Tail Risk and/or BCD use documented price-only fallback proxies because formal snapshot values are absent.")
+
+    return {
+        "timestamp": _iso_timestamp(run_timestamp),
+        "model_version": MODEL_VERSION,
+        "trade_date": str(snapshot.trade_date),
+        "market_regime": market_regime,
+        "tcwrs": tcwrs.total_score,
+        "mhs": mhs,
+        "eti_5": eti5.eti_score,
+        "tail_risk": round(tail_risk, 2),
+        "bcd": round(bcd, 2),
+        "cp": round(cp.cp_score, 2),
+        "cp_level": cp.cp_level,
+        "signal": decision.signal,
+        "equity_exposure_limit": decision.equity_exposure_limit,
+        "inputs": {
+            "close": round(close, 2),
+            "ma5": round(float(observation.tcwrs_input.ma5), 2),
+            "ma20": round(ma20, 2),
+            "ma60": round(ma60, 2),
+            "ma20_slope": round(float(observation.tcwrs_input.ma20_slope), 4),
+            "one_day_return_pct": round(one_day_return, 4),
+            "two_day_return_pct": round(two_day_return, 4),
+            "five_day_return_pct": round(five_day_return, 4),
+            "return_60d_pct": round(return_60d, 4),
+            "consecutive_down_days": consecutive_down_days,
+            "close_below_ma20_consecutive_days": close_below_ma20_days,
+        },
+        "scores": {
+            "TCWRS": tcwrs.total_score,
+            "MHS": mhs,
+            "ETI-5": eti5.eti_score,
+            "Tail Risk": round(tail_risk, 2),
+            "BCD": round(bcd, 2),
+            "CP": round(cp.cp_score, 2),
+        },
+        "traces": {
+            "tcwrs": tcwrs.as_dict(),
+            "eti_5": eti5.as_dict(),
+            "crash_probability": cp.as_dict(),
+            "bear_trend": bear_trend.as_dict(),
+            "decision_matrix": decision.as_dict(),
+        },
+        "data": {
+            "source": "Daily enriched market snapshot",
+            "latest_bar_date": latest_bar_date,
+            "bar_count": len(snapshot.price_bars) if snapshot.price_bars else DEFAULT_MIN_BARS,
+            "status": snapshot.data_status,
+            "limitations": limitations,
+            "warnings": list(snapshot.warnings),
+            "fallback_proxies": proxy_info,
+            "field_sources": {key: value.as_dict() for key, value in coverage.field_sources.items()},
+            "source_metadata": {key: dict(value) for key, value in snapshot.source_metadata.items()},
+            "missing_fields": list(coverage.missing_fields),
+            "available_eti_components": list(coverage.available_eti_components),
+            "data_status": coverage.data_status,
+            "snapshot_validation": validation.as_dict(),
+        },
+        "etf_exit": etf_hook.as_dict(),
+    }
+
+
+def _eti_input_with_available_components(data: ETI5Input, available_components: set[str]) -> ETI5Input:
+    values = {field.name: getattr(data, field.name) for field in fields(ETI5Input)}
+    values["available_components"] = set(available_components)
+    return ETI5Input(**values)
+
+
+def _previous_ma60_from_snapshot(snapshot: DailyMarketSnapshot, default_ma60: float) -> float:
+    bars = sorted(snapshot.price_bars, key=lambda bar: _coerce_date(bar.observed_at))
+    if len(bars) >= 61:
+        return _moving_average([float(bar.close) for bar in bars[:-1]], 60)
+    return float(snapshot.canonical_row.get("previous_ma60", default_ma60) or default_ma60)
+
+
+def _return_60d_from_snapshot(snapshot: DailyMarketSnapshot, close: float) -> float:
+    bars = sorted(snapshot.price_bars, key=lambda bar: _coerce_date(bar.observed_at))
+    if len(bars) >= 61:
+        return _pct_change(float(bars[-61].close), close)
+    return float(snapshot.canonical_row.get("return_60d_pct", 0.0) or 0.0)
+
+
 def render_daily_markdown(payload: Mapping[str, Any]) -> str:
     """Render the daily JSON payload as an operator-friendly Markdown report."""
 
@@ -378,6 +586,13 @@ def render_daily_markdown(payload: Mapping[str, Any]) -> str:
             f"- Bar count: {data['bar_count']}",
             f"- Data status: `{data['status']}`",
             *[f"- {note}" for note in data["limitations"]],
+            "",
+            "## Source Coverage and Fallbacks",
+            "",
+            f"- Available ETI components: `{', '.join(data.get('available_eti_components', [])) or 'not reported'}`",
+            f"- Missing fields: `{', '.join(data.get('missing_fields', [])) or 'none reported'}`",
+            f"- Fallback proxies: `{json.dumps(data.get('fallback_proxies', {}), ensure_ascii=False, sort_keys=True)}`",
+            f"- Field source count: `{len(data.get('field_sources', {}))}`",
             "",
             "## Future ETF Exit Integration",
             "",
