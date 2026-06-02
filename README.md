@@ -144,6 +144,19 @@ print(result.as_dict()["signals"][0]["trace_output"])
 
 
 
+## 2022 Bear Market Backtest Validation
+
+`backtest_2022_bear_market.py` runs the V5.1.4 2022 TAIEX bear-market backtest, and `validate_2022_bear_market.py` validates the generated CSV/summary artifacts against the V5.1.4 acceptance gates.
+
+```bash
+python scripts/backtest_2022_bear_market.py
+python scripts/validate_2022_bear_market.py
+```
+
+The validation command checks the expected 247-session window, price-only ETI availability controls, red-signal confirmation gates, populated forward drawdown/false-positive annotations, and CSV/summary aggregate agreement. It writes `outputs/tdt_rm_v5_1_4_2022_bear_market_validation.json` and exits non-zero if any gate fails.
+
+
+
 ## COVID Crash 2020 Stress Test
 
 `stress_test_covid_crash_2020.py` replays the 2020 TAIEX COVID-crash window with the same dependency-free, price-proxy stress harness used by the 2022 bear-market script.  It writes an auditable daily CSV and JSON summary under `outputs/` by default:
