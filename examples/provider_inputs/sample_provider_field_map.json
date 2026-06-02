@@ -1,0 +1,24 @@
+{
+  "categories": {
+    "price": {
+      "observed_at": "date",
+      "close": "close",
+      "turnover_amount": "turnover_amount"
+    },
+    "foreign_flow": {
+      "observed_at": "trade_date"
+    },
+    "fx": {
+      "observed_at": "trade_date"
+    },
+    "breadth": {
+      "observed_at": "trade_date"
+    },
+    "margin": {
+      "observed_at": "trade_date"
+    },
+    "scores": {
+      "observed_at": "trade_date"
+    }
+  }
+}
