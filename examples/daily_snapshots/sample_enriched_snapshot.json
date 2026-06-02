@@ -1,0 +1,140 @@
+{
+  "trade_date": "2026-05-29",
+  "observed_at": "2026-05-29T06:30:00+00:00",
+  "canonical_row": {
+    "observed_at": "2026-05-29",
+    "close": 21280.17,
+    "ma5": 21420.55,
+    "ma20": 21610.42,
+    "ma60": 20980.31,
+    "ma20_slope": -0.18,
+    "close_below_ma20_consecutive_days": 3,
+    "one_day_return_pct": -1.12,
+    "two_day_return_pct": -1.86,
+    "turnover_amount": 398500000000,
+    "ma20_turnover": 365200000000,
+    "volume_up": true,
+    "price_up": false,
+    "close_is_black": false,
+    "long_black_candle": false,
+    "foreign_spot_net_buy": -18500000000,
+    "foreign_spot_net_sell": true,
+    "foreign_spot_net_sell_consecutive_days": 4,
+    "foreign_large_sell": true,
+    "foreign_spot_small_sell": false,
+    "foreign_spot_large_sell": true,
+    "futures_net_short_increases": true,
+    "futures_hedging_increases": true,
+    "futures_hedging_significant": true,
+    "pcr_rises": true,
+    "vix_rises": false,
+    "usd_twd_3d_change_pct": 0.72,
+    "usd_twd_5d_change_pct": 1.08,
+    "twd_depreciates_significantly": true,
+    "index_5d_return_pct": -2.35,
+    "margin_balance_5d_decline_pct": 0.8,
+    "margin_not_retreating": true,
+    "index_down": true,
+    "advancing_issues": 312,
+    "declining_issues": 782,
+    "declining_issues_significantly_expand": true,
+    "declining_issues_significantly_gt_advancing": true,
+    "declining_gt_advancing_consecutive_days": 3,
+    "breadth_weakens_for_2_days": true,
+    "count_main_7_below_ma20": 5,
+    "count_main_7_below_ma60": 2,
+    "tail_risk": 42.5,
+    "bcd": 38.0,
+    "mhs": 12.0,
+    "return_60d_pct": 1.45,
+    "previous_ma60": 20965.22
+  },
+  "field_sources": {
+    "observed_at": "operator_snapshot",
+    "close": "twse_local",
+    "ma5": "local_price_features",
+    "ma20": "local_price_features",
+    "ma60": "local_price_features",
+    "ma20_slope": "local_price_features",
+    "foreign_spot_net_buy": "twse_institutional_local",
+    "foreign_spot_net_sell": "twse_institutional_local",
+    "foreign_spot_net_sell_consecutive_days": "local_flow_features",
+    "foreign_large_sell": "local_flow_features",
+    "foreign_spot_large_sell": "local_flow_features",
+    "futures_hedging_increases": "taifex_local",
+    "futures_hedging_significant": "taifex_local",
+    "usd_twd_3d_change_pct": "local_fx_features",
+    "usd_twd_5d_change_pct": "local_fx_features",
+    "advancing_issues": "local_breadth_feed",
+    "declining_issues": "local_breadth_feed",
+    "declining_issues_significantly_gt_advancing": "local_breadth_features",
+    "breadth_weakens_for_2_days": "local_breadth_features",
+    "count_main_7_below_ma20": "local_leadership_features",
+    "tail_risk": "operator_formal_tail_risk",
+    "bcd": "operator_formal_bcd",
+    "mhs": "operator_mhs_input"
+  },
+  "source_metadata": {
+    "operator_snapshot": {
+      "name": "Operator enriched daily snapshot",
+      "retrieved_at": "2026-05-29T06:30:00+00:00",
+      "notes": "Static smoke fixture; replace with local production collection output."
+    },
+    "twse_local": {
+      "name": "Local TWSE TAIEX close export",
+      "retrieved_at": "2026-05-29T06:10:00+00:00"
+    },
+    "local_price_features": {
+      "name": "Local moving-average feature job",
+      "retrieved_at": "2026-05-29T06:15:00+00:00"
+    },
+    "twse_institutional_local": {
+      "name": "Local TWSE institutional flow export",
+      "retrieved_at": "2026-05-29T06:18:00+00:00"
+    },
+    "local_flow_features": {
+      "name": "Local foreign-flow feature job",
+      "retrieved_at": "2026-05-29T06:20:00+00:00"
+    },
+    "taifex_local": {
+      "name": "Local TAIFEX hedging export",
+      "retrieved_at": "2026-05-29T06:20:00+00:00"
+    },
+    "local_fx_features": {
+      "name": "Local USD/TWD feature job",
+      "retrieved_at": "2026-05-29T06:22:00+00:00"
+    },
+    "local_breadth_feed": {
+      "name": "Local market breadth feed",
+      "retrieved_at": "2026-05-29T06:24:00+00:00"
+    },
+    "local_breadth_features": {
+      "name": "Local breadth feature job",
+      "retrieved_at": "2026-05-29T06:25:00+00:00"
+    },
+    "local_leadership_features": {
+      "name": "Local leadership breakdown job",
+      "retrieved_at": "2026-05-29T06:26:00+00:00"
+    },
+    "operator_formal_tail_risk": {
+      "name": "Operator-supplied formal Tail Risk score",
+      "retrieved_at": "2026-05-29T06:27:00+00:00"
+    },
+    "operator_formal_bcd": {
+      "name": "Operator-supplied formal BCD score",
+      "retrieved_at": "2026-05-29T06:27:00+00:00"
+    },
+    "operator_mhs_input": {
+      "name": "Operator-supplied MHS placeholder input",
+      "retrieved_at": "2026-05-29T06:28:00+00:00"
+    }
+  },
+  "data_status": "enriched_snapshot",
+  "limitations": [
+    "Smoke fixture values are deterministic examples, not live market recommendations.",
+    "ETF Exit is not integrated in this fixture."
+  ],
+  "warnings": [
+    "Replace fixture source metadata with production collection timestamps before operating live."
+  ]
+}

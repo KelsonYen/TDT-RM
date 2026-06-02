@@ -1,0 +1,11 @@
+{
+  "observed_at": "trade_date",
+  "close": "taiex_close",
+  "ma5": "index_ma5",
+  "ma20": "index_ma20",
+  "ma60": "index_ma60",
+  "ma20_slope": "index_ma20_slope",
+  "tail_risk": "tail_risk",
+  "bcd": "bcd",
+  "mhs": "mhs"
+}
