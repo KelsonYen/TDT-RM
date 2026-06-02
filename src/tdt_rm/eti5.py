@@ -1,4 +1,4 @@
-"""ETI-5 module for TDT-RM V5.1.3 Rev.3 Final Freeze.
+"""ETI-5 module for TDT-RM V5.1.4 Backtest Calibration Patch.
 
 ETI-5 (Exit Trigger Index 5) is the binary landing-confirmation layer for
 five TCWRS-adjacent damage signals.  TCWRS measures damage severity; ETI-5
@@ -8,7 +8,7 @@ measures how many distinct damage signals have landed.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any, Mapping, Collection
 
 TraceOutput = dict[str, Any]
 
@@ -47,6 +47,12 @@ class ETI5Input:
     # ETI-5: Leadership breakdown.
     count_main_7_below_ma20: int = 0
 
+    # V5.1.4 availability calibration. Use ETI-1..ETI-5 codes.
+    # None preserves legacy behavior (all components available). Backtests with
+    # price-only tapes should usually pass {"ETI-1"} instead of proxying every
+    # ETI component from the index price sequence.
+    available_components: Collection[str] | None = None
+
 
 @dataclass(frozen=True)
 class ETI5SignalResult:
@@ -55,6 +61,7 @@ class ETI5SignalResult:
     code: str
     name: str
     triggered: bool
+    available: bool
     matched_rule: str
     conditions: Mapping[str, Any]
 
@@ -66,6 +73,7 @@ class ETI5SignalResult:
             "code": self.code,
             "name": self.name,
             "triggered": self.triggered,
+            "available": self.available,
             "score": int(self.triggered),
             "matched_rule": self.matched_rule,
             "conditions": trace_output,
@@ -80,10 +88,44 @@ class ETI5Result:
     signals: Mapping[str, ETI5SignalResult]
 
     @property
+    def eti_available_count(self) -> int:
+        """Return the count of ETI components with available source data."""
+
+        return sum(int(signal.available) for signal in self.signals.values())
+
+    @property
+    def eti_raw_score(self) -> int:
+        """Return the effective raw score across available components before caps."""
+
+        return sum(int(signal.triggered) for signal in self.signals.values() if signal.available)
+
+    @property
+    def eti_cap_reason(self) -> str | None:
+        """Explain the V5.1.4 data-availability cap, when any."""
+
+        count = self.eti_available_count
+        if count <= 2:
+            return "available components <= 2; capped at 2"
+        if count == 3:
+            return "available components = 3; capped at 3"
+        return None
+
+    @property
+    def eti_capped_score(self) -> int:
+        """Return ETI-5 after V5.1.4 availability caps."""
+
+        count = self.eti_available_count
+        if count <= 2:
+            return min(self.eti_raw_score, 2)
+        if count == 3:
+            return min(self.eti_raw_score, 3)
+        return self.eti_raw_score
+
+    @property
     def eti_score(self) -> int:
         """Return ETI-5 total score in the inclusive range 0-5."""
 
-        return sum(int(signal.triggered) for signal in self.signals.values())
+        return self.eti_capped_score
 
     @property
     def eti5_total(self) -> int:
@@ -95,7 +137,7 @@ class ETI5Result:
     def triggered_signals(self) -> list[str]:
         """Return component codes for all triggered ETI-5 signals."""
 
-        return [code for code, signal in self.signals.items() if signal.triggered]
+        return [code for code, signal in self.signals.items() if signal.available and signal.triggered]
 
     @property
     def trace_output(self) -> dict[str, dict[str, Any]]:
@@ -108,6 +150,10 @@ class ETI5Result:
 
         return {
             "eti_score": self.eti_score,
+            "eti_available_count": self.eti_available_count,
+            "eti_raw_score": self.eti_raw_score,
+            "eti_capped_score": self.eti_capped_score,
+            "eti_cap_reason": self.eti_cap_reason,
             "triggered_signals": self.triggered_signals,
             "trace_output": self.trace_output,
             # Compatibility alias for the specification term.
@@ -119,6 +165,7 @@ def _signal(
     code: str,
     name: str,
     triggered: bool,
+    available: bool,
     triggered_rule: str,
     default_rule: str,
     conditions: TraceOutput,
@@ -126,14 +173,21 @@ def _signal(
     return ETI5SignalResult(
         code=code,
         name=name,
-        triggered=triggered,
-        matched_rule=triggered_rule if triggered else default_rule,
+        triggered=triggered and available,
+        available=available,
+        matched_rule=(triggered_rule if triggered else default_rule) if available else "component unavailable; not scored",
         conditions=conditions,
     )
 
 
 def score_eti5(data: ETI5Input) -> ETI5Result:
-    """Score the complete ETI-5 module and retain every intermediate trace."""
+    """Score ETI-5 with V5.1.4 data-availability caps and full trace."""
+
+    available_components = (
+        {"ETI-1", "ETI-2", "ETI-3", "ETI-4", "ETI-5"}
+        if data.available_components is None
+        else set(data.available_components)
+    )
 
     eti_1_conditions: TraceOutput = {
         "close_lt_ma20": data.close < data.ma20,
@@ -149,6 +203,7 @@ def score_eti5(data: ETI5Input) -> ETI5Result:
         "Index below 20MA",
         eti_1_conditions["close_lt_ma20"]
         or eti_1_conditions["close_not_back_above_ma20_for_2_days"],
+        "ETI-1" in available_components,
         "close < MA20 OR close_not_back_above_MA20_for_2_days",
         "index remains above/effectively back above MA20",
         eti_1_conditions,
@@ -170,6 +225,7 @@ def score_eti5(data: ETI5Input) -> ETI5Result:
         "Foreign selling",
         eti_2_conditions["foreign_spot_net_sell_for_2_days"]
         or eti_2_conditions["foreign_large_sell_and_futures_hedging_increases"],
+        "ETI-2" in available_components,
         "foreign_spot_net_sell_for_2_days OR (foreign_large_sell AND futures_hedging_increases)",
         "foreign selling confirmation not triggered",
         eti_2_conditions,
@@ -188,6 +244,7 @@ def score_eti5(data: ETI5Input) -> ETI5Result:
         "TWD depreciation",
         eti_3_conditions["usd_twd_3d_change_gt_0_5"]
         or eti_3_conditions["usd_twd_5d_change_gt_1_0"],
+        "ETI-3" in available_components,
         "USD_TWD_3d_change > 0.5% OR USD_TWD_5d_change > 1.0%",
         "TWD depreciation confirmation not triggered",
         eti_3_conditions,
@@ -208,6 +265,7 @@ def score_eti5(data: ETI5Input) -> ETI5Result:
         "Breadth deterioration",
         eti_4_conditions["index_down_and_declining_issues_significantly_gt_advancing"]
         or eti_4_conditions["breadth_weakens_for_2_days"],
+        "ETI-4" in available_components,
         "(index_down AND declining_issues >> advancing_issues) OR breadth_weakens_for_2_days",
         "breadth deterioration confirmation not triggered",
         eti_4_conditions,
@@ -225,6 +283,7 @@ def score_eti5(data: ETI5Input) -> ETI5Result:
         "ETI-5",
         "Leadership breakdown",
         eti_5_conditions["count_main_7_below_ma20_gte_4"],
+        "ETI-5" in available_components,
         "count_main_7_below_MA20 >= 4",
         "leadership breakdown confirmation not triggered",
         eti_5_conditions,

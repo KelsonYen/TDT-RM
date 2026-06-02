@@ -1,0 +1,10 @@
+{
+  "model": "TDT-RM V5.1.4 Backtest Calibration Patch",
+  "simulation": "daily",
+  "period": "2022 bear market",
+  "observations": 247,
+  "red_signals": 0,
+  "orange_signals": 150,
+  "false_positives": 40,
+  "maximum_drawdown_avoided_pct": 19.17
+}

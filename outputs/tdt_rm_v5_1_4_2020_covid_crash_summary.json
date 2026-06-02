@@ -1,0 +1,12 @@
+{
+  "model": "TDT-RM V5.1.4 Backtest Calibration Patch",
+  "simulation": "daily",
+  "period": "2020 COVID crash",
+  "observations": 48,
+  "red_signals": 0,
+  "orange_signals": 0,
+  "first_red_signal": null,
+  "first_orange_signal": null,
+  "false_positives": 0,
+  "maximum_drawdown_avoided_pct": 0.0
+}

@@ -136,3 +136,45 @@ def test_eti5_threshold_edges_are_strict_where_spec_requires():
         result.trace_output["ETI-5"]["trace_output"]["count_main_7_below_ma20_gte_4"]
         is False
     )
+
+
+def test_eti5_v514_availability_caps_price_only_backtests():
+    result = score_eti5(
+        base_input(
+            close=94,
+            ma20=95,
+            foreign_spot_net_sell_consecutive_days=2,
+            usd_twd_3d_change_pct=0.6,
+            index_down=True,
+            declining_issues_significantly_gt_advancing=True,
+            count_main_7_below_ma20=4,
+            available_components={"ETI-1"},
+        )
+    )
+
+    assert result.eti_available_count == 1
+    assert result.eti_raw_score == 1
+    assert result.eti_capped_score == 1
+    assert result.eti_score == 1
+    assert result.eti_cap_reason == "available components <= 2; capped at 2"
+    assert result.triggered_signals == ["ETI-1"]
+    assert result.trace_output["ETI-2"]["available"] is False
+    assert result.trace_output["ETI-2"]["triggered"] is False
+
+
+def test_eti5_v514_caps_three_available_components_at_three():
+    result = score_eti5(
+        base_input(
+            close=94,
+            ma20=95,
+            foreign_spot_net_sell_consecutive_days=2,
+            usd_twd_3d_change_pct=0.6,
+            count_main_7_below_ma20=4,
+            available_components={"ETI-1", "ETI-2", "ETI-3"},
+        )
+    )
+
+    assert result.eti_available_count == 3
+    assert result.eti_raw_score == 3
+    assert result.eti_capped_score == 3
+    assert result.eti_cap_reason == "available components = 3; capped at 3"
