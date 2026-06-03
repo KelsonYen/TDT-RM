@@ -1,6 +1,6 @@
 {
   "as_of": "2026-06-03",
-  "generated_at": "2026-06-03T11:44:18.728042+00:00",
+  "generated_at": "2026-06-03T11:51:09.844828+00:00",
   "providers": {
     "breadth_provider": {
       "as_of": "2026-06-03",
@@ -29,7 +29,7 @@
         "validation_passed": false
       },
       "error_message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
-      "fetch_duration_seconds": 0.005046,
+      "fetch_duration_seconds": 0.006134,
       "freshness_status": "not_applicable",
       "provider_name": "breadth_provider",
       "records_loaded": 0,
@@ -63,7 +63,7 @@
         "validation_passed": false
       },
       "error_message": "source config missing endpoint_url_template/url or fixture_path",
-      "fetch_duration_seconds": 0.000485,
+      "fetch_duration_seconds": 0.00042,
       "freshness_status": "not_applicable",
       "provider_name": "derivatives_provider",
       "records_loaded": 0,
@@ -97,7 +97,7 @@
         "validation_passed": false
       },
       "error_message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
-      "fetch_duration_seconds": 0.003684,
+      "fetch_duration_seconds": 0.00658,
       "freshness_status": "not_applicable",
       "provider_name": "foreign_flow_provider",
       "records_loaded": 0,
@@ -131,7 +131,7 @@
         "validation_passed": false
       },
       "error_message": "source config missing endpoint_url_template/url or fixture_path",
-      "fetch_duration_seconds": 0.000231,
+      "fetch_duration_seconds": 0.00022,
       "freshness_status": "not_applicable",
       "provider_name": "fx_provider",
       "records_loaded": 0,
@@ -165,7 +165,7 @@
         "validation_passed": false
       },
       "error_message": "source config missing endpoint_url_template/url or fixture_path",
-      "fetch_duration_seconds": 0.000124,
+      "fetch_duration_seconds": 0.000141,
       "freshness_status": "not_applicable",
       "provider_name": "leadership_provider",
       "records_loaded": 0,
@@ -199,7 +199,7 @@
         "validation_passed": false
       },
       "error_message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
-      "fetch_duration_seconds": 0.003732,
+      "fetch_duration_seconds": 0.004339,
       "freshness_status": "not_applicable",
       "provider_name": "margin_provider",
       "records_loaded": 0,
@@ -233,7 +233,7 @@
         "validation_passed": false
       },
       "error_message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
-      "fetch_duration_seconds": 0.027219,
+      "fetch_duration_seconds": 0.027057,
       "freshness_status": "not_applicable",
       "provider_name": "price_provider",
       "records_loaded": 0,

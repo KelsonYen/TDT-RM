@@ -11,7 +11,7 @@
   ],
   "daily_report": {
     "error_message": "missing required output file: model output",
-    "generated_at": "2026-06-03T11:44:27.924894+00:00",
+    "generated_at": "2026-06-03T11:51:40.538455+00:00",
     "report_path": "outputs/daily_report.md",
     "status": "failed"
   },
@@ -25,7 +25,7 @@
     "main7_leadership",
     "twse_margin"
   ],
-  "generated_at": "2026-06-03T11:44:18.728607+00:00",
+  "generated_at": "2026-06-03T11:51:09.845557+00:00",
   "limitations": [
     "Public data endpoints may be delayed, unavailable, blocked by network policy/403 restrictions, or revised after publication.",
     "No paid API, broker login, browser automation, or ETF Exit policy is used.",
@@ -71,7 +71,7 @@
         "validation_passed": false
       },
       "error_message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
-      "fetch_duration_seconds": 0.005046,
+      "fetch_duration_seconds": 0.006134,
       "freshness_status": "not_applicable",
       "provider_name": "breadth_provider",
       "records_loaded": 0,
@@ -105,7 +105,7 @@
         "validation_passed": false
       },
       "error_message": "source config missing endpoint_url_template/url or fixture_path",
-      "fetch_duration_seconds": 0.000485,
+      "fetch_duration_seconds": 0.00042,
       "freshness_status": "not_applicable",
       "provider_name": "derivatives_provider",
       "records_loaded": 0,
@@ -139,7 +139,7 @@
         "validation_passed": false
       },
       "error_message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
-      "fetch_duration_seconds": 0.003684,
+      "fetch_duration_seconds": 0.00658,
       "freshness_status": "not_applicable",
       "provider_name": "foreign_flow_provider",
       "records_loaded": 0,
@@ -173,7 +173,7 @@
         "validation_passed": false
       },
       "error_message": "source config missing endpoint_url_template/url or fixture_path",
-      "fetch_duration_seconds": 0.000231,
+      "fetch_duration_seconds": 0.00022,
       "freshness_status": "not_applicable",
       "provider_name": "fx_provider",
       "records_loaded": 0,
@@ -207,7 +207,7 @@
         "validation_passed": false
       },
       "error_message": "source config missing endpoint_url_template/url or fixture_path",
-      "fetch_duration_seconds": 0.000124,
+      "fetch_duration_seconds": 0.000141,
       "freshness_status": "not_applicable",
       "provider_name": "leadership_provider",
       "records_loaded": 0,
@@ -241,7 +241,7 @@
         "validation_passed": false
       },
       "error_message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
-      "fetch_duration_seconds": 0.003732,
+      "fetch_duration_seconds": 0.004339,
       "freshness_status": "not_applicable",
       "provider_name": "margin_provider",
       "records_loaded": 0,
@@ -275,7 +275,7 @@
         "validation_passed": false
       },
       "error_message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
-      "fetch_duration_seconds": 0.027219,
+      "fetch_duration_seconds": 0.027057,
       "freshness_status": "not_applicable",
       "provider_name": "price_provider",
       "records_loaded": 0,
@@ -448,10 +448,10 @@
       "raw_metadata": {
         "exception_class": "URLError",
         "exception_message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
-        "fetch_duration_seconds": 0.027219,
+        "fetch_duration_seconds": 0.027057,
         "source_type": "twse_json"
       },
-      "retrieved_at": "2026-06-03T11:44:18.686630+00:00",
+      "retrieved_at": "2026-06-03T11:51:09.798711+00:00",
       "row_count": 0,
       "source_id": "twse_taiex_price",
       "source_name": "TWSE TAIEX monthly OHLC (MI_5MINS_HIST)",
@@ -473,10 +473,10 @@
       "raw_metadata": {
         "exception_class": "URLError",
         "exception_message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
-        "fetch_duration_seconds": 0.005046,
+        "fetch_duration_seconds": 0.006134,
         "source_type": "generic_json"
       },
-      "retrieved_at": "2026-06-03T11:44:18.686630+00:00",
+      "retrieved_at": "2026-06-03T11:51:09.798711+00:00",
       "row_count": 0,
       "source_id": "twse_market_breadth",
       "source_name": "TWSE market breadth / summary",
@@ -498,10 +498,10 @@
       "raw_metadata": {
         "exception_class": "ValueError",
         "exception_message": "source config missing endpoint_url_template/url or fixture_path",
-        "fetch_duration_seconds": 0.000485,
+        "fetch_duration_seconds": 0.00042,
         "source_type": "generic_json"
       },
-      "retrieved_at": "2026-06-03T11:44:18.686630+00:00",
+      "retrieved_at": "2026-06-03T11:51:09.798711+00:00",
       "row_count": 0,
       "source_id": "taifex_derivatives",
       "source_name": "TAIFEX derivatives public structured endpoint",
@@ -523,10 +523,10 @@
       "raw_metadata": {
         "exception_class": "URLError",
         "exception_message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
-        "fetch_duration_seconds": 0.003684,
+        "fetch_duration_seconds": 0.00658,
         "source_type": "generic_json"
       },
-      "retrieved_at": "2026-06-03T11:44:18.686630+00:00",
+      "retrieved_at": "2026-06-03T11:51:09.798711+00:00",
       "row_count": 0,
       "source_id": "twse_foreign_flow",
       "source_name": "TWSE foreign investor flow (T86)",
@@ -548,10 +548,10 @@
       "raw_metadata": {
         "exception_class": "ValueError",
         "exception_message": "source config missing endpoint_url_template/url or fixture_path",
-        "fetch_duration_seconds": 0.000231,
+        "fetch_duration_seconds": 0.00022,
         "source_type": "generic_json"
       },
-      "retrieved_at": "2026-06-03T11:44:18.686630+00:00",
+      "retrieved_at": "2026-06-03T11:51:09.798711+00:00",
       "row_count": 0,
       "source_id": "public_usd_twd_fx",
       "source_name": "Public USD/TWD FX endpoint",
@@ -573,10 +573,10 @@
       "raw_metadata": {
         "exception_class": "ValueError",
         "exception_message": "source config missing endpoint_url_template/url or fixture_path",
-        "fetch_duration_seconds": 0.000124,
+        "fetch_duration_seconds": 0.000141,
         "source_type": "generic_json"
       },
-      "retrieved_at": "2026-06-03T11:44:18.686630+00:00",
+      "retrieved_at": "2026-06-03T11:51:09.798711+00:00",
       "row_count": 0,
       "source_id": "main7_leadership",
       "source_name": "Main-7 constituent leadership",
@@ -598,10 +598,10 @@
       "raw_metadata": {
         "exception_class": "URLError",
         "exception_message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
-        "fetch_duration_seconds": 0.003732,
+        "fetch_duration_seconds": 0.004339,
         "source_type": "generic_json"
       },
-      "retrieved_at": "2026-06-03T11:44:18.686630+00:00",
+      "retrieved_at": "2026-06-03T11:51:09.798711+00:00",
       "row_count": 0,
       "source_id": "twse_margin",
       "source_name": "TWSE margin trading summary",
