@@ -1,0 +1,205 @@
+{
+  "assembly": {
+    "conflicts": [],
+    "missing_field_categories": [
+      "foreign_flow",
+      "fx",
+      "breadth",
+      "leadership",
+      "margin",
+      "scores"
+    ],
+    "provider_errors": [],
+    "supplied_providers": [
+      "taiex_price"
+    ]
+  },
+  "canonical_row": {
+    "close": 42120.0,
+    "ma20": 41780.0,
+    "ma20_slope": 36.0,
+    "ma20_turnover": 500000000000.0,
+    "ma5": 42040.0,
+    "ma60": 40530.0,
+    "observed_at": "2026-06-02",
+    "one_day_return_pct": 0.12,
+    "turnover_amount": 521000000000.0,
+    "two_day_return_pct": 0.31
+  },
+  "data_status": "enriched_snapshot",
+  "field_sources": {
+    "close": "taiex_price",
+    "ma20": "taiex_price",
+    "ma20_slope": "taiex_price",
+    "ma20_turnover": "taiex_price",
+    "ma5": "taiex_price",
+    "ma60": "taiex_price",
+    "observed_at": "taiex_price",
+    "one_day_return_pct": "taiex_price",
+    "turnover_amount": "taiex_price",
+    "two_day_return_pct": "taiex_price"
+  },
+  "limitations": [],
+  "observed_at": "2026-06-02",
+  "price_bars": [],
+  "source_metadata": {
+    "assembly_context": {
+      "name": "Assembler context",
+      "notes": "--as-of value",
+      "retrieved_at": "2026-06-03T12:14:24.271069Z"
+    },
+    "taiex_price": {
+      "capabilities": [
+        {
+          "canonical_fields": [
+            "close",
+            "ma20",
+            "ma20_slope",
+            "ma20_turnover",
+            "ma5",
+            "ma60",
+            "observed_at",
+            "one_day_return_pct",
+            "turnover_amount",
+            "two_day_return_pct"
+          ],
+          "category": "price",
+          "notes": null,
+          "precedence": 80,
+          "source_kind": "price"
+        }
+      ],
+      "category": "price",
+      "name": "TAIEX price provider",
+      "notes": "inputs/daily/2026-06-02/price.csv",
+      "retrieved_at": "2026-06-03T12:14:24.279081Z"
+    }
+  },
+  "trade_date": "2026-06-02",
+  "validation": {
+    "coverage": {
+      "available_eti_components": [
+        "ETI-1"
+      ],
+      "data_status": "enriched_snapshot",
+      "field_sources": {
+        "close": {
+          "field": "close",
+          "notes": "inputs/daily/2026-06-02/price.csv",
+          "retrieved_at": "2026-06-03T12:14:24.279081Z",
+          "source_id": "taiex_price",
+          "source_name": "TAIEX price provider"
+        },
+        "ma20": {
+          "field": "ma20",
+          "notes": "inputs/daily/2026-06-02/price.csv",
+          "retrieved_at": "2026-06-03T12:14:24.279081Z",
+          "source_id": "taiex_price",
+          "source_name": "TAIEX price provider"
+        },
+        "ma20_slope": {
+          "field": "ma20_slope",
+          "notes": "inputs/daily/2026-06-02/price.csv",
+          "retrieved_at": "2026-06-03T12:14:24.279081Z",
+          "source_id": "taiex_price",
+          "source_name": "TAIEX price provider"
+        },
+        "ma20_turnover": {
+          "field": "ma20_turnover",
+          "notes": "inputs/daily/2026-06-02/price.csv",
+          "retrieved_at": "2026-06-03T12:14:24.279081Z",
+          "source_id": "taiex_price",
+          "source_name": "TAIEX price provider"
+        },
+        "ma5": {
+          "field": "ma5",
+          "notes": "inputs/daily/2026-06-02/price.csv",
+          "retrieved_at": "2026-06-03T12:14:24.279081Z",
+          "source_id": "taiex_price",
+          "source_name": "TAIEX price provider"
+        },
+        "ma60": {
+          "field": "ma60",
+          "notes": "inputs/daily/2026-06-02/price.csv",
+          "retrieved_at": "2026-06-03T12:14:24.279081Z",
+          "source_id": "taiex_price",
+          "source_name": "TAIEX price provider"
+        },
+        "observed_at": {
+          "field": "observed_at",
+          "notes": "inputs/daily/2026-06-02/price.csv",
+          "retrieved_at": "2026-06-03T12:14:24.279081Z",
+          "source_id": "taiex_price",
+          "source_name": "TAIEX price provider"
+        },
+        "one_day_return_pct": {
+          "field": "one_day_return_pct",
+          "notes": "inputs/daily/2026-06-02/price.csv",
+          "retrieved_at": "2026-06-03T12:14:24.279081Z",
+          "source_id": "taiex_price",
+          "source_name": "TAIEX price provider"
+        },
+        "turnover_amount": {
+          "field": "turnover_amount",
+          "notes": "inputs/daily/2026-06-02/price.csv",
+          "retrieved_at": "2026-06-03T12:14:24.279081Z",
+          "source_id": "taiex_price",
+          "source_name": "TAIEX price provider"
+        },
+        "two_day_return_pct": {
+          "field": "two_day_return_pct",
+          "notes": "inputs/daily/2026-06-02/price.csv",
+          "retrieved_at": "2026-06-03T12:14:24.279081Z",
+          "source_id": "taiex_price",
+          "source_name": "TAIEX price provider"
+        }
+      },
+      "limitations": [],
+      "missing_fields": [],
+      "source_metadata": {
+        "assembly_context": {
+          "name": "Assembler context",
+          "notes": "--as-of value",
+          "retrieved_at": "2026-06-03T12:14:24.271069Z"
+        },
+        "taiex_price": {
+          "capabilities": [
+            {
+              "canonical_fields": [
+                "close",
+                "ma20",
+                "ma20_slope",
+                "ma20_turnover",
+                "ma5",
+                "ma60",
+                "observed_at",
+                "one_day_return_pct",
+                "turnover_amount",
+                "two_day_return_pct"
+              ],
+              "category": "price",
+              "notes": null,
+              "precedence": 80,
+              "source_kind": "price"
+            }
+          ],
+          "category": "price",
+          "name": "TAIEX price provider",
+          "notes": "inputs/daily/2026-06-02/price.csv",
+          "retrieved_at": "2026-06-03T12:14:24.279081Z"
+        }
+      },
+      "warnings": []
+    },
+    "is_valid": true,
+    "issues": [
+      {
+        "code": "eti_components_unavailable",
+        "field": "canonical_row",
+        "message": "ETI components unavailable from source fields: ETI-2, ETI-3, ETI-4, ETI-5",
+        "severity": "warning"
+      }
+    ]
+  },
+  "warnings": []
+}
