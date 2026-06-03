@@ -35,6 +35,8 @@ PROVIDER_SOURCE = "FinMind"
 SOURCE_TYPE = "REAL_PROVIDER"
 REQUIRED_FILES = tuple(schema.filename for schema in SCHEMAS)
 MAIN7_DEFAULT = ("2330", "0050", "00878", "2454", "2317", "2382", "2308")
+TAIEX_INDEX_DATASETS = ("TaiwanStockTotalReturnIndex", "TaiwanVariousIndicators5Seconds", "TaiwanStockPrice", "TaiwanStockPriceAdj")
+EQUITY_PRICE_DATASETS = ("TaiwanStockPrice", "TaiwanStockPriceAdj")
 
 
 @dataclass(frozen=True)
@@ -44,6 +46,7 @@ class RequestEvidence:
     http_status: str
     raw_row_count: int
     exception_message: str = ""
+    sample_rows: tuple[Mapping[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -53,6 +56,7 @@ class DetailedDatasetStatus:
     api_call: str
     http_status: str
     raw_response_row_count: int
+    raw_sample_rows: tuple[Mapping[str, Any], ...]
     normalized_csv_row_count: int
     required_fields_missing: tuple[str, ...]
     exception_message: str
@@ -117,6 +121,7 @@ def main() -> int:
     parser.add_argument("--fetch-only", action="store_true", help="Only fetch/write CSVs; do not run validation or production.")
     parser.add_argument("--summary-json", help="Optional machine-readable fetch summary path.")
     parser.add_argument("--debug-ingestion", action="store_true", help="Print detailed FinMind ingestion failure evidence without writing production CSVs.")
+    parser.add_argument("--sample-rows", type=int, default=3, help="Raw provider rows to show per debug request (default: 3).")
     args = parser.parse_args()
 
     if args.debug_ingestion:
@@ -235,7 +240,7 @@ def build_price(client: FinMindClient, trade_date: date, start: date, fetched_at
     row["index_5d_return_pct"] = pct_change(bars[-1].close, bars[-6].close) if len(bars) >= 6 else 0.0
     row["previous_ma60"] = derive_previous_ma60(bars)
     row.setdefault("return_60d_pct", pct_change(bars[-1].close, bars[-60].close))
-    return row, "TaiwanStockPrice:TAIEX"
+    return row, "TaiwanStockTotalReturnIndex:TAIEX"
 
 
 def build_foreign_flow(client: FinMindClient, trade_date: date, start: date, fetched_at: str) -> tuple[dict[str, Any], str]:
@@ -295,7 +300,7 @@ def build_breadth(client: FinMindClient, trade_date: date, start: date, fetched_
         stock_id = str(row.get("stock_id") or "")
         if not stock_id.isdigit():
             continue
-        close_value = first(row, "close", "Close", "收盤價")
+        close_value = first(row, "close", "Close", "price", "TAIEX", "收盤價")
         if close_value is None:
             continue
         by_stock.setdefault(stock_id, []).append((parse_row_date(row), to_float(close_value)))
@@ -406,7 +411,7 @@ def build_leadership(client: FinMindClient, trade_date: date, start: date, fetch
 
 def fetch_price_rows(client: FinMindClient, *, start: date, end: date, data_id: str) -> list[dict[str, Any]]:
     errors = []
-    for dataset in ("TaiwanStockPrice", "TaiwanStockPriceAdj"):
+    for dataset in (TAIEX_INDEX_DATASETS if data_id == "TAIEX" else EQUITY_PRICE_DATASETS):
         try:
             rows = client.get(dataset, start_date=start, end_date=end, data_id=data_id)
             if rows:
@@ -419,12 +424,12 @@ def fetch_price_rows(client: FinMindClient, *, start: date, end: date, data_id: 
 def price_bars_for(rows: Iterable[Mapping[str, Any]], trade_date: date) -> list[MarketPriceBar]:
     bars: list[MarketPriceBar] = []
     for row in rows:
-        close_value = first(row, "close", "Close", "收盤價")
+        close_value = first(row, "close", "Close", "price", "TAIEX", "收盤價")
         if close_value is None:
             continue
         day = parse_row_date(row)
         if day <= trade_date:
-            bars.append(MarketPriceBar(observed_at=day, close=to_float(close_value), turnover_amount=to_float(first(row, "Trading_money", "trading_money", "turnover_amount", "成交金額") or 0), open=optional_float(first(row, "open", "Open", "開盤價")), high=optional_float(first(row, "max", "high", "最高價")), low=optional_float(first(row, "min", "low", "最低價")), volume=optional_float(first(row, "Trading_Volume", "trading_volume", "volume", "成交股數"))))
+            bars.append(MarketPriceBar(observed_at=day, close=to_float(close_value), turnover_amount=to_float(first(row, "Trading_money", "trading_money", "turnover_amount", "TotalDealMoney", "成交金額") or 0), open=optional_float(first(row, "open", "Open", "開盤價")), high=optional_float(first(row, "max", "high", "最高價")), low=optional_float(first(row, "min", "low", "最低價")), volume=optional_float(first(row, "Trading_Volume", "trading_volume", "volume", "TotalDealVolume", "成交股數"))))
     # Deduplicate by date, keeping the final row from FinMind.
     by_day = {parse_date(bar.observed_at): bar for bar in bars}
     return [by_day[day] for day in sorted(by_day)]
@@ -594,7 +599,8 @@ class RecordingFinMindClient(FinMindClient):
         raw_count = len(data) if isinstance(data, list) else 0
         api_status = str(status if status is not None else http_status)
         message = str(payload.get("msg") or payload.get("message") or "")
-        self.requests.append(RequestEvidence(dataset, redact_token(url), api_status, raw_count, message if status not in {200, "200", None} else ""))
+        sample_rows = tuple(dict(item) for item in data[: max(0, getattr(self, "sample_rows", 3))] if isinstance(item, Mapping)) if isinstance(data, list) else ()
+        self.requests.append(RequestEvidence(dataset, redact_token(url), api_status, raw_count, message if status not in {200, "200", None} else "", sample_rows))
         if status not in {200, "200", None}:
             raise RuntimeError(f"FinMind returned status={status!r} for {dataset}: {message}")
         if not isinstance(data, list):
@@ -609,6 +615,7 @@ def run_detailed_ingestion_debug(args: argparse.Namespace) -> int:
     print()
 
     client = RecordingFinMindClient(token, timeout=args.timeout, sleep_seconds=args.sleep_seconds)
+    client.sample_rows = max(0, args.sample_rows)
     fetched_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     latest_exception = ""
     try:
@@ -626,7 +633,7 @@ def run_detailed_ingestion_debug(args: argparse.Namespace) -> int:
     start = trade_date - timedelta(days=args.lookback_days)
     main7 = load_main7_symbols(args.main7_config)
     fetchers = (
-        ("price.csv", "TaiwanStockPrice:TAIEX", lambda: build_price(client, trade_date, start, fetched_at)),
+        ("price.csv", "TaiwanStockTotalReturnIndex:TAIEX", lambda: build_price(client, trade_date, start, fetched_at)),
         ("foreign_flow.csv", "TaiwanStockTotalInstitutionalInvestors", lambda: build_foreign_flow(client, trade_date, start, fetched_at)),
         ("fx.csv", "TaiwanExchangeRate:USD", lambda: build_fx(client, trade_date, start, fetched_at)),
         ("breadth.csv", "TaiwanStockPrice:listed_universe", lambda: build_breadth(client, trade_date, start, fetched_at)),
@@ -656,6 +663,7 @@ def run_detailed_ingestion_debug(args: argparse.Namespace) -> int:
             api_call=format_api_calls(client.requests, target_dataset),
             http_status=format_http_statuses(client.requests),
             raw_response_row_count=sum(request.raw_row_count for request in client.requests),
+            raw_sample_rows=tuple(sample for request in client.requests for sample in request.sample_rows[: args.sample_rows]),
             normalized_csv_row_count=1 if row is not None and not missing else 0,
             required_fields_missing=missing,
             exception_message=exception_message or semantic_failure,
@@ -670,6 +678,7 @@ def run_detailed_ingestion_debug(args: argparse.Namespace) -> int:
         print(f"- API URL or SDK call used: {result.api_call}")
         print(f"- HTTP status: {result.http_status}")
         print(f"- raw response row count: {result.raw_response_row_count}")
+        print(f"- sample raw rows: {format_sample_rows(result.raw_sample_rows) if result.raw_sample_rows else 'none'}")
         print(f"- normalized CSV row count: {result.normalized_csv_row_count}")
         print(f"- required fields missing: {', '.join(result.required_fields_missing) if result.required_fields_missing else 'none'}")
         print(f"- exception message: {result.exception_message or 'none'}")
@@ -685,6 +694,10 @@ def run_detailed_ingestion_debug(args: argparse.Namespace) -> int:
         fix = fix_required_for(result)
         print(f"{result.filename} | {result.target_dataset} | {result.failure_type} | {fix}")
     return 1 if any(not result.ok for result in results) else 0
+
+
+def format_sample_rows(rows: tuple[Mapping[str, Any], ...]) -> str:
+    return json.dumps([dict(row) for row in rows], ensure_ascii=False, sort_keys=True)
 
 
 def redact_token(url: str) -> str:

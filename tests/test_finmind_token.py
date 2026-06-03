@@ -27,3 +27,46 @@ def test_finmind_token_takes_precedence(monkeypatch):
     monkeypatch.setenv("FINMIND_API_TOKEN", "api-token")
 
     assert module.finmind_token_from_env() == "primary-token"
+
+
+def test_finmind_taiex_fetch_prefers_total_return_index():
+    module = _load_finmind_module()
+
+    class FakeClient:
+        def __init__(self):
+            self.calls = []
+
+        def get(self, dataset, *, start_date, end_date, data_id=None):
+            self.calls.append((dataset, data_id))
+            if dataset == "TaiwanStockTotalReturnIndex" and data_id == "TAIEX":
+                return [
+                    {"date": "2026-01-02", "stock_id": "TAIEX", "price": 100},
+                    {"date": "2026-01-03", "stock_id": "TAIEX", "price": 101},
+                ]
+            return []
+
+    client = FakeClient()
+    rows = module.fetch_price_rows(
+        client,
+        start=module.date(2026, 1, 1),
+        end=module.date(2026, 1, 3),
+        data_id="TAIEX",
+    )
+
+    assert rows[-1]["price"] == 101
+    assert client.calls == [("TaiwanStockTotalReturnIndex", "TAIEX")]
+
+
+def test_price_bars_accept_finmind_index_price_field():
+    module = _load_finmind_module()
+
+    bars = module.price_bars_for(
+        [
+            {"date": "2026-01-02", "stock_id": "TAIEX", "price": "100.5"},
+            {"date": "2026-01-03", "stock_id": "TAIEX", "price": "101.25"},
+        ],
+        module.date(2026, 1, 3),
+    )
+
+    assert [bar.close for bar in bars] == [100.5, 101.25]
+    assert all(bar.turnover_amount == 0 for bar in bars)
