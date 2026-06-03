@@ -1,0 +1,2 @@
+trade_date,provider_source,source_type,futures_hedging_increases,futures_hedging_significant,futures_net_short_increases,futures_net_short_decreases
+2026-06-03,TAIFEX_futures_manual_import,official_manual,false,false,false,true

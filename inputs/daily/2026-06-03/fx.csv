@@ -1,0 +1,2 @@
+trade_date,provider_source,source_type,usd_twd_3d_change_pct,usd_twd_5d_change_pct,twd_appreciates,twd_stable,twd_depreciates_significantly
+2026-06-03,Central_bank_or_vendor_fx_manual_import,official_manual,-0.15,-0.25,true,true,false

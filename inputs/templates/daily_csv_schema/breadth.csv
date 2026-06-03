@@ -1,0 +1,2 @@
+trade_date,provider_source,source_type,index_down,advancing_issues,declining_issues,declining_issues_significantly_expand,declining_issues_significantly_gt_advancing,declining_gt_advancing_consecutive_days,breadth_weakens_for_2_days
+2026-06-03,TWSE_market_breadth_manual_import,official_manual,false,620,340,false,false,0,false

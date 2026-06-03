@@ -41,6 +41,8 @@ class DailyPipelineInputs:
     leadership_csv: str | Path | None = None
     margin_csv: str | Path | None = None
     scores_csv: str | Path | None = None
+    futures_csv: str | Path | None = None
+    options_csv: str | Path | None = None
     field_map: str | Path | None = None
     snapshot_path: str | Path | None = None
     write_manifest: bool = True
@@ -110,6 +112,8 @@ def run_daily_pipeline(
     leadership_csv: str | Path | None = None,
     margin_csv: str | Path | None = None,
     scores_csv: str | Path | None = None,
+    futures_csv: str | Path | None = None,
+    options_csv: str | Path | None = None,
     field_map: str | Path | None = None,
     snapshot_path: str | Path | None = None,
     write_manifest: bool = True,
@@ -145,6 +149,8 @@ def run_daily_pipeline(
             leadership_csv=leadership_csv,
             margin_csv=margin_csv,
             scores_csv=scores_csv,
+            futures_csv=futures_csv,
+            options_csv=options_csv,
             field_map=field_map,
         )
 
@@ -203,7 +209,7 @@ def render_market_result_block(result: Mapping[str, Any]) -> str:
     action = _recommended_action(result)
     cp_value = scores.get("CP")
     lines = [
-        "TODAY’S TDT-RM MARKET RESULT",
+        "TODAY'S TDT-RM MARKET RESULT",
         "",
         f"Data Date: {result.get('trade_date')}",
         f"Signal: {result.get('signal')}",
@@ -283,6 +289,11 @@ def write_final_operator_reports(result: Mapping[str, Any], reports_dir: str | P
     latest_path = destination / "latest_report.md"
     dated_path.write_text(report, encoding="utf-8")
     latest_path.write_text(report, encoding="utf-8")
+    root_latest = Path("reports") / "latest_report.md"
+    should_update_root_latest = not destination.is_absolute() and (destination == Path("reports") or Path("reports") in destination.parents)
+    if should_update_root_latest and latest_path.resolve() != root_latest.resolve():
+        root_latest.parent.mkdir(parents=True, exist_ok=True)
+        root_latest.write_text(report, encoding="utf-8")
     return {"dated": dated_path, "latest": latest_path}
 
 
@@ -365,6 +376,8 @@ def _assemble_snapshot(
     leadership_csv: str | Path | None,
     margin_csv: str | Path | None,
     scores_csv: str | Path | None,
+    futures_csv: str | Path | None,
+    options_csv: str | Path | None,
     field_map: str | Path | None,
 ) -> tuple[DailyMarketSnapshot, tuple[str, ...], Path]:
     field_map_values, provider_maps = _load_field_maps(field_map)
@@ -377,6 +390,10 @@ def _assemble_snapshot(
         providers.append(LocalCsvProvider("breadth_csv", "Local breadth CSV", breadth_csv, "breadth"))
     if leadership_csv:
         providers.append(LocalCsvProvider("leadership_csv", "Local leadership CSV", leadership_csv, "leadership"))
+    if futures_csv:
+        providers.append(LocalCsvProvider("futures_csv", "Local futures CSV", futures_csv, "futures"))
+    if options_csv:
+        providers.append(LocalCsvProvider("options_csv", "Local options CSV", options_csv, "options"))
     if margin_csv:
         providers.append(LocalCsvProvider("margin_csv", "Local margin CSV", margin_csv, "margin"))
     if scores_csv:
