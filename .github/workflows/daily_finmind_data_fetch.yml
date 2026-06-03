@@ -1,0 +1,93 @@
+name: Daily FinMind Data Fetch
+
+on:
+  workflow_dispatch:
+    inputs:
+      trade_date:
+        description: "Optional trade date (YYYY-MM-DD). Leave blank to use latest available FinMind TAIEX date."
+        required: false
+        type: string
+  schedule:
+    # 18:30 Taiwan time (UTC+8), Monday-Friday, after normal market data availability.
+    - cron: "30 10 * * 1-5"
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  finmind-daily-ingestion:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Run FinMind fetch, validation, and production
+        id: finmind
+        env:
+          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+          INPUT_TRADE_DATE: ${{ inputs.trade_date }}
+        run: |
+          set +e
+          mkdir -p outputs
+          TRADE_DATE_ARG=""
+          if [ -n "$INPUT_TRADE_DATE" ]; then
+            TRADE_DATE_ARG="--trade-date $INPUT_TRADE_DATE"
+          fi
+          python scripts/fetch_daily_data_finmind.py \
+            $TRADE_DATE_ARG \
+            --summary-json outputs/finmind_fetch_summary.json \
+            2>&1 | tee outputs/finmind_fetch.log
+          STATUS=${PIPESTATUS[0]}
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          if [ -f outputs/finmind_fetch_summary.json ]; then
+            TRADE_DATE=$(python -c "import json; print(json.load(open('outputs/finmind_fetch_summary.json')).get('trade_date', ''))")
+            INPUT_DIR=$(python -c "import json; print(json.load(open('outputs/finmind_fetch_summary.json')).get('input_dir', ''))")
+            REPORTS_DIR=$(python -c "import json; print(json.load(open('outputs/finmind_fetch_summary.json')).get('reports_dir', ''))")
+            echo "trade_date=$TRADE_DATE" >> "$GITHUB_OUTPUT"
+            echo "input_dir=$INPUT_DIR" >> "$GITHUB_OUTPUT"
+            echo "reports_dir=$REPORTS_DIR" >> "$GITHUB_OUTPUT"
+          fi
+          exit "$STATUS"
+
+      - name: Write TDT-RM GitHub Actions summary
+        if: always()
+        run: |
+          python scripts/render_finmind_github_summary.py >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload FinMind ingestion artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: finmind-daily-ingestion-${{ steps.finmind.outputs.trade_date || github.run_id }}
+          path: |
+            outputs/finmind_fetch.log
+            outputs/finmind_fetch_summary.json
+            ${{ steps.finmind.outputs.input_dir }}
+            ${{ steps.finmind.outputs.reports_dir }}
+          if-no-files-found: warn
+
+      - name: Commit generated CSVs and reports
+        if: steps.finmind.outputs.status == '0'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "${{ steps.finmind.outputs.input_dir }}" "${{ steps.finmind.outputs.reports_dir }}" outputs/finmind_fetch_summary.json outputs/finmind_fetch.log
+          if git diff --cached --quiet; then
+            echo "No generated FinMind artifacts changed."
+          else
+            git commit -m "Add FinMind daily ingestion artifacts for ${{ steps.finmind.outputs.trade_date }}"
+            git push
+          fi
