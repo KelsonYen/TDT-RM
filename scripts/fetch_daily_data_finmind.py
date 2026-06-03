@@ -75,10 +75,18 @@ class DatasetStatus:
 
 
 class FinMindClient:
-    def __init__(self, token: str | None, *, timeout: int = 30, sleep_seconds: float = 0.25) -> None:
+    def __init__(
+        self,
+        token: str | None,
+        *,
+        timeout: int = 30,
+        sleep_seconds: float = 0.25,
+        opener: urllib.request.OpenerDirector | None = None,
+    ) -> None:
         self.token = token
         self.timeout = timeout
         self.sleep_seconds = sleep_seconds
+        self.opener = opener
 
     def get(self, dataset: str, *, start_date: date, end_date: date, data_id: str | None = None) -> list[dict[str, Any]]:
         params: dict[str, str] = {
@@ -95,7 +103,7 @@ class FinMindClient:
         url = f"{FINMIND_URL}?{urllib.parse.urlencode(params)}"
         request = urllib.request.Request(url, headers=headers)
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # noqa: S310 - fixed HTTPS API endpoint.
+            with self.open(request) as response:
                 payload = json.loads(response.read().decode("utf-8"))
         except Exception as exc:  # noqa: BLE001 - call sites convert provider failures to dataset statuses.
             raise RuntimeError(f"FinMind request failed for {dataset}: {exc}") from exc
@@ -107,6 +115,13 @@ class FinMindClient:
             raise RuntimeError(f"FinMind response for {dataset} did not contain a data list")
         time.sleep(self.sleep_seconds)
         return [dict(item) for item in data if isinstance(item, Mapping)]
+
+    def open(self, request: urllib.request.Request):  # type: ignore[no-untyped-def]
+        """Open a FinMind request with optional FinMind-specific proxy settings."""
+
+        if self.opener is not None:
+            return self.opener.open(request, timeout=self.timeout)
+        return urllib.request.urlopen(request, timeout=self.timeout)  # noqa: S310 - fixed HTTPS API endpoint.
 
 
 def main() -> int:
@@ -122,6 +137,9 @@ def main() -> int:
     parser.add_argument("--summary-json", help="Optional machine-readable fetch summary path.")
     parser.add_argument("--debug-ingestion", action="store_true", help="Print detailed FinMind ingestion failure evidence without writing production CSVs.")
     parser.add_argument("--sample-rows", type=int, default=3, help="Raw provider rows to show per debug request (default: 3).")
+    parser.add_argument("--direct-finmind", action="store_true", help="Bypass HTTP(S)_PROXY for FinMind requests. Also enabled by FINMIND_DIRECT=1.")
+    parser.add_argument("--finmind-https-proxy", help="FinMind-specific HTTPS proxy URL. Overrides HTTPS_PROXY for FinMind requests; also available as FINMIND_HTTPS_PROXY.")
+    parser.add_argument("--finmind-http-proxy", help="FinMind-specific HTTP proxy URL. Overrides HTTP_PROXY for FinMind requests; also available as FINMIND_HTTP_PROXY.")
     args = parser.parse_args()
 
     if args.debug_ingestion:
@@ -131,7 +149,7 @@ def main() -> int:
     if not token:
         print("WARNING neither FINMIND_TOKEN nor FINMIND_API_TOKEN is set; running in limited FinMind public mode where possible.", file=sys.stderr)
 
-    client = FinMindClient(token, timeout=args.timeout, sleep_seconds=args.sleep_seconds)
+    client = FinMindClient(token, timeout=args.timeout, sleep_seconds=args.sleep_seconds, opener=build_finmind_opener(args))
     fetched_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
     try:
@@ -217,6 +235,32 @@ def finmind_token_from_env() -> str | None:
     """Return the FinMind API token from either supported environment name."""
 
     return os.environ.get("FINMIND_TOKEN") or os.environ.get("FINMIND_API_TOKEN")
+
+
+def env_flag_enabled(name: str) -> bool:
+    """Return true when an environment flag is explicitly enabled."""
+
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def build_finmind_opener(args: argparse.Namespace) -> urllib.request.OpenerDirector | None:
+    """Build an opener when FinMind-specific proxy settings are requested.
+
+    By default urllib keeps honoring the runtime HTTP(S)_PROXY variables.  This
+    hook lets operators bypass a blocked shared proxy for FinMind only, or point
+    FinMind traffic at a dedicated allowlisted proxy without changing global
+    process proxy settings used by other tooling.
+    """
+
+    direct = bool(getattr(args, "direct_finmind", False)) or env_flag_enabled("FINMIND_DIRECT")
+    https_proxy = getattr(args, "finmind_https_proxy", None) or os.environ.get("FINMIND_HTTPS_PROXY")
+    http_proxy = getattr(args, "finmind_http_proxy", None) or os.environ.get("FINMIND_HTTP_PROXY")
+    if direct:
+        return urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    proxies = {key: value for key, value in {"https": https_proxy, "http": http_proxy}.items() if value}
+    if proxies:
+        return urllib.request.build_opener(urllib.request.ProxyHandler(proxies))
+    return None
 
 
 def resolve_latest_trade_date(client: FinMindClient, *, lookback_days: int) -> date:
@@ -561,8 +605,15 @@ def serialize_value(value: Any) -> Any:
 class RecordingFinMindClient(FinMindClient):
     """FinMind client variant that records raw request evidence for diagnostics."""
 
-    def __init__(self, token: str | None, *, timeout: int = 30, sleep_seconds: float = 0.25) -> None:
-        super().__init__(token, timeout=timeout, sleep_seconds=sleep_seconds)
+    def __init__(
+        self,
+        token: str | None,
+        *,
+        timeout: int = 30,
+        sleep_seconds: float = 0.25,
+        opener: urllib.request.OpenerDirector | None = None,
+    ) -> None:
+        super().__init__(token, timeout=timeout, sleep_seconds=sleep_seconds, opener=opener)
         self.requests: list[RequestEvidence] = []
 
     def clear_requests(self) -> None:
@@ -583,7 +634,7 @@ class RecordingFinMindClient(FinMindClient):
         url = f"{FINMIND_URL}?{urllib.parse.urlencode(params)}"
         request = urllib.request.Request(url, headers=headers)
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # noqa: S310 - fixed HTTPS API endpoint.
+            with self.open(request) as response:
                 http_status = str(getattr(response, "status", "unknown"))
                 payload = json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
@@ -614,7 +665,7 @@ def run_detailed_ingestion_debug(args: argparse.Namespace) -> int:
     print(f"FinMind token detected (FINMIND_TOKEN or FINMIND_API_TOKEN): {'YES' if token else 'NO'}")
     print()
 
-    client = RecordingFinMindClient(token, timeout=args.timeout, sleep_seconds=args.sleep_seconds)
+    client = RecordingFinMindClient(token, timeout=args.timeout, sleep_seconds=args.sleep_seconds, opener=build_finmind_opener(args))
     client.sample_rows = max(0, args.sample_rows)
     fetched_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     latest_exception = ""
