@@ -320,7 +320,7 @@ def test_historical_cache_replay_script_writes_replay_summary(tmp_path: Path):
     assert summary["days"][0]["data_status"] in {"public_full", "public_partial"}
 
 
-def test_daily_report_generator_writes_production_audit_markdown(tmp_path: Path):
+def test_daily_report_generator_fails_closed_without_model_output(tmp_path: Path):
     _, written, _ = _write(tmp_path / "inputs", {"sources": [_live_price_success()]})
     report_path = tmp_path / "daily_report.md"
 
@@ -338,12 +338,10 @@ def test_daily_report_generator_writes_production_audit_markdown(tmp_path: Path)
         check=False,
     )
 
-    assert proc.returncode == 0
-    text = report_path.read_text(encoding="utf-8")
-    assert "TDT-RM Daily Production Audit" in text
-    assert "Provider Health" in text
-    assert "Source Attempts" in text
-
+    assert proc.returncode != 0
+    assert not report_path.exists()
+    failed_report = report_path.with_name("daily_report_failed.md")
+    assert "PRODUCTION REPORT FAILED" in failed_report.read_text(encoding="utf-8")
 
 def _write_with_cache(tmp_path: Path, config: dict[str, object], *, cache_dir: Path, cache_mode: str, offline: bool = False):
     registry = PublicDataFetcherRegistry.from_config(config)
