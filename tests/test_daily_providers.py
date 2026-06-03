@@ -212,3 +212,84 @@ def test_assemble_daily_snapshot_cli_writes_valid_snapshot_json(tmp_path: Path):
     assert "trade_date: 2026-05-29" in completed.stdout
     snapshot = load_daily_snapshot_json(output)
     assert validate_daily_snapshot(snapshot, as_of=date(2026, 5, 29)).is_valid
+
+
+def test_sample_provider_fixture_assembles_without_optional_margin(tmp_path: Path):
+    output = tmp_path / "assembled_no_margin.json"
+    cmd = [
+        sys.executable,
+        "scripts/assemble_daily_snapshot.py",
+        "--as-of",
+        "2026-05-29",
+        "--price-csv",
+        "examples/provider_inputs/sample_price.csv",
+        "--foreign-csv",
+        "examples/provider_inputs/sample_foreign_flow.csv",
+        "--fx-csv",
+        "examples/provider_inputs/sample_fx.csv",
+        "--breadth-csv",
+        "examples/provider_inputs/sample_breadth.csv",
+        "--leadership-csv",
+        "examples/provider_inputs/sample_leadership.csv",
+        "--scores-csv",
+        "examples/provider_inputs/sample_scores.csv",
+        "--field-map",
+        "examples/provider_inputs/sample_provider_field_map.json",
+        "--output-json",
+        str(output),
+        "--validate",
+        "--allow-warnings",
+    ]
+
+    completed = subprocess.run(cmd, check=True, text=True, capture_output=True)
+
+    assert "missing_field_categories: margin" in completed.stdout
+    snapshot = load_daily_snapshot_json(output)
+    validation = validate_daily_snapshot(snapshot, as_of=date(2026, 5, 29))
+    assert validation.is_valid
+    assert snapshot.canonical_row["tail_risk"] == 32.0
+    assert snapshot.field_sources["tail_risk"] == "scores_csv"
+    assert set(validation.coverage.available_eti_components) == {"ETI-1", "ETI-2", "ETI-3", "ETI-4", "ETI-5"}
+
+
+def test_assemble_daily_snapshot_cli_requires_price_provider(tmp_path: Path):
+    output = tmp_path / "no_price.json"
+    cmd = [
+        sys.executable,
+        "scripts/assemble_daily_snapshot.py",
+        "--as-of",
+        "2026-05-29",
+        "--fx-csv",
+        "examples/provider_inputs/sample_fx.csv",
+        "--output-json",
+        str(output),
+    ]
+
+    completed = subprocess.run(cmd, text=True, capture_output=True)
+
+    assert completed.returncode != 0
+    assert "--price-csv is required" in completed.stderr
+
+
+def test_eti_availability_ignores_unsourced_canonical_fields():
+    row = complete_row()
+    field_sources = {key: "price" for key in ("observed_at", "close", "ma20", "ma5", "ma60", "ma20_slope")}
+    result = DailySnapshotAssembler([StaticMappingProvider("price", "Price", row, category="price", source_kind="price")]).assemble(
+        DailyProviderContext(as_of=date(2026, 5, 29))
+    )
+    snapshot = result.snapshot
+    snapshot = type(snapshot)(
+        trade_date=snapshot.trade_date,
+        observed_at=snapshot.observed_at,
+        canonical_row=snapshot.canonical_row,
+        price_bars=snapshot.price_bars,
+        field_sources=field_sources,
+        source_metadata=snapshot.source_metadata,
+        data_status=snapshot.data_status,
+        limitations=snapshot.limitations,
+        warnings=snapshot.warnings,
+    )
+
+    validation = validate_daily_snapshot(snapshot, as_of=date(2026, 5, 29))
+
+    assert set(validation.coverage.available_eti_components) == {"ETI-1"}

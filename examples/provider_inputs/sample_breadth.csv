@@ -1,2 +1,2 @@
-trade_date,index_down,advancing_issues,declining_issues,declining_issues_significantly_expand,declining_issues_significantly_gt_advancing,declining_gt_advancing_consecutive_days,breadth_weakens_for_2_days,count_main_7_below_ma20,count_main_7_below_ma60
-2026-05-29,true,312,782,true,true,3,true,5,2
+date,advancing_issues,declining_issues,index_down,declining_issues_significantly_gt_advancing,breadth_weakens_for_2_days
+2026-05-29,620,410,false,false,false

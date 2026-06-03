@@ -319,7 +319,7 @@ Default outputs:
 
 ## Daily provider snapshots
 
-The provider-based snapshot assembler can combine local public-data rows for price, foreign flow, FX, breadth, margin, and formal/manual Tail Risk/BCD/MHS into one enriched `DailyMarketSnapshot`. See [Daily Public-Data Provider Guide](docs/DAILY_PROVIDER_GUIDE.md) for provider architecture, field mapping, precedence, conflict handling, and current limitations.
+The provider-based snapshot assembler can combine local public-data rows for price, foreign flow, FX, breadth, leadership, optional margin, and formal/manual Tail Risk/BCD/MHS into one enriched `DailyMarketSnapshot`. See [Daily Public-Data Provider Guide](docs/DAILY_PROVIDER_GUIDE.md) for provider architecture, field mapping, precedence, conflict handling, and current limitations.
 
 ```bash
 python scripts/assemble_daily_snapshot.py \
@@ -328,7 +328,7 @@ python scripts/assemble_daily_snapshot.py \
   --foreign-csv examples/provider_inputs/sample_foreign_flow.csv \
   --fx-csv examples/provider_inputs/sample_fx.csv \
   --breadth-csv examples/provider_inputs/sample_breadth.csv \
-  --margin-csv examples/provider_inputs/sample_margin.csv \
+  --leadership-csv examples/provider_inputs/sample_leadership.csv \
   --scores-csv examples/provider_inputs/sample_scores.csv \
   --field-map examples/provider_inputs/sample_provider_field_map.json \
   --output-json outputs/daily/assembled_snapshot_2026-05-29.json \

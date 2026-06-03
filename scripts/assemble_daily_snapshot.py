@@ -31,6 +31,7 @@ def main() -> int:
     parser.add_argument("--foreign-csv", help="Optional local foreign-flow CSV.")
     parser.add_argument("--fx-csv", help="Optional local USD/TWD or FX CSV.")
     parser.add_argument("--breadth-csv", help="Optional local market breadth CSV.")
+    parser.add_argument("--leadership-csv", help="Optional local leadership/mainstream stock CSV.")
     parser.add_argument("--margin-csv", help="Optional local margin/leverage CSV.")
     parser.add_argument("--scores-csv", help="Optional local formal Tail Risk, BCD, and MHS CSV.")
     parser.add_argument("--field-map", help="Optional JSON mapping file; may contain global or provider/category maps.")
@@ -40,14 +41,17 @@ def main() -> int:
 
     field_map, provider_maps = _load_field_maps(args.field_map)
     providers = []
-    if args.price_csv:
-        providers.append(TAIEXPriceProvider(source_path=args.price_csv))
+    if not args.price_csv:
+        raise SystemExit("--price-csv is required; optional providers cannot assemble a snapshot without price fields")
+    providers.append(TAIEXPriceProvider(source_path=args.price_csv))
     if args.foreign_csv:
         providers.append(LocalCsvProvider("foreign_flow_csv", "Local foreign-flow CSV", args.foreign_csv, "foreign_flow"))
     if args.fx_csv:
         providers.append(LocalCsvProvider("fx_csv", "Local FX CSV", args.fx_csv, "fx"))
     if args.breadth_csv:
         providers.append(LocalCsvProvider("breadth_csv", "Local breadth CSV", args.breadth_csv, "breadth"))
+    if args.leadership_csv:
+        providers.append(LocalCsvProvider("leadership_csv", "Local leadership CSV", args.leadership_csv, "leadership"))
     if args.margin_csv:
         providers.append(LocalCsvProvider("margin_csv", "Local margin CSV", args.margin_csv, "margin"))
     if args.scores_csv:
@@ -110,6 +114,8 @@ def _load_field_maps(path: str | None) -> tuple[dict[str, str], dict[str, Mappin
         raise SystemExit("--field-map must be a JSON object")
     provider_maps = payload.get("providers") or payload.get("provider_field_maps") or {}
     categories = payload.get("categories") or {}
+    if not categories and not provider_maps:
+        categories = {key: value for key, value in payload.items() if isinstance(value, dict)}
     global_map = payload.get("global") or {}
     if not global_map:
         global_map = {key: value for key, value in payload.items() if isinstance(value, str)}
