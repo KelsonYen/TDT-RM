@@ -14,6 +14,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import hashlib
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -77,6 +78,8 @@ class PublicDataFetchContext:
     retrieved_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     offline: bool = False
     fail_fast: bool = False
+    cache_dir: str | Path | None = None
+    cache_mode: str = "off"
 
 
 @dataclass(frozen=True)
@@ -186,7 +189,7 @@ class PublicDataFetcherRegistry:
         results: list[PublicDataFetchResult] = []
         by_category: dict[str, list[PublicDataSource]] = {}
         for source in self.sources:
-            if context.offline and not _is_local_fallback_source(source):
+            if context.offline and not _is_local_fallback_source(source) and not _cache_read_enabled(context):
                 continue
             by_category.setdefault(source.provider_category, []).append(source)
 
@@ -194,7 +197,20 @@ class PublicDataFetcherRegistry:
             category_sources = sorted(by_category[category], key=_source_fallback_order)
             for source in category_sources:
                 started = time.monotonic()
-                result = source.fetch(context)
+                cached = _load_cached_result(source, context)
+                if cached is not None:
+                    result = cached
+                elif _cache_read_only(context):
+                    result = _result(
+                        source,
+                        "unavailable",
+                        (_issue(source, "warning", "cache_miss", f"no cached provider result for {context.as_of.isoformat()}"),),
+                        retrieved_at=context.retrieved_at.isoformat(),
+                        metadata={"cache": {"mode": context.cache_mode, "hit": False}},
+                    )
+                else:
+                    result = source.fetch(context)
+                    _write_cached_result(source, context, result)
                 duration = time.monotonic() - started
                 result = replace(result, raw_metadata={**dict(result.raw_metadata), "fetch_duration_seconds": round(duration, 6)})
                 results.append(result)
@@ -207,6 +223,102 @@ class PublicDataFetcherRegistry:
     def source_ids(self) -> tuple[str, ...]:
         return tuple(source.source_id for source in self.sources)
 
+
+
+def _normalized_cache_mode(context: PublicDataFetchContext) -> str:
+    mode = str(context.cache_mode or "off").lower().replace("-", "_")
+    aliases = {"true": "read_write", "rw": "read_write", "readwrite": "read_write", "replay": "read"}
+    return aliases.get(mode, mode)
+
+
+def _cache_read_enabled(context: PublicDataFetchContext) -> bool:
+    return bool(context.cache_dir) and _normalized_cache_mode(context) in {"read", "read_write"}
+
+
+def _cache_write_enabled(context: PublicDataFetchContext) -> bool:
+    return bool(context.cache_dir) and _normalized_cache_mode(context) in {"write", "read_write"}
+
+
+def _cache_read_only(context: PublicDataFetchContext) -> bool:
+    return bool(context.cache_dir) and _normalized_cache_mode(context) == "read"
+
+
+def _cache_path(source: PublicDataSource, context: PublicDataFetchContext) -> Path:
+    config = getattr(source, "config", {})
+    fingerprint_payload = {
+        "source_id": source.source_id,
+        "provider_category": source.provider_category,
+        "adapter": config.get("adapter") if isinstance(config, Mapping) else None,
+        "endpoint": _render_url(config, context) if isinstance(config, Mapping) else "",
+        "path": str(config.get("path") or config.get("fixture_path") or "") if isinstance(config, Mapping) else "",
+    }
+    fingerprint = hashlib.sha256(json.dumps(fingerprint_payload, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()[:12]
+    safe_source = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in source.source_id)
+    safe_category = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in source.provider_category)
+    return Path(context.cache_dir or ".") / context.as_of.isoformat() / safe_category / f"{safe_source}_{fingerprint}.json"
+
+
+def _load_cached_result(source: PublicDataSource, context: PublicDataFetchContext) -> PublicDataFetchResult | None:
+    if not _cache_read_enabled(context):
+        return None
+    path = _cache_path(source, context)
+    if not path.exists():
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    result_payload = payload.get("result") if isinstance(payload, Mapping) else None
+    if not isinstance(result_payload, Mapping):
+        return None
+    issues = tuple(
+        PublicDataFetchIssue(
+            str(item.get("severity") or "warning"),
+            str(item.get("code") or "cached_issue"),
+            str(item.get("message") or ""),
+            str(item.get("source_id") or source.source_id),
+            str(item.get("provider_category") or source.provider_category),
+            str(item.get("field")) if item.get("field") is not None else None,
+        )
+        for item in result_payload.get("issues", ())
+        if isinstance(item, Mapping)
+    )
+    metadata = dict(result_payload.get("raw_metadata") or {})
+    metadata["cache"] = {"mode": context.cache_mode, "hit": True, "path": str(path), "stored_at": payload.get("stored_at")}
+    return PublicDataFetchResult(
+        str(result_payload.get("source_id") or source.source_id),
+        str(result_payload.get("source_name") or source.source_name),
+        str(result_payload.get("provider_category") or source.provider_category),
+        str(result_payload.get("status") or "unavailable"),
+        tuple(item for item in result_payload.get("rows", ()) if isinstance(item, Mapping)),
+        dict(result_payload.get("canonical_fields") or {}),
+        metadata,
+        issues,
+        str(result_payload.get("retrieved_at")) if result_payload.get("retrieved_at") is not None else None,
+    )
+
+
+def _write_cached_result(source: PublicDataSource, context: PublicDataFetchContext, result: PublicDataFetchResult) -> None:
+    if not _cache_write_enabled(context) or not result.success:
+        return
+    path = _cache_path(source, context)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "cache_version": 1,
+        "stored_at": datetime.now(UTC).isoformat(),
+        "as_of": context.as_of.isoformat(),
+        "source_id": source.source_id,
+        "provider_category": source.provider_category,
+        "result": {
+            "source_id": result.source_id,
+            "source_name": result.source_name,
+            "provider_category": result.provider_category,
+            "status": result.status,
+            "rows": [dict(row) for row in result.rows],
+            "canonical_fields": dict(result.canonical_fields),
+            "raw_metadata": dict(result.raw_metadata),
+            "issues": [issue.as_dict() for issue in result.issues],
+            "retrieved_at": result.retrieved_at,
+        },
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 def _source_fallback_order(source: PublicDataSource) -> tuple[int, str]:
     config = getattr(source, "config", {})
@@ -629,12 +741,14 @@ def _source_attempt_manifest(result: PublicDataFetchResult) -> dict[str, Any]:
     source_type = str(result.raw_metadata.get("source_type") or "")
     if not source_type:
         source_type = "local_fallback" if result.raw_metadata.get("local_fallback") else "unknown"
+    cache = result.raw_metadata.get("cache") if isinstance(result.raw_metadata.get("cache"), Mapping) else None
     return {
         "source_id": result.source_id,
         "source_name": result.source_name,
         "provider_category": result.provider_category,
         "source_type": source_type,
         "local_fallback": bool(result.raw_metadata.get("local_fallback")),
+        "cache": dict(cache) if isinstance(cache, Mapping) else {"hit": False},
         "attempted": True,
         "success": result.success,
         "status": result.status,

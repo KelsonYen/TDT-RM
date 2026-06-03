@@ -130,3 +130,63 @@ This writes provider CSVs under `inputs/daily/2026-06-02/` and daily production 
 - Tail Risk / BCD / MHS may remain unavailable, provisional, or covered by the existing pipeline fallback behavior.
 - No ETF Exit policy is implemented.
 - No paid API, broker login, credentialed integration, browser automation, or unstable HTML scraping is used.
+
+## Local provider cache layer
+
+Use the provider cache when operators need auditable, repeatable inputs without repeatedly calling public endpoints. The cache stores only successful provider fetch results, keyed by date, provider category, source ID, and source configuration fingerprint.
+
+Live run that records successful provider results:
+
+```bash
+python scripts/fetch_daily_provider_csvs.py \
+  --as-of 2026-06-02 \
+  --output-dir inputs/daily/2026-06-02 \
+  --cache-dir inputs/provider_cache \
+  --cache-mode write \
+  --allow-partial
+```
+
+Replay/offline run that reads only cached provider results and fails closed on cache misses:
+
+```bash
+python scripts/fetch_daily_provider_csvs.py \
+  --as-of 2026-06-02 \
+  --output-dir inputs/daily/2026-06-02-replay \
+  --cache-dir inputs/provider_cache \
+  --cache-mode replay \
+  --offline \
+  --allow-partial
+```
+
+Supported cache modes are `off`, `write`, `read_write`, `read`, and `replay` (`replay` is a read-only alias). Read-only replay never fabricates missing data: if the required price provider is missing from cache, `price.csv` is omitted and the manifest reports `price_unavailable`.
+
+Each `fetch_manifest.json` source attempt includes a `cache` object showing whether a cache hit occurred and, when applicable, the local cache path used.
+
+## Historical replay
+
+`scripts/replay_daily_provider_cache.py` replays cached provider rows across a date range and optionally runs the daily pipeline for every replayed date:
+
+```bash
+python scripts/replay_daily_provider_cache.py \
+  --start 2026-06-02 \
+  --end 2026-06-05 \
+  --cache-dir inputs/provider_cache \
+  --output-dir outputs/replay/provider_inputs \
+  --run-pipeline \
+  --pipeline-output-dir outputs/replay/daily
+```
+
+The script writes `replay_summary.json`, including per-day data status, generated provider CSV paths, optional pipeline output, and any blocking replay errors.
+
+## Daily report generator and production audit
+
+`scripts/generate_daily_report.py` turns production manifests into an operator-facing Markdown audit report. It summarizes provider health, source attempts, cache hits, limitations, and optional pipeline signals/artifact paths.
+
+```bash
+python scripts/generate_daily_report.py \
+  --fetch-manifest inputs/daily/2026-06-02/fetch_manifest.json \
+  --pipeline-summary outputs/daily/tdt_rm_daily_2026-06-02_summary.json \
+  --output outputs/daily/tdt_rm_daily_2026-06-02_audit.md
+```
+
+The report is intended for production review and incident/audit trails; it does not alter scoring, ETI-5, TCWRS, crash probability, CAL, or decision-matrix logic.
