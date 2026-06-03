@@ -23,8 +23,8 @@ from tdt_rm.public_data_fetchers import (  # noqa: E402
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate provider CSVs from public data, optionally run the daily pipeline.")
-    parser.add_argument("--as-of", required=True, type=date.fromisoformat, help="Target trade date, YYYY-MM-DD.")
-    parser.add_argument("--output-dir", required=True, help="Directory for generated provider CSVs and fetch manifest.")
+    parser.add_argument("--as-of", "--trade-date", dest="as_of", required=True, type=date.fromisoformat, help="Target trade date, YYYY-MM-DD.")
+    parser.add_argument("--output-dir", "--outputs-dir", dest="output_dir", required=True, help="Directory for generated provider CSVs and fetch manifest.")
     parser.add_argument("--source-config", help="Optional JSON/YAML source configuration.")
     parser.add_argument("--main7-config", help="Optional JSON file containing a Main-7 symbols list.")
     parser.add_argument("--allow-partial", action="store_true", help="Allow a run when optional public sources are unavailable; price remains required for pipeline runs.")
@@ -37,7 +37,14 @@ def main() -> int:
     parser.add_argument("--fail-fast", action="store_true", help="Stop a provider category after its first failed source instead of trying configured fallbacks.")
     parser.add_argument("--cache-dir", help="Optional local provider cache directory for successful fetch results.")
     parser.add_argument("--cache-mode", choices=("off", "read", "write", "read_write", "replay"), default="off", help="Provider cache mode. replay is an alias for read-only historical replay.")
+    parser.add_argument("--use-cache", action="store_true", help="Compatibility alias: use inputs/provider_cache in read_write mode unless --cache-dir/--cache-mode override it.")
     args = parser.parse_args()
+
+    if args.use_cache:
+        if not args.cache_dir:
+            args.cache_dir = "inputs/provider_cache"
+        if args.cache_mode == "off":
+            args.cache_mode = "read_write"
 
     try:
         source_config = load_source_config(args.source_config)
