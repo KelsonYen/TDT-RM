@@ -259,3 +259,95 @@ def test_fetch_manifest_requires_provider_health_summary(tmp_path: Path):
 
     assert "provider_health_summary" in manifest, "fetch_manifest.json must expose provider health summary"
     assert "provider_health" in manifest, "fetch_manifest.json must expose per-provider health details"
+
+
+def test_provider_cache_write_and_read_replay_uses_cached_success(tmp_path: Path):
+    cache_dir = tmp_path / "cache"
+    config = {"sources": [_live_price_success()]}
+
+    results, written, manifest = _write_with_cache(tmp_path / "write", config, cache_dir=cache_dir, cache_mode="write")
+    assert results[0].success is True
+    assert "price" in written.provider_csv_paths
+    assert any(cache_dir.rglob("*.json"))
+    assert manifest["source_attempts"][0]["cache"]["hit"] is False
+
+    replay_results, replay_written, replay_manifest = _write_with_cache(tmp_path / "read", config, cache_dir=cache_dir, cache_mode="read", offline=True)
+
+    assert replay_results[0].success is True
+    assert replay_results[0].raw_metadata["cache"]["hit"] is True
+    assert "price" in replay_written.provider_csv_paths
+    assert replay_manifest["source_attempts"][0]["cache"]["hit"] is True
+
+
+def test_provider_cache_read_miss_does_not_fetch_or_fabricate_price(tmp_path: Path):
+    results, written, manifest = _write_with_cache(tmp_path / "read", {"sources": [_live_price_success()]}, cache_dir=tmp_path / "empty_cache", cache_mode="read", offline=True)
+
+    assert results[0].status == "unavailable"
+    assert results[0].issues[0].code == "cache_miss"
+    assert "price" not in written.provider_csv_paths
+    assert manifest["data_status"] == "price_unavailable"
+
+
+def test_historical_cache_replay_script_writes_replay_summary(tmp_path: Path):
+    cache_dir = tmp_path / "cache"
+    _write_with_cache(tmp_path / "write", {"sources": [_live_price_success()]}, cache_dir=cache_dir, cache_mode="write")
+    config_path = tmp_path / "sources.json"
+    config_path.write_text(json.dumps({"sources": [_live_price_success()]}), encoding="utf-8")
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "scripts/replay_daily_provider_cache.py",
+            "--start",
+            AS_OF.isoformat(),
+            "--end",
+            AS_OF.isoformat(),
+            "--cache-dir",
+            str(cache_dir),
+            "--output-dir",
+            str(tmp_path / "replay"),
+            "--source-config",
+            str(config_path),
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0
+    summary = json.loads((tmp_path / "replay" / "replay_summary.json").read_text(encoding="utf-8"))
+    assert summary["failed_days"] == []
+    assert summary["days"][0]["data_status"] in {"public_full", "public_partial"}
+
+
+def test_daily_report_generator_writes_production_audit_markdown(tmp_path: Path):
+    _, written, _ = _write(tmp_path / "inputs", {"sources": [_live_price_success()]})
+    report_path = tmp_path / "daily_report.md"
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "scripts/generate_daily_report.py",
+            "--fetch-manifest",
+            str(written.fetch_manifest_path),
+            "--output",
+            str(report_path),
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0
+    text = report_path.read_text(encoding="utf-8")
+    assert "TDT-RM Daily Production Audit" in text
+    assert "Provider Health" in text
+    assert "Source Attempts" in text
+
+
+def _write_with_cache(tmp_path: Path, config: dict[str, object], *, cache_dir: Path, cache_mode: str, offline: bool = False):
+    registry = PublicDataFetcherRegistry.from_config(config)
+    results = registry.fetch_all(PublicDataFetchContext(as_of=AS_OF, offline=offline, cache_dir=cache_dir, cache_mode=cache_mode))
+    written = write_provider_csvs(results, tmp_path, AS_OF)
+    manifest = json.loads(Path(written.fetch_manifest_path).read_text(encoding="utf-8"))
+    return results, written, manifest

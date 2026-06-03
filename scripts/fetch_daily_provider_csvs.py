@@ -35,6 +35,8 @@ def main() -> int:
     parser.add_argument("--price-fallback-json", help="Optional local canonical price JSON fallback. Used after live price failures or immediately with --offline.")
     parser.add_argument("--offline", action="store_true", help="Skip live network sources and use only configured/local fallback files.")
     parser.add_argument("--fail-fast", action="store_true", help="Stop a provider category after its first failed source instead of trying configured fallbacks.")
+    parser.add_argument("--cache-dir", help="Optional local provider cache directory for successful fetch results.")
+    parser.add_argument("--cache-mode", choices=("off", "read", "write", "read_write", "replay"), default="off", help="Provider cache mode. replay is an alias for read-only historical replay.")
     args = parser.parse_args()
 
     try:
@@ -42,7 +44,7 @@ def main() -> int:
         _add_runtime_price_fallback_sources(source_config, args.price_fallback_csv, args.price_fallback_json)
         main7_symbols = load_main7_symbols(args.main7_config)
         registry = PublicDataFetcherRegistry.from_config(source_config)
-        context = PublicDataFetchContext(as_of=args.as_of, source_config=source_config, main7_symbols=main7_symbols, offline=args.offline, fail_fast=args.fail_fast)
+        context = PublicDataFetchContext(as_of=args.as_of, source_config=source_config, main7_symbols=main7_symbols, offline=args.offline, fail_fast=args.fail_fast, cache_dir=args.cache_dir, cache_mode=args.cache_mode)
         fetch_results = registry.fetch_all(context)
         write_result = write_provider_csvs(fetch_results, args.output_dir, args.as_of)
     except Exception as exc:  # noqa: BLE001 - concise CLI error.
