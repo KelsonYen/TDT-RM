@@ -1,0 +1,49 @@
+{
+  "artifacts": {
+    "daily_report": "outputs/daily_report.md",
+    "daily_validation": "outputs/daily_validation.json",
+    "fetch_manifest": "outputs/fetch_manifest.json",
+    "provider_health": "outputs/provider_health.json",
+    "replay_failures": "outputs/replay/replay_failures.csv",
+    "replay_manifest": "outputs/replay/replay_manifest.json",
+    "replay_summary": "outputs/replay/replay_summary.json"
+  },
+  "blocking_errors": [
+    "required artifact daily_validation missing: outputs/daily_validation.json",
+    "required artifact daily_report missing: outputs/daily_report.md",
+    "required artifact replay_summary missing: outputs/replay/replay_summary.json",
+    "required artifact replay_manifest missing: outputs/replay/replay_manifest.json",
+    "required artifact replay_failures missing: outputs/replay/replay_failures.csv",
+    "daily report generation status is failed",
+    "required provider price_provider failed health status",
+    "required provider price_provider has no records_loaded",
+    "daily validation artifact is missing or invalid",
+    "daily report missing: outputs/daily_report.md",
+    "replay summary is missing or invalid",
+    "one or more production readiness checks failed closed"
+  ],
+  "checks": {
+    "artifact_completeness": "failed",
+    "daily_report": "failed",
+    "fail_closed_integrity": "failed",
+    "manifest_completeness": "failed",
+    "provider_health": "failed",
+    "replay_readiness": "failed",
+    "validation_status": "failed"
+  },
+  "generated_at": "2026-06-03T11:44:28.752884+00:00",
+  "known_replay_failure_categories": [
+    "cache_failure",
+    "fallback_failure",
+    "freshness_failure",
+    "provider_failure",
+    "report_generation_failure",
+    "snapshot_failure",
+    "success",
+    "unexpected_exception",
+    "validation_failure"
+  ],
+  "status": "NOT_READY",
+  "trade_date": "2026-06-03",
+  "warnings": []
+}
