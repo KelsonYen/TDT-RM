@@ -1,0 +1,66 @@
+{
+  "datasets": {
+    "breadth.csv": {
+      "filename": "breadth.csv",
+      "ok": false,
+      "path": null,
+      "reason": "FinMind request failed for TaiwanStockPrice: <urlopen error Tunnel connection failed: 403 Forbidden>",
+      "source": null
+    },
+    "foreign_flow.csv": {
+      "filename": "foreign_flow.csv",
+      "ok": false,
+      "path": null,
+      "reason": "FinMind request failed for TaiwanStockTotalInstitutionalInvestors: <urlopen error Tunnel connection failed: 403 Forbidden>",
+      "source": null
+    },
+    "futures.csv": {
+      "filename": "futures.csv",
+      "ok": false,
+      "path": null,
+      "reason": "FinMind request failed for TaiwanFuturesDaily: <urlopen error Tunnel connection failed: 403 Forbidden>",
+      "source": null
+    },
+    "fx.csv": {
+      "filename": "fx.csv",
+      "ok": false,
+      "path": null,
+      "reason": "FinMind request failed for TaiwanExchangeRate: <urlopen error Tunnel connection failed: 403 Forbidden>",
+      "source": null
+    },
+    "leadership.csv": {
+      "filename": "leadership.csv",
+      "ok": false,
+      "path": null,
+      "reason": "FinMind request failed for TaiwanStockPrice: <urlopen error Tunnel connection failed: 403 Forbidden>; FinMind request failed for TaiwanStockPriceAdj: <urlopen error Tunnel connection failed: 403 Forbidden>",
+      "source": null
+    },
+    "options.csv": {
+      "filename": "options.csv",
+      "ok": false,
+      "path": null,
+      "reason": "FinMind request failed for TaiwanOptionDaily: <urlopen error Tunnel connection failed: 403 Forbidden>",
+      "source": null
+    },
+    "price.csv": {
+      "filename": "price.csv",
+      "ok": false,
+      "path": null,
+      "reason": "FinMind request failed for TaiwanStockPrice: <urlopen error Tunnel connection failed: 403 Forbidden>; FinMind request failed for TaiwanStockPriceAdj: <urlopen error Tunnel connection failed: 403 Forbidden>",
+      "source": null
+    }
+  },
+  "fetched_at": "2026-06-03T14:27:29Z",
+  "input_dir": "inputs/daily/2026-06-03",
+  "missing_datasets": [
+    "price.csv",
+    "foreign_flow.csv",
+    "fx.csv",
+    "breadth.csv",
+    "futures.csv",
+    "options.csv",
+    "leadership.csv"
+  ],
+  "reports_dir": "reports/daily/2026-06-03",
+  "trade_date": "2026-06-03"
+}

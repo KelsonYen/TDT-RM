@@ -122,9 +122,9 @@ def main() -> int:
     if args.debug_ingestion:
         return run_detailed_ingestion_debug(args)
 
-    token = os.environ.get("FINMIND_TOKEN")
+    token = finmind_token_from_env()
     if not token:
-        print("WARNING FINMIND_TOKEN is not set; running in limited FinMind public mode where possible.", file=sys.stderr)
+        print("WARNING neither FINMIND_TOKEN nor FINMIND_API_TOKEN is set; running in limited FinMind public mode where possible.", file=sys.stderr)
 
     client = FinMindClient(token, timeout=args.timeout, sleep_seconds=args.sleep_seconds)
     fetched_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -206,6 +206,12 @@ def main() -> int:
 
     print("AUTOMATED DATA INGESTION READY")
     return 0
+
+
+def finmind_token_from_env() -> str | None:
+    """Return the FinMind API token from either supported environment name."""
+
+    return os.environ.get("FINMIND_TOKEN") or os.environ.get("FINMIND_API_TOKEN")
 
 
 def resolve_latest_trade_date(client: FinMindClient, *, lookback_days: int) -> date:
@@ -598,8 +604,8 @@ class RecordingFinMindClient(FinMindClient):
 
 
 def run_detailed_ingestion_debug(args: argparse.Namespace) -> int:
-    token = os.environ.get("FINMIND_TOKEN")
-    print(f"FINMIND_TOKEN detected: {'YES' if token else 'NO'}")
+    token = finmind_token_from_env()
+    print(f"FinMind token detected (FINMIND_TOKEN or FINMIND_API_TOKEN): {'YES' if token else 'NO'}")
     print()
 
     client = RecordingFinMindClient(token, timeout=args.timeout, sleep_seconds=args.sleep_seconds)
@@ -746,9 +752,9 @@ def fix_required_for(result: DetailedDatasetStatus) -> str:
     if result.failure_type == "PASS":
         return "No FinMind provider change required."
     if result.failure_type == "NETWORK_ERROR":
-        return "Fix API egress/proxy/network path, then rerun diagnostics with FINMIND_TOKEN if available."
+        return "Fix API egress/proxy/network path, then rerun diagnostics with FINMIND_TOKEN or FINMIND_API_TOKEN if available."
     if result.failure_type == "TOKEN_MISSING":
-        return "Set FINMIND_TOKEN in the runtime environment."
+        return "Set FINMIND_TOKEN or FINMIND_API_TOKEN in the runtime environment."
     if result.failure_type == "UNSUPPORTED_BY_FINMIND":
         return f"Use fallback: {result.fallback_source}"
     if result.filename == "futures.csv" and result.failure_type == "FIELD_MAPPING_ERROR":
