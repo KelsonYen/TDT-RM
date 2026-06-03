@@ -31,13 +31,18 @@ def main() -> int:
     parser.add_argument("--run-pipeline", action="store_true", help="Run scripts/run_daily_pipeline.py logic with generated provider CSVs.")
     parser.add_argument("--pipeline-output-dir", default="outputs/daily", help="Directory for daily production artifacts when --run-pipeline is supplied.")
     parser.add_argument("--json-summary", help="Optional path for a machine-readable combined summary JSON.")
+    parser.add_argument("--price-fallback-csv", help="Optional local canonical price CSV fallback. Used after live price failures or immediately with --offline.")
+    parser.add_argument("--price-fallback-json", help="Optional local canonical price JSON fallback. Used after live price failures or immediately with --offline.")
+    parser.add_argument("--offline", action="store_true", help="Skip live network sources and use only configured/local fallback files.")
+    parser.add_argument("--fail-fast", action="store_true", help="Stop a provider category after its first failed source instead of trying configured fallbacks.")
     args = parser.parse_args()
 
     try:
         source_config = load_source_config(args.source_config)
+        _add_runtime_price_fallback_sources(source_config, args.price_fallback_csv, args.price_fallback_json)
         main7_symbols = load_main7_symbols(args.main7_config)
         registry = PublicDataFetcherRegistry.from_config(source_config)
-        context = PublicDataFetchContext(as_of=args.as_of, source_config=source_config, main7_symbols=main7_symbols)
+        context = PublicDataFetchContext(as_of=args.as_of, source_config=source_config, main7_symbols=main7_symbols, offline=args.offline, fail_fast=args.fail_fast)
         fetch_results = registry.fetch_all(context)
         write_result = write_provider_csvs(fetch_results, args.output_dir, args.as_of)
     except Exception as exc:  # noqa: BLE001 - concise CLI error.
@@ -54,7 +59,7 @@ def main() -> int:
     ]
 
     if not price_available:
-        print("ERROR price provider unavailable; cannot run a full TDT-RM daily production pipeline.", file=sys.stderr)
+        _print_price_failure_diagnostics(write_result.manifest, args, file=sys.stderr)
         _maybe_write_json_summary(args.json_summary, {"fetch": write_result.as_dict(), "pipeline": None, "blocking_error": "price provider unavailable"})
         return 0 if args.allow_partial and not args.run_pipeline else 1
     if failed_optional and not args.allow_partial:
@@ -91,6 +96,64 @@ def main() -> int:
     if pipeline_result and isinstance(pipeline_result.get("validation"), dict) and pipeline_result["validation"].get("has_errors"):
         return 1
     return 0
+
+
+def _add_runtime_price_fallback_sources(source_config: dict[str, object], csv_path: str | None, json_path: str | None) -> None:
+    sources = source_config.setdefault("sources", [])
+    if not isinstance(sources, list):
+        source_config["sources"] = sources = []
+    next_order = 10_000
+    existing_orders = [item.get("fallback_order") for item in sources if isinstance(item, dict)]
+    numeric_orders = []
+    for value in existing_orders:
+        try:
+            numeric_orders.append(int(value))
+        except (TypeError, ValueError):
+            pass
+    if numeric_orders:
+        next_order = max(numeric_orders) + 10
+    if csv_path:
+        sources.append(_runtime_price_fallback_source("cli_price_fallback_csv", "local_csv_fallback", csv_path, next_order))
+        next_order += 10
+    if json_path:
+        sources.append(_runtime_price_fallback_source("cli_price_fallback_json", "local_json_fallback", json_path, next_order))
+
+
+def _runtime_price_fallback_source(source_id: str, source_type: str, path: str, fallback_order: int) -> dict[str, object]:
+    return {
+        "source_id": source_id,
+        "source_name": "CLI local price fallback " + ("CSV" if source_type == "local_csv_fallback" else "JSON"),
+        "provider_category": "price",
+        "adapter": "local_price_fallback",
+        "source_type": source_type,
+        "enabled": True,
+        "fallback_order": fallback_order,
+        "path": path,
+        "freshness_rules": {"max_lag_days": 0},
+        "notes": "Runtime user-supplied local fallback; treated as external data and validated against --as-of before writing price.csv.",
+        "limitations": "Not production market data unless the operator supplies an externally downloaded official/vendor file.",
+    }
+
+
+def _print_price_failure_diagnostics(manifest: dict[str, object], args: argparse.Namespace, *, file) -> None:
+    print("ERROR required provider price failed (price provider unavailable)", file=file)
+    print("attempted sources:", file=file)
+    attempts = manifest.get("source_attempts", [])
+    price_attempts = [item for item in attempts if isinstance(item, dict) and item.get("provider_category") == "price"] if isinstance(attempts, list) else []
+    if not price_attempts:
+        print("  - none (offline mode may have skipped live sources and no local fallback was configured)", file=file)
+    for attempt in price_attempts:
+        source_id = attempt.get("source_id")
+        status = attempt.get("status")
+        reason = attempt.get("failure_reason") or "no detailed failure reason recorded"
+        print(f"  - {source_id}: status={status}; failure_reason={reason}", file=file)
+    print("suggested fallback command:", file=file)
+    print(
+        "  python scripts/fetch_daily_provider_csvs.py "
+        f"--as-of {args.as_of.isoformat()} --output-dir {args.output_dir} "
+        "--price-fallback-csv path/to/price.csv --allow-partial",
+        file=file,
+    )
 
 
 def _maybe_write_json_summary(path: str | None, summary: dict[str, object]) -> None:
