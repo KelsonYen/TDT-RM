@@ -1,2 +1,2 @@
-trade_date,foreign_spot_net_buy,foreign_spot_net_sell,foreign_spot_net_sell_consecutive_days,foreign_large_sell,foreign_spot_large_sell,futures_hedging_increases,futures_hedging_significant
-2026-05-29,-18500000000,true,4,true,true,true,true
+date,foreign_spot_net_sell_consecutive_days,foreign_large_sell,futures_hedging_increases
+2026-05-29,0,false,false

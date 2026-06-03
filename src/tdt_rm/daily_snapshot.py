@@ -244,19 +244,21 @@ def snapshot_to_market_observation(snapshot: DailyMarketSnapshot) -> MarketDataO
 
 
 def derive_eti_available_components(snapshot: DailyMarketSnapshot) -> set[str]:
-    """Derive ETI-5 component availability only from fields actually supplied."""
+    """Derive ETI-5 component availability only from supplied source fields."""
 
     row = dict(snapshot.canonical_row)
+    supplied_fields = {field for field, source_id in snapshot.field_sources.items() if source_id}
+    supplied_row = {field: value for field, value in row.items() if field in supplied_fields}
     available: set[str] = set()
-    if _has_all(row, ("close", "ma20")):
+    if _has_all(supplied_row, ("close", "ma20")):
         available.add("ETI-1")
-    if _has_any(row, _ETI_COMPONENT_FIELDS["ETI-2"]):
+    if _has_any(supplied_row, _ETI_COMPONENT_FIELDS["ETI-2"]):
         available.add("ETI-2")
-    if _has_any(row, _ETI_COMPONENT_FIELDS["ETI-3"]):
+    if _has_any(supplied_row, _ETI_COMPONENT_FIELDS["ETI-3"]):
         available.add("ETI-3")
-    if _has_any(row, _ETI_COMPONENT_FIELDS["ETI-4"]):
+    if _has_any(supplied_row, _ETI_COMPONENT_FIELDS["ETI-4"]):
         available.add("ETI-4")
-    if _has_any(row, _ETI_COMPONENT_FIELDS["ETI-5"]):
+    if _has_any(supplied_row, _ETI_COMPONENT_FIELDS["ETI-5"]):
         available.add("ETI-5")
     return available
 

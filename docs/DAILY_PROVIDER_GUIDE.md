@@ -42,7 +42,8 @@ Common canonical groups:
 | `price` | `observed_at`, `close`, `ma5`, `ma20`, `ma60`, `ma20_slope`, returns, turnover |
 | `foreign_flow` | `foreign_spot_net_sell_consecutive_days`, `foreign_large_sell`, futures hedging flags |
 | `fx` | `usd_twd_3d_change_pct`, `usd_twd_5d_change_pct` |
-| `breadth` | `index_down`, advancing/declining issue counts, ETI breadth flags, leadership breakdown counts |
+| `breadth` | `index_down`, advancing/declining issue counts, ETI breadth flags |
+| `leadership` | `count_main_7_below_ma20`, optional main-7 symbol lists |
 | `margin` | margin balance, 5-day index return, retail leverage flags |
 | `scores` | formal/manual `tail_risk`, `bcd`, and optional `mhs` |
 
@@ -73,7 +74,7 @@ python scripts/assemble_daily_snapshot.py \
   --foreign-csv examples/provider_inputs/sample_foreign_flow.csv \
   --fx-csv examples/provider_inputs/sample_fx.csv \
   --breadth-csv examples/provider_inputs/sample_breadth.csv \
-  --margin-csv examples/provider_inputs/sample_margin.csv \
+  --leadership-csv examples/provider_inputs/sample_leadership.csv \
   --scores-csv examples/provider_inputs/sample_scores.csv \
   --field-map examples/provider_inputs/sample_provider_field_map.json \
   --output-json outputs/daily/assembled_snapshot_2026-05-29.json \

@@ -41,7 +41,8 @@ _PRICE_FIELDS = {
 }
 _TCWRS_FIELDS = {item.name for item in fields(TCWRSInput)}
 _ETI5_FIELDS = {item.name for item in fields(ETI5Input)}
-_CANONICAL_FIELDS = _TCWRS_FIELDS | _ETI5_FIELDS | {"observed_at", "tail_risk", "bcd", "mhs", "return_60d_pct", "previous_ma60"}
+_EXTRA_PROVIDER_FIELDS = {"usd_twd", "main_7_symbols", "main_7_below_ma20_symbols"}
+_CANONICAL_FIELDS = _TCWRS_FIELDS | _ETI5_FIELDS | _EXTRA_PROVIDER_FIELDS | {"observed_at", "tail_risk", "bcd", "mhs", "return_60d_pct", "previous_ma60"}
 _DEFAULT_ALIASES: dict[str, tuple[str, ...]] = {
     "observed_at": ("observed_at", "trade_date", "date", "日期", "資料日期"),
     "close": ("close", "taiex_close", "index_close", "收盤價", "closing_index"),
@@ -79,6 +80,7 @@ _CATEGORY_FIELDS: dict[str, tuple[str, ...]] = {
     "foreign_flow": ("foreign_spot_net_buy", "foreign_spot_net_sell", "foreign_spot_net_sell_consecutive_days", "foreign_large_sell", "foreign_spot_large_sell", "futures_hedging_increases", "futures_hedging_significant"),
     "fx": ("usd_twd_3d_change_pct", "usd_twd_5d_change_pct", "twd_appreciates", "twd_stable", "twd_depreciates_significantly"),
     "breadth": ("index_down", "advancing_issues", "declining_issues", "declining_issues_significantly_expand", "declining_issues_significantly_gt_advancing", "declining_gt_advancing_consecutive_days", "breadth_weakens_for_2_days", "count_main_7_below_ma20", "count_main_7_below_ma60"),
+    "leadership": ("count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols"),
     "margin": ("margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "index_5d_return_pct", "margin_balance_5d_decline_pct", "margin_not_retreating"),
     "scores": ("tail_risk", "bcd", "mhs"),
 }
@@ -112,11 +114,11 @@ class DailyProviderContext:
 
     def field_map_for(self, provider_id: str, category: str | None = None) -> Mapping[str, str]:
         maps: dict[str, str] = {}
-        maps.update(self.field_map)
+        maps.update(_normalize_field_map(self.field_map))
         for key in (category or "", provider_id):
             scoped = self.provider_field_maps.get(key)
             if scoped:
-                maps.update(scoped)
+                maps.update(_normalize_field_map(scoped))
         return maps
 
 
@@ -482,6 +484,7 @@ def _metadata_for_result(result: DailyProviderResult) -> dict[str, Any]:
 
 def _canonicalize_row(row: Mapping[str, Any], *, field_map: Mapping[str, str] | None = None) -> dict[str, Any]:
     canonical: dict[str, Any] = {}
+    field_map = _normalize_field_map(field_map or {})
     claimed_raw_keys = set(field_map.values()) if field_map else set()
     if field_map:
         for canonical_name, raw_name in field_map.items():
@@ -495,6 +498,26 @@ def _canonicalize_row(row: Mapping[str, Any], *, field_map: Mapping[str, str] | 
                 canonical[canonical_name] = _coerce_value(canonical_name, row[raw_name])
                 break
     return canonical
+
+
+def _normalize_field_map(field_map: Mapping[str, str]) -> dict[str, str]:
+    """Return canonical-field to raw-column mappings.
+
+    Field-map fixtures historically used canonical-to-raw mappings, while some
+    provider samples are easier to read as raw-to-canonical mappings.  Accept
+    both forms deterministically: if the key is canonical it is kept as-is; if
+    the value is canonical, the pair is inverted.
+    """
+
+    normalized: dict[str, str] = {}
+    for left, right in field_map.items():
+        canonical_left = left in _CANONICAL_FIELDS
+        canonical_right = right in _CANONICAL_FIELDS
+        if canonical_left or not canonical_right:
+            normalized[str(left)] = str(right)
+        else:
+            normalized[str(right)] = str(left)
+    return normalized
 
 
 def _select_row(rows: Sequence[Mapping[str, Any]], as_of: date, date_field: str) -> Mapping[str, Any] | None:
