@@ -1,0 +1,20 @@
+{
+  "data": [
+    {
+      "date": "2026-06-02",
+      "taiex_close": 42100,
+      "taiex_ma5": 42020,
+      "taiex_ma20": 41750,
+      "taiex_ma60": 40500,
+      "taiex_ma20_slope": 35,
+      "one_day_return_pct": 0.32,
+      "two_day_return_pct": 0.55,
+      "turnover_amount": 520000000000,
+      "ma20_turnover": 500000000000,
+      "close_below_ma20_consecutive_days": 0,
+      "index_5d_return_pct": 1.2,
+      "return_60d_pct": 6.5,
+      "previous_ma60": 40480
+    }
+  ]
+}

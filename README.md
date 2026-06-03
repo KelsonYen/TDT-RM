@@ -531,3 +531,24 @@ python scripts/smoke_daily_production.py \
   --output-dir /tmp/tdt_rm_daily_smoke \
   --as-of 2026-05-29
 ```
+## Automatic public-data daily run
+
+Generate provider CSV inputs from configured public structured sources, then optionally run the existing one-command daily pipeline:
+
+```bash
+python scripts/fetch_daily_provider_csvs.py --as-of 2026-06-02 --output-dir inputs/daily/2026-06-02 --allow-partial --run-pipeline --pipeline-output-dir outputs/daily
+```
+
+Expected input artifacts:
+
+- `inputs/daily/2026-06-02/*.csv`
+- `inputs/daily/2026-06-02/fetch_manifest.json`
+
+Expected daily output artifacts when price data is available and the pipeline runs:
+
+- `outputs/daily/tdt_rm_daily_2026-06-02.json`
+- `outputs/daily/tdt_rm_daily_2026-06-02.md`
+- `outputs/daily/tdt_rm_daily_2026-06-02_manifest.json`
+
+The public fetch layer does not change model scoring logic and does not fabricate missing optional inputs. Missing, stale, malformed, or unavailable optional sources are recorded in `fetch_manifest.json`; formal Tail Risk / BCD / MHS are only written when explicitly supplied by a deterministic source. See `docs/PUBLIC_DATA_FETCHER_GUIDE.md` for configuration details and limitations.
+
