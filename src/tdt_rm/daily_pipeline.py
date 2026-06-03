@@ -55,6 +55,8 @@ class DailyPipelineResult:
     data_status: str | None
     signal: str | None
     exposure_limit: str | None
+    regime_state: str | None
+    latest_bar_date: str | None
     scores: Mapping[str, Any]
     available_eti_components: tuple[str, ...]
     fallback_proxies: Mapping[str, Any]
@@ -77,6 +79,8 @@ class DailyPipelineResult:
             "data_status": self.data_status,
             "signal": self.signal,
             "exposure_limit": self.exposure_limit,
+            "regime_state": self.regime_state,
+            "latest_bar_date": self.latest_bar_date,
             "scores": dict(self.scores),
             "TCWRS": self.scores.get("TCWRS"),
             "MHS": self.scores.get("MHS"),
@@ -192,6 +196,154 @@ def render_operator_summary(result: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def render_market_result_block(result: Mapping[str, Any]) -> str:
+    """Render the operator-required market-result block for task summaries."""
+
+    scores = _mapping(result.get("scores"))
+    action = _recommended_action(result)
+    cp_value = scores.get("CP")
+    lines = [
+        "TODAY’S TDT-RM MARKET RESULT",
+        "",
+        f"Data Date: {result.get('trade_date')}",
+        f"Signal: {result.get('signal')}",
+        f"Regime State: {_result_value(result, 'regime_state', 'market_regime', default='watch')}",
+        f"TCWRS: {scores.get('TCWRS')}",
+        f"MHS: {scores.get('MHS')}",
+        f"ETI-5: {scores.get('ETI-5')}",
+        f"Tail Risk: {scores.get('Tail Risk')}",
+        f"BCD: {scores.get('BCD')}",
+        f"Crash Probability: {_format_crash_probability(cp_value)}",
+        f"Exposure Limit: {result.get('exposure_limit')}",
+        f"Recommended Action: {action}",
+    ]
+    return "\n".join(lines)
+
+
+def render_final_operator_report(result: Mapping[str, Any]) -> str:
+    """Render the complete Markdown report consumed by operator task summaries."""
+
+    scores = _mapping(result.get("scores"))
+    artifacts = _mapping(result.get("artifact_paths"))
+    validation = _mapping(result.get("validation"))
+    action = _recommended_action(result)
+    conclusion = _final_conclusion(result)
+    lines = [
+        f"# TDT-RM Final Operator Report — {result.get('trade_date')}",
+        "",
+        "## Production Status",
+        "",
+        f"* Trade Date: {result.get('trade_date')}",
+        f"* Latest Bar Date: {_result_value(result, 'latest_bar_date', default=result.get('trade_date'))}",
+        f"* Pipeline Validation Status: {result.get('validation_status')}",
+        f"* Data Status: {result.get('data_status')}",
+        f"* Source Production Artifact: {artifacts.get('json')}",
+        f"* Source Manifest: {artifacts.get('manifest')}",
+        "",
+        "## Required Operator Fields",
+        "",
+        "| Field | Value |",
+        "| --- | --- |",
+        f"| Signal | {result.get('signal')} |",
+        f"| Regime State | {_result_value(result, 'regime_state', 'market_regime', default='watch')} |",
+        f"| TCWRS | {scores.get('TCWRS')} |",
+        f"| MHS | {scores.get('MHS')} |",
+        f"| ETI-5 | {scores.get('ETI-5')} |",
+        f"| Tail Risk | {scores.get('Tail Risk')} |",
+        f"| BCD | {scores.get('BCD')} |",
+        f"| Crash Probability | {_format_crash_probability(scores.get('CP'))} |",
+        f"| Exposure Limit | {result.get('exposure_limit')} |",
+        f"| Recommended Action | {action} |",
+        f"| Conclusion | {conclusion} |",
+        "",
+        "## Data Quality Notes",
+        "",
+        "* Available ETI Components: " + (", ".join(str(item) for item in result.get('available_eti_components', []) or []) or "none"),
+        f"* Fallback Proxies: {json.dumps(result.get('fallback_proxies', {}), ensure_ascii=False, sort_keys=True)}",
+        "* Provider Warnings: " + ("; ".join(str(item) for item in result.get('provider_warnings', []) or []) or "none"),
+        f"* Validation Errors: {validation.get('error_count', 0)}",
+        f"* Validation Warnings: {validation.get('warning_count', 0)}",
+        "",
+        "## Final Assessment",
+        "",
+        conclusion,
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def write_final_operator_reports(result: Mapping[str, Any], reports_dir: str | Path = "reports") -> dict[str, Path]:
+    """Write dated and latest operator reports, returning their paths."""
+
+    destination = Path(reports_dir)
+    destination.mkdir(parents=True, exist_ok=True)
+    report = render_final_operator_report(result)
+    trade_date = str(result.get("trade_date"))
+    dated_path = destination / f"{trade_date}_tdt_rm_daily_report.md"
+    latest_path = destination / "latest_report.md"
+    dated_path.write_text(report, encoding="utf-8")
+    latest_path.write_text(report, encoding="utf-8")
+    return {"dated": dated_path, "latest": latest_path}
+
+
+def render_report_task_summary(report_path: str | Path, result: Mapping[str, Any]) -> str:
+    """Render the Codex-visible task summary block plus complete report contents."""
+
+    path = Path(report_path)
+    if not path.exists():
+        trade_date = result.get("trade_date") or "<YYYY-MM-DD>"
+        raise FileNotFoundError(
+            f"{path} does not exist. Generate it with: "
+            f"python scripts/run_daily_production_pipeline.py --trade-date {trade_date} "
+            f"--inputs-dir inputs/daily/{trade_date} --outputs-dir outputs/daily "
+            f"--pipeline-summary outputs/daily/tdt_rm_daily_{trade_date}_summary.json"
+        )
+    return render_market_result_block(result) + "\n\n" + path.read_text(encoding="utf-8")
+
+
+def _recommended_action(result: Mapping[str, Any]) -> str:
+    signal = str(result.get("signal") or "")
+    exposure_limit = str(result.get("exposure_limit") or "")
+    normalized = signal.lower()
+    if normalized == "yellow":
+        return "Hold. Do not chase. Do not use leverage."
+    if normalized in {"red", "deep red"}:
+        return "De-risk according to the approved exposure limit; do not add leverage."
+    if normalized == "green":
+        return f"Operate within the approved exposure limit ({exposure_limit}); no leverage beyond policy."
+    return "Follow the approved decision matrix and do not override validation gate results."
+
+
+def _final_conclusion(result: Mapping[str, Any]) -> str:
+    signal = result.get("signal")
+    cp = _format_crash_probability(_mapping(result.get("scores")).get("CP"))
+    exposure_limit = result.get("exposure_limit")
+    return (
+        f"TDT-RM closes the latest available market date with a {signal} signal and crash probability {cp}. "
+        f"The operator should follow the recommended action within the approved {exposure_limit} equity exposure band."
+    )
+
+
+def _format_crash_probability(value: Any) -> str:
+    if value is None:
+        return "None"
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if number <= 1:
+        percent = number * 100
+        return f"{number:g} ({percent:.1f}%)"
+    return f"{number:g}%"
+
+
+def _result_value(result: Mapping[str, Any], *keys: str, default: Any = None) -> Any:
+    for key in keys:
+        if result.get(key) is not None:
+            return result.get(key)
+    return default
+
+
 def write_json_summary(result: Mapping[str, Any], path: str | Path) -> Path:
     """Write the machine-readable pipeline summary JSON."""
 
@@ -277,6 +429,8 @@ def _build_pipeline_result(
         data_status=str(data.get("status") or data.get("data_status")) if data else None,
         signal=str(payload.get("signal")) if payload.get("signal") is not None else None,
         exposure_limit=str(payload.get("equity_exposure_limit")) if payload.get("equity_exposure_limit") is not None else None,
+        regime_state=str(payload.get("market_regime") or payload.get("regime_state")) if (payload.get("market_regime") or payload.get("regime_state")) is not None else None,
+        latest_bar_date=str(data.get("latest_bar_date")) if data.get("latest_bar_date") is not None else None,
         scores=scores,
         available_eti_components=tuple(str(item) for item in data.get("available_eti_components", []) or []),
         fallback_proxies=dict(data.get("fallback_proxies", {})) if isinstance(data.get("fallback_proxies"), Mapping) else {},

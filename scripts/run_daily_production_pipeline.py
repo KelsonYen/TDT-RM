@@ -17,7 +17,13 @@ from typing import Any, Mapping
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from tdt_rm.daily_pipeline import render_operator_summary, run_daily_pipeline, write_json_summary  # noqa: E402
+from tdt_rm.daily_pipeline import (  # noqa: E402
+    render_operator_summary,
+    render_report_task_summary,
+    run_daily_pipeline,
+    write_final_operator_reports,
+    write_json_summary,
+)
 
 
 def main() -> int:
@@ -27,6 +33,7 @@ def main() -> int:
     parser.add_argument("--outputs-dir", "--output-dir", dest="outputs_dir", required=True, help="Directory for production artifacts.")
     parser.add_argument("--pipeline-summary", help="Optional pipeline summary JSON path (default: <outputs-dir>/pipeline_summary.json).")
     parser.add_argument("--snapshot-path", help="Optional pre-assembled daily market snapshot JSON.")
+    parser.add_argument("--reports-dir", default="reports", help="Directory for dated and latest final operator reports (default: reports).")
     args = parser.parse_args()
 
     inputs_dir = Path(args.inputs_dir)
@@ -51,12 +58,16 @@ def main() -> int:
             command="scripts/run_daily_production_pipeline.py",
         )
         write_json_summary(result, summary_path)
+        report_paths = write_final_operator_reports(result, args.reports_dir)
+        task_summary = render_report_task_summary(report_paths["latest"], result)
     except Exception as exc:  # noqa: BLE001 - concise fail-closed CLI error.
         print(f"ERROR daily production pipeline failed: {exc}", file=sys.stderr)
         return 1
 
     print(render_operator_summary(result))
     print(f"pipeline_summary: {summary_path}")
+    print()
+    print(task_summary)
     return 0
 
 
