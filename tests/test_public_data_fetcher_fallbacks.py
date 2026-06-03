@@ -149,3 +149,113 @@ def test_diagnostics_include_suggested_fallback_command(tmp_path: Path):
     assert "attempted sources" in proc.stderr
     assert "failure_reason" in proc.stderr
     assert "--price-fallback-csv path/to/price.csv" in proc.stderr
+
+
+def _live_price_success(source_id: str = "live_price_success") -> dict[str, object]:
+    item = _live_price(source_id)
+    item["fixture_path"] = str(FIXTURE_DIR / "taiex_price_response.json")
+    item["source_type"] = "twse_json"
+    return item
+
+
+def _optional_breadth_success(source_id: str = "breadth_live") -> dict[str, object]:
+    return {
+        "source_id": source_id,
+        "source_name": source_id,
+        "provider_category": "breadth",
+        "adapter": "generic_json",
+        "source_type": "public_json",
+        "enabled": True,
+        "fallback_order": 10,
+        "fixture_path": str(FIXTURE_DIR / "market_breadth_response.json"),
+        "rows_path": "data",
+        "freshness_rules": {"max_lag_days": 1},
+    }
+
+
+def test_provider_health_all_providers_healthy_and_manifest_summary(tmp_path: Path):
+    _, written, manifest = _write(tmp_path, {"sources": [_live_price_success(), _optional_breadth_success()]})
+
+    health = json.loads(Path(written.provider_health_path).read_text(encoding="utf-8"))
+    assert (tmp_path / "provider_health.json").exists()
+    assert health["providers"]["price_provider"]["status"] == "healthy"
+    assert health["providers"]["breadth_provider"]["status"] == "healthy"
+    assert manifest["provider_health_summary"]["healthy_providers"] == ["breadth_provider", "price_provider"]
+    assert manifest["provider_health"]["price_provider"]["source_type"] == "live"
+
+
+def test_provider_health_fallback_records_local_fallback_source_type(tmp_path: Path):
+    _, written, manifest = _write(tmp_path, {"sources": [_live_price(), _local_csv(SAMPLE_FALLBACK)]})
+
+    health = json.loads(Path(written.provider_health_path).read_text(encoding="utf-8"))
+    price = health["providers"]["price_provider"]
+    assert price["status"] in {"healthy", "warning"}
+    assert price["source_type"] == "local_fallback"
+    assert price["diagnostics"]["fallback_attempted"] is True
+    assert manifest["provider_health_summary"]["local_fallback_providers"] == ["price_provider"]
+
+
+def test_provider_health_zero_records_required_failed_optional_warning(tmp_path: Path):
+    from tdt_rm.public_data_fetchers import PublicDataFetchResult, build_provider_health
+
+    health = build_provider_health(
+        [
+            PublicDataFetchResult("price_empty", "price_empty", "price", "success", (), {"date": AS_OF.isoformat()}, {"source_type": "twse_json"}),
+            PublicDataFetchResult("breadth_empty", "breadth_empty", "breadth", "success", (), {"date": AS_OF.isoformat()}, {"source_type": "public_json"}),
+        ],
+        AS_OF,
+    )
+
+    assert health["providers"]["price_provider"]["status"] == "failed"
+    assert health["providers"]["breadth_provider"]["status"] == "warning"
+    assert sorted(health["summary"]["zero_record_providers"]) == ["breadth_provider", "price_provider"]
+
+
+def test_provider_health_freshness_failure_is_failed_and_fail_closed(tmp_path: Path):
+    stale_csv = tmp_path / "stale_price.csv"
+    stale_csv.write_text(
+        "date,taiex_close,taiex_ma5,taiex_ma20,taiex_ma60,taiex_ma20_slope\n2026-05-20,42120,42040,41780,40530,36\n",
+        encoding="utf-8",
+    )
+    _, written, manifest = _write(tmp_path / "inputs", {"sources": [_local_csv(stale_csv, max_lag_days=1)]})
+
+    health = json.loads(Path(written.provider_health_path).read_text(encoding="utf-8"))
+    assert health["providers"]["price_provider"]["status"] == "failed"
+    assert health["providers"]["price_provider"]["freshness_status"] == "failed"
+    assert manifest["provider_health_summary"]["freshness_failed_providers"] == ["price_provider"]
+    assert "price" not in written.provider_csv_paths
+
+
+def test_provider_health_fetch_exception_preserves_exception_diagnostics(tmp_path: Path):
+    broken = _live_price("live_price_exception")
+    broken["fixture_path"] = str(tmp_path / "missing_response.json")
+    _, written, _ = _write(tmp_path, {"sources": [broken]})
+
+    health = json.loads(Path(written.provider_health_path).read_text(encoding="utf-8"))
+    diagnostics = health["providers"]["price_provider"]["diagnostics"]
+    assert health["providers"]["price_provider"]["status"] == "failed"
+    assert diagnostics["exception_class"]
+    assert diagnostics["exception_message"]
+
+
+def test_provider_health_report_outputs_summary(tmp_path: Path):
+    _, written, _ = _write(tmp_path, {"sources": [_live_price(), _local_csv(SAMPLE_FALLBACK)]})
+
+    proc = subprocess.run(
+        [sys.executable, "scripts/provider_health_report.py", "--health-json", str(written.provider_health_path)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0
+    assert "Provider Health Summary" in proc.stdout
+    assert "price_provider: warning" in proc.stdout
+    assert "source_type: local_fallback" in proc.stdout
+
+
+def test_fetch_manifest_requires_provider_health_summary(tmp_path: Path):
+    _, _, manifest = _write(tmp_path, {"sources": [_live_price_success()]})
+
+    assert "provider_health_summary" in manifest, "fetch_manifest.json must expose provider health summary"
+    assert "provider_health" in manifest, "fetch_manifest.json must expose per-provider health details"

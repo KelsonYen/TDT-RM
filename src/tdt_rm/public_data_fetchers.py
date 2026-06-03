@@ -10,10 +10,11 @@ from __future__ import annotations
 import csv
 import json
 import math
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Mapping, Protocol, Sequence
@@ -129,6 +130,7 @@ class ProviderCsvWriteResult:
     provider_csv_paths: Mapping[str, str] = field(default_factory=dict)
     provider_field_map_path: str | None = None
     fetch_manifest_path: str | None = None
+    provider_health_path: str | None = None
     data_status: str = "unavailable"
     issues: tuple[PublicDataFetchIssue, ...] = ()
     manifest: Mapping[str, Any] = field(default_factory=dict)
@@ -139,6 +141,7 @@ class ProviderCsvWriteResult:
             "provider_csv_paths": dict(self.provider_csv_paths),
             "provider_field_map_path": self.provider_field_map_path,
             "fetch_manifest_path": self.fetch_manifest_path,
+            "provider_health_path": self.provider_health_path,
             "data_status": self.data_status,
             "issues": [issue.as_dict() for issue in self.issues],
             "manifest": dict(self.manifest),
@@ -190,7 +193,10 @@ class PublicDataFetcherRegistry:
         for category in sorted(by_category, key=lambda item: (item not in _REQUIRED_PROVIDER_CATEGORIES, item)):
             category_sources = sorted(by_category[category], key=_source_fallback_order)
             for source in category_sources:
+                started = time.monotonic()
                 result = source.fetch(context)
+                duration = time.monotonic() - started
+                result = replace(result, raw_metadata={**dict(result.raw_metadata), "fetch_duration_seconds": round(duration, 6)})
                 results.append(result)
                 if result.success:
                     break
@@ -252,7 +258,7 @@ class GenericJsonPublicDataSource:
             normalized = _normalize_provider_row(self.provider_category, mapped, context.as_of)
             return _result(self, "success", retrieved_at=retrieved_at, rows=(normalized,), canonical=normalized, metadata={"endpoint": _render_url(self.config, context)})
         except Exception as exc:  # noqa: BLE001 - source failures are recorded, not raised.
-            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at)
+            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"exception_class": exc.__class__.__name__, "exception_message": str(exc)})
 
 
 @dataclass(frozen=True)
@@ -293,7 +299,7 @@ class TWSETAIEXPriceSource:
             normalized["date"] = context.as_of.isoformat()
             return _result(self, "success", retrieved_at=retrieved_at, rows=(normalized,), canonical=normalized, metadata={"endpoint": _render_url(self.config, context), "bar_count": len(bars), "mode": "price_history"})
         except Exception as exc:  # noqa: BLE001
-            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at)
+            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"exception_class": exc.__class__.__name__, "exception_message": str(exc)})
 
 
 @dataclass(frozen=True)
@@ -382,7 +388,7 @@ class LocalPriceFallbackSource:
                 metadata={"source_type": source_type, "local_fallback": True, "path": str(fallback_path)},
             )
         except Exception as exc:  # noqa: BLE001
-            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"local_fallback": True})
+            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"local_fallback": True, "exception_class": exc.__class__.__name__, "exception_message": str(exc)})
 
 
 @dataclass(frozen=True)
@@ -438,7 +444,7 @@ class LeadershipMain7Source:
             }
             return _result(self, "success", retrieved_at=retrieved_at, rows=(normalized,), canonical=normalized, metadata={"endpoint": _render_url(self.config, context)})
         except Exception as exc:  # noqa: BLE001
-            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at)
+            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"exception_class": exc.__class__.__name__, "exception_message": str(exc)})
 
 
 def write_provider_csvs(fetch_results: Sequence[PublicDataFetchResult], output_dir: str | Path, as_of: date) -> ProviderCsvWriteResult:
@@ -465,14 +471,18 @@ def write_provider_csvs(fetch_results: Sequence[PublicDataFetchResult], output_d
     field_map_path = destination / "provider_field_map.json"
     field_map_path.write_text(json.dumps(_provider_field_map(), ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-    manifest = build_fetch_manifest(fetch_results, provider_paths, as_of)
+    provider_health = build_provider_health(fetch_results, as_of)
+    health_path = destination / "provider_health.json"
+    health_path.write_text(json.dumps(provider_health, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    manifest = build_fetch_manifest(fetch_results, provider_paths, as_of, provider_health=provider_health)
     data_status = str(manifest["data_status"])
     manifest_path = destination / "fetch_manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return ProviderCsvWriteResult(str(destination), provider_paths, str(field_map_path), str(manifest_path), data_status, tuple(issues), manifest)
+    return ProviderCsvWriteResult(str(destination), provider_paths, str(field_map_path), str(manifest_path), str(health_path), data_status, tuple(issues), manifest)
 
 
-def build_fetch_manifest(fetch_results: Sequence[PublicDataFetchResult], provider_paths: Mapping[str, str], as_of: date) -> dict[str, Any]:
+def build_fetch_manifest(fetch_results: Sequence[PublicDataFetchResult], provider_paths: Mapping[str, str], as_of: date, *, provider_health: Mapping[str, Any] | None = None) -> dict[str, Any]:
     attempted = [result.source_id for result in fetch_results]
     successful = [result.source_id for result in fetch_results if result.success]
     failed = [result.source_id for result in fetch_results if result.status == "failed"]
@@ -480,6 +490,7 @@ def build_fetch_manifest(fetch_results: Sequence[PublicDataFetchResult], provide
     missing_fields = [issue.as_dict() for result in fetch_results for issue in result.issues if issue.code in {"missing_field", "constituents_missing", "constituent_field_missing"} or result.status == "missing_fields"]
     unavailable = [result.source_id for result in fetch_results if result.status in {"unavailable", "missing_fields", "stale"}]
     source_attempts = [_source_attempt_manifest(result) for result in fetch_results]
+    health_payload = dict(provider_health or build_provider_health(fetch_results, as_of))
     price_available = "price" in provider_paths
     optional_categories = sorted(set(_DEFAULT_OPTIONAL_CATEGORIES) - set(provider_paths))
     limitations = ["Public data endpoints may be delayed, unavailable, blocked by network policy/403 restrictions, or revised after publication.", "No paid API, broker login, browser automation, or ETF Exit policy is used."]
@@ -498,12 +509,119 @@ def build_fetch_manifest(fetch_results: Sequence[PublicDataFetchResult], provide
         "unavailable_sources": unavailable,
         "missing_fields": missing_fields,
         "source_attempts": source_attempts,
+        "provider_health_summary": health_payload.get("summary", {}),
+        "provider_health": health_payload.get("providers", {}),
         "provider_csv_paths": dict(provider_paths),
         "data_status": data_status,
         "limitations": limitations,
         "optional_categories_unavailable": optional_categories,
         "sources": [result.as_dict() for result in fetch_results],
     }
+
+
+def build_provider_health(fetch_results: Sequence[PublicDataFetchResult], as_of: date) -> dict[str, Any]:
+    """Build auditable provider-level health diagnostics from source attempts."""
+
+    by_category: dict[str, list[PublicDataFetchResult]] = {}
+    for result in fetch_results:
+        by_category.setdefault(result.provider_category, []).append(result)
+
+    providers = {
+        f"{category}_provider": _provider_health_entry(category, results, as_of)
+        for category, results in sorted(by_category.items())
+    }
+    summary = {
+        "total_providers": len(providers),
+        "healthy_providers": sorted(name for name, item in providers.items() if item.get("status") == "healthy"),
+        "warning_providers": sorted(name for name, item in providers.items() if item.get("status") == "warning"),
+        "failed_providers": sorted(name for name, item in providers.items() if item.get("status") == "failed"),
+        "live_providers": sorted(name for name, item in providers.items() if item.get("source_type") == "live"),
+        "local_fallback_providers": sorted(name for name, item in providers.items() if item.get("source_type") == "local_fallback"),
+        "freshness_failed_providers": sorted(name for name, item in providers.items() if item.get("freshness_status") == "failed"),
+        "zero_record_providers": sorted(name for name, item in providers.items() if item.get("records_loaded") == 0),
+    }
+    return {
+        "as_of": as_of.isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
+        "providers": providers,
+        "summary": summary,
+    }
+
+
+def _provider_health_entry(category: str, results: Sequence[PublicDataFetchResult], as_of: date) -> dict[str, Any]:
+    final = next((result for result in reversed(results) if result.success), results[-1])
+    provider_name = f"{category}_provider"
+    records_loaded = len(final.rows)
+    required = category in _REQUIRED_PROVIDER_CATEGORIES
+    freshness_status = "failed" if final.status == "stale" else "passed" if final.success else "not_applicable"
+    source_type = _health_source_type(final)
+    diagnostics_messages = [issue.message for result in results for issue in result.issues]
+    attempted = [result.source_id for result in results]
+    fallback_attempted = any(bool(result.raw_metadata.get("local_fallback")) or _health_source_type(result) == "local_fallback" for result in results)
+    failed_attempt = next((result for result in reversed(results) if result.status == "failed"), None)
+    exception_class = str(final.raw_metadata.get("exception_class") or (failed_attempt.raw_metadata.get("exception_class") if failed_attempt else "") or "")
+    exception_message = str(final.raw_metadata.get("exception_message") or (failed_attempt.raw_metadata.get("exception_message") if failed_attempt else "") or "")
+    validation_passed = final.success and final.status != "missing_fields"
+    freshness_passed = freshness_status == "passed"
+
+    blocking = (not final.success and required) or final.status in {"failed", "missing_fields", "stale"} or (required and records_loaded == 0)
+    if blocking:
+        status = "failed"
+        final_decision = "block_pipeline"
+    elif final.success and records_loaded > 0 and freshness_passed and source_type != "local_fallback" and not diagnostics_messages:
+        status = "healthy"
+        final_decision = "use_provider"
+    else:
+        status = "warning"
+        final_decision = "use_provider_with_warning" if final.success else "optional_provider_unavailable"
+
+    if source_type == "local_fallback" and status == "healthy":
+        status = "warning"
+        final_decision = "use_provider_with_warning"
+
+    error_message = "; ".join(diagnostics_messages) if status == "failed" else ""
+    diagnostics: dict[str, Any] = {
+        "exception_class": exception_class,
+        "exception_message": exception_message,
+        "source_attempted": attempted,
+        "fallback_attempted": fallback_attempted,
+        "final_decision": final_decision,
+        "source_selected": final.source_id if final.success else None,
+        "source_selected_status": final.status,
+        "source_selected_type": source_type,
+        "validation_passed": validation_passed,
+        "freshness_passed": freshness_passed,
+        "issues": [issue.as_dict() for result in results for issue in result.issues],
+    }
+    if diagnostics_messages and status != "failed":
+        diagnostics["messages"] = diagnostics_messages
+    if source_type == "local_fallback":
+        diagnostics.setdefault("messages", []).append("provider used local fallback")
+
+    return {
+        "provider_name": provider_name,
+        "status": status,
+        "as_of": _health_as_of(final, as_of),
+        "source_type": source_type,
+        "records_loaded": records_loaded,
+        "fetch_duration_seconds": round(sum(float(result.raw_metadata.get("fetch_duration_seconds") or 0.0) for result in results), 6),
+        "freshness_status": freshness_status,
+        "error_message": error_message,
+        "diagnostics": diagnostics,
+    }
+
+
+def _health_source_type(result: PublicDataFetchResult) -> str:
+    raw_source_type = str(result.raw_metadata.get("source_type") or "").lower()
+    if result.raw_metadata.get("local_fallback") or raw_source_type in {"local_csv_fallback", "local_json_fallback", "local_fallback"}:
+        return "local_fallback"
+    return "live"
+
+
+def _health_as_of(result: PublicDataFetchResult, as_of: date) -> str:
+    row = dict(result.rows[0] if result.rows else result.canonical_fields)
+    parsed = _parse_date(row.get("date") or row.get("trade_date") or row.get("observed_at"))
+    return (parsed or as_of).isoformat()
 
 
 def _source_attempt_manifest(result: PublicDataFetchResult) -> dict[str, Any]:
