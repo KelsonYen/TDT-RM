@@ -16,6 +16,7 @@ import os
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -34,6 +35,30 @@ PROVIDER_SOURCE = "FinMind"
 SOURCE_TYPE = "REAL_PROVIDER"
 REQUIRED_FILES = tuple(schema.filename for schema in SCHEMAS)
 MAIN7_DEFAULT = ("2330", "0050", "00878", "2454", "2317", "2382", "2308")
+
+
+@dataclass(frozen=True)
+class RequestEvidence:
+    dataset: str
+    url: str
+    http_status: str
+    raw_row_count: int
+    exception_message: str = ""
+
+
+@dataclass(frozen=True)
+class DetailedDatasetStatus:
+    filename: str
+    target_dataset: str
+    api_call: str
+    http_status: str
+    raw_response_row_count: int
+    normalized_csv_row_count: int
+    required_fields_missing: tuple[str, ...]
+    exception_message: str
+    failure_type: str
+    fallback_source: str
+    ok: bool
 
 
 @dataclass(frozen=True)
@@ -91,7 +116,11 @@ def main() -> int:
     parser.add_argument("--main7-config", default="config/main7_symbols.json", help="JSON file containing Main-7 symbols.")
     parser.add_argument("--fetch-only", action="store_true", help="Only fetch/write CSVs; do not run validation or production.")
     parser.add_argument("--summary-json", help="Optional machine-readable fetch summary path.")
+    parser.add_argument("--debug-ingestion", action="store_true", help="Print detailed FinMind ingestion failure evidence without writing production CSVs.")
     args = parser.parse_args()
+
+    if args.debug_ingestion:
+        return run_detailed_ingestion_debug(args)
 
     token = os.environ.get("FINMIND_TOKEN")
     if not token:
@@ -516,6 +545,223 @@ def serialize_value(value: Any) -> Any:
     if isinstance(value, bool):
         return "true" if value else "false"
     return value
+
+
+class RecordingFinMindClient(FinMindClient):
+    """FinMind client variant that records raw request evidence for diagnostics."""
+
+    def __init__(self, token: str | None, *, timeout: int = 30, sleep_seconds: float = 0.25) -> None:
+        super().__init__(token, timeout=timeout, sleep_seconds=sleep_seconds)
+        self.requests: list[RequestEvidence] = []
+
+    def clear_requests(self) -> None:
+        self.requests.clear()
+
+    def get(self, dataset: str, *, start_date: date, end_date: date, data_id: str | None = None) -> list[dict[str, Any]]:
+        params: dict[str, str] = {
+            "dataset": dataset,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+        }
+        if data_id:
+            params["data_id"] = data_id
+        headers = {"User-Agent": "TDT-RM FinMind ingestion diagnostics/1.0"}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+            params["token"] = self.token
+        url = f"{FINMIND_URL}?{urllib.parse.urlencode(params)}"
+        request = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # noqa: S310 - fixed HTTPS API endpoint.
+                http_status = str(getattr(response, "status", "unknown"))
+                payload = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            message = f"HTTPError {exc.code}: {exc.reason}"
+            self.requests.append(RequestEvidence(dataset, redact_token(url), str(exc.code), 0, message))
+            raise RuntimeError(f"FinMind request failed for {dataset}: {message}") from exc
+        except Exception as exc:  # noqa: BLE001 - diagnostics must preserve provider/network evidence.
+            message = str(exc)
+            self.requests.append(RequestEvidence(dataset, redact_token(url), infer_http_status_from_exception(message), 0, message))
+            raise RuntimeError(f"FinMind request failed for {dataset}: {message}") from exc
+        status = payload.get("status")
+        data = payload.get("data")
+        raw_count = len(data) if isinstance(data, list) else 0
+        api_status = str(status if status is not None else http_status)
+        message = str(payload.get("msg") or payload.get("message") or "")
+        self.requests.append(RequestEvidence(dataset, redact_token(url), api_status, raw_count, message if status not in {200, "200", None} else ""))
+        if status not in {200, "200", None}:
+            raise RuntimeError(f"FinMind returned status={status!r} for {dataset}: {message}")
+        if not isinstance(data, list):
+            raise RuntimeError(f"FinMind response for {dataset} did not contain a data list")
+        time.sleep(self.sleep_seconds)
+        return [dict(item) for item in data if isinstance(item, Mapping)]
+
+
+def run_detailed_ingestion_debug(args: argparse.Namespace) -> int:
+    token = os.environ.get("FINMIND_TOKEN")
+    print(f"FINMIND_TOKEN detected: {'YES' if token else 'NO'}")
+    print()
+
+    client = RecordingFinMindClient(token, timeout=args.timeout, sleep_seconds=args.sleep_seconds)
+    fetched_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    latest_exception = ""
+    try:
+        trade_date = args.trade_date or resolve_latest_trade_date(client, lookback_days=args.lookback_days)
+    except Exception as exc:  # noqa: BLE001 - keep running per-dataset probes.
+        latest_exception = str(exc)
+        trade_date = args.trade_date or date.today()
+    if latest_exception:
+        print(f"Latest available trade date resolution: FAIL ({latest_exception})")
+        print(f"Diagnostic probe trade date used after resolution failure: {trade_date.isoformat()}")
+    else:
+        print(f"Latest available trade date: {trade_date.isoformat()}")
+    print()
+
+    start = trade_date - timedelta(days=args.lookback_days)
+    main7 = load_main7_symbols(args.main7_config)
+    fetchers = (
+        ("price.csv", "TaiwanStockPrice:TAIEX", lambda: build_price(client, trade_date, start, fetched_at)),
+        ("foreign_flow.csv", "TaiwanStockTotalInstitutionalInvestors", lambda: build_foreign_flow(client, trade_date, start, fetched_at)),
+        ("fx.csv", "TaiwanExchangeRate:USD", lambda: build_fx(client, trade_date, start, fetched_at)),
+        ("breadth.csv", "TaiwanStockPrice:listed_universe", lambda: build_breadth(client, trade_date, start, fetched_at)),
+        ("futures.csv", "TaiwanFuturesDaily:TX", lambda: build_futures(client, trade_date, start, fetched_at)),
+        ("options.csv", "TaiwanOptionDaily:TXO", lambda: build_options(client, trade_date, start, fetched_at)),
+        ("leadership.csv", "TaiwanStockPrice:Main7", lambda: build_leadership(client, trade_date, start, fetched_at, main7)),
+    )
+    results: list[DetailedDatasetStatus] = []
+    for filename, target_dataset, fetcher in fetchers:
+        client.clear_requests()
+        row: dict[str, Any] | None = None
+        exception_message = ""
+        try:
+            built_row, _source = fetcher()
+            row = dict(built_row)
+        except Exception as exc:  # noqa: BLE001 - diagnostics report all datasets.
+            exception_message = str(exc)
+        schema = {schema.filename: schema for schema in SCHEMAS}[filename]
+        missing = tuple(column for column in schema.required_columns if row is None or column not in row)
+        semantic_failure = semantic_finmind_gap(filename)
+        failure_type = classify_failure(exception_message, client.requests, missing, token_missing=not bool(token), semantic_failure=semantic_failure)
+        fallback = fallback_source_for(filename) if failure_type == "UNSUPPORTED_BY_FINMIND" or semantic_failure else ""
+        ok = not exception_message and not missing and not semantic_failure
+        results.append(DetailedDatasetStatus(
+            filename=filename,
+            target_dataset=target_dataset,
+            api_call=format_api_calls(client.requests, target_dataset),
+            http_status=format_http_statuses(client.requests),
+            raw_response_row_count=sum(request.raw_row_count for request in client.requests),
+            normalized_csv_row_count=1 if row is not None and not missing else 0,
+            required_fields_missing=missing,
+            exception_message=exception_message or semantic_failure,
+            failure_type=failure_type,
+            fallback_source=fallback,
+            ok=ok,
+        ))
+
+    for result in results:
+        print(f"TDT-RM CSV: {result.filename}")
+        print(f"- target dataset name: {result.target_dataset}")
+        print(f"- API URL or SDK call used: {result.api_call}")
+        print(f"- HTTP status: {result.http_status}")
+        print(f"- raw response row count: {result.raw_response_row_count}")
+        print(f"- normalized CSV row count: {result.normalized_csv_row_count}")
+        print(f"- required fields missing: {', '.join(result.required_fields_missing) if result.required_fields_missing else 'none'}")
+        print(f"- exception message: {result.exception_message or 'none'}")
+        print(f"- failure type: {result.failure_type}")
+        if result.fallback_source:
+            print(f"- fallback source: {result.fallback_source}")
+        print(f"- PASS / FAIL: {'PASS' if result.ok else 'FAIL'}")
+        print()
+
+    print("Data Source | FinMind Dataset | Failure Type | Fix Required")
+    print("--- | --- | --- | ---")
+    for result in results:
+        fix = fix_required_for(result)
+        print(f"{result.filename} | {result.target_dataset} | {result.failure_type} | {fix}")
+    return 1 if any(not result.ok for result in results) else 0
+
+
+def redact_token(url: str) -> str:
+    parsed = urllib.parse.urlsplit(url)
+    pairs = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+    redacted = [(key, "<redacted>" if key == "token" else value) for key, value in pairs]
+    return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urllib.parse.urlencode(redacted), parsed.fragment))
+
+
+def infer_http_status_from_exception(message: str) -> str:
+    if "Tunnel connection failed: 403" in message:
+        return "CONNECT 403"
+    return "N/A"
+
+
+def format_api_calls(requests: list[RequestEvidence], fallback_dataset: str) -> str:
+    if not requests:
+        return f"GET {FINMIND_URL}?dataset={fallback_dataset}"
+    return "; ".join(f"GET {request.url}" for request in requests)
+
+
+def format_http_statuses(requests: list[RequestEvidence]) -> str:
+    if not requests:
+        return "N/A"
+    return "; ".join(f"{request.dataset}={request.http_status}" for request in requests)
+
+
+def classify_failure(exception_message: str, requests: list[RequestEvidence], missing: tuple[str, ...], *, token_missing: bool, semantic_failure: str) -> str:
+    evidence = " ".join([exception_message, *(request.exception_message for request in requests)]).lower()
+    statuses = {request.http_status for request in requests}
+    if "rate limit" in evidence or "too many requests" in evidence or "429" in statuses:
+        return "RATE_LIMIT"
+    if "tunnel connection failed" in evidence or "urlopen error" in evidence or "timed out" in evidence or "connect" in evidence:
+        return "NETWORK_ERROR"
+    if token_missing and ("token" in evidence or "permission" in evidence or "unauthorized" in evidence):
+        return "TOKEN_MISSING"
+    if "not found" in evidence or "dataset" in evidence and "not" in evidence:
+        return "DATASET_NOT_FOUND"
+    if "missing for trade date" in evidence or "no " in evidence and "rows" in evidence:
+        return "DATE_NOT_AVAILABLE"
+    if semantic_failure:
+        return "UNSUPPORTED_BY_FINMIND"
+    if missing:
+        return "VALIDATION_ERROR"
+    if exception_message:
+        return "FIELD_MAPPING_ERROR"
+    return "PASS"
+
+
+def semantic_finmind_gap(filename: str) -> str:
+    gaps = {
+        "options.csv": "FinMind TaiwanOptionDaily can provide TXO PCR inputs, but it does not provide CBOE VIX or formal TDT-RM Tail Risk/BCD scores required by options.csv.",
+    }
+    return gaps.get(filename, "")
+
+
+def fallback_source_for(filename: str) -> str:
+    fallbacks = {
+        "options.csv": "CBOE/Stooq/Yahoo Finance for VIX plus the formal TDT-RM Tail Risk/BCD scoring provider; keep TaiwanOptionDaily only for TXO PCR.",
+    }
+    return fallbacks.get(filename, "")
+
+
+def fix_required_for(result: DetailedDatasetStatus) -> str:
+    if result.failure_type == "PASS":
+        return "No FinMind provider change required."
+    if result.failure_type == "NETWORK_ERROR":
+        return "Fix API egress/proxy/network path, then rerun diagnostics with FINMIND_TOKEN if available."
+    if result.failure_type == "TOKEN_MISSING":
+        return "Set FINMIND_TOKEN in the runtime environment."
+    if result.failure_type == "UNSUPPORTED_BY_FINMIND":
+        return f"Use fallback: {result.fallback_source}"
+    if result.filename == "futures.csv" and result.failure_type == "FIELD_MAPPING_ERROR":
+        return "Use TaiwanFuturesInstitutionalInvestors for net-short semantics instead of open-interest proxy."
+    if result.failure_type == "DATE_NOT_AVAILABLE":
+        return "Resolve and request the actual latest FinMind trading date after provider update time."
+    if result.failure_type == "DATASET_NOT_FOUND":
+        return "Correct the FinMind dataset name or replace with a supported provider."
+    if result.failure_type == "VALIDATION_ERROR":
+        return f"Map or derive missing required fields: {', '.join(result.required_fields_missing)}."
+    if result.failure_type == "RATE_LIMIT":
+        return "Throttle requests, cache probes, or upgrade FinMind plan."
+    return "Inspect exception and update the current FinMind field mapping."
 
 
 if __name__ == "__main__":
