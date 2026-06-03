@@ -2,6 +2,24 @@
 
 by Dr. Yen
 
+## One-command daily pipeline
+
+Run the full daily production flow from prepared provider CSVs to assembled snapshot, daily JSON/Markdown/manifest artifacts, validation, and a concise operator summary with one command. See [docs/DAILY_PIPELINE_GUIDE.md](docs/DAILY_PIPELINE_GUIDE.md) for the complete runbook.
+
+```bash
+python scripts/run_daily_pipeline.py \
+  --as-of 2026-05-29 \
+  --price-csv examples/provider_inputs/sample_price.csv \
+  --foreign-csv examples/provider_inputs/sample_foreign_flow.csv \
+  --fx-csv examples/provider_inputs/sample_fx.csv \
+  --breadth-csv examples/provider_inputs/sample_breadth.csv \
+  --leadership-csv examples/provider_inputs/sample_leadership.csv \
+  --scores-csv examples/provider_inputs/sample_scores.csv \
+  --field-map examples/provider_inputs/sample_provider_field_map.json \
+  --output-dir outputs/daily \
+  --allow-warnings
+```
+
 ## TCWRS 模組
 
 本倉庫目前實作 `TDT-RM V5.1.3 Rev.3 Final Freeze` 規格書第 3 章的
