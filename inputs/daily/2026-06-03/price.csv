@@ -1,0 +1,2 @@
+trade_date,provider_source,source_type,close,ma5,ma20,ma60,ma20_slope,one_day_return_pct,two_day_return_pct,close_below_ma20_consecutive_days,index_5d_return_pct,return_60d_pct,previous_ma60,turnover_amount
+2026-06-03,TWSE_official_manual_import,official_manual,21550.25,21480.10,21320.40,20780.55,18.75,0.42,0.85,0,1.25,3.70,20720.30,312500000000
