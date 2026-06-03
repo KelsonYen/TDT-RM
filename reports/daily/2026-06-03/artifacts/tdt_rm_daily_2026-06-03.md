@@ -1,6 +1,6 @@
 # TDT-RM Daily Report — 2026-06-03
 
-- Timestamp: `2026-06-03T13:12:17.072267Z`
+- Timestamp: `2026-06-03T13:33:38.991527Z`
 - Model: `TDT-RM V5.1.4`
 - Market regime: **risk-on**
 - Signal: **Green**

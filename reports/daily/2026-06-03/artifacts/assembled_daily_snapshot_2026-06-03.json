@@ -117,7 +117,7 @@
     "assembly_context": {
       "name": "Assembler context",
       "notes": "--as-of value",
-      "retrieved_at": "2026-06-03T13:12:17.062127Z"
+      "retrieved_at": "2026-06-03T13:33:38.983442Z"
     },
     "breadth_csv": {
       "capabilities": [
@@ -142,7 +142,7 @@
       "category": "breadth",
       "name": "Local breadth CSV",
       "notes": "inputs/daily/2026-06-03/breadth.csv",
-      "retrieved_at": "2026-06-03T13:12:17.068488Z"
+      "retrieved_at": "2026-06-03T13:33:38.988782Z"
     },
     "foreign_flow_csv": {
       "capabilities": [
@@ -165,7 +165,7 @@
       "category": "foreign_flow",
       "name": "Local foreign-flow CSV",
       "notes": "inputs/daily/2026-06-03/foreign_flow.csv",
-      "retrieved_at": "2026-06-03T13:12:17.068143Z"
+      "retrieved_at": "2026-06-03T13:33:38.988538Z"
     },
     "futures_csv": {
       "capabilities": [
@@ -185,7 +185,7 @@
       "category": "futures",
       "name": "Local futures CSV",
       "notes": "inputs/daily/2026-06-03/futures.csv",
-      "retrieved_at": "2026-06-03T13:12:17.068836Z"
+      "retrieved_at": "2026-06-03T13:33:38.989086Z"
     },
     "fx_csv": {
       "capabilities": [
@@ -206,7 +206,7 @@
       "category": "fx",
       "name": "Local FX CSV",
       "notes": "inputs/daily/2026-06-03/fx.csv",
-      "retrieved_at": "2026-06-03T13:12:17.068337Z"
+      "retrieved_at": "2026-06-03T13:33:38.988667Z"
     },
     "leadership_csv": {
       "capabilities": [
@@ -228,7 +228,7 @@
       "category": "leadership",
       "name": "Local leadership CSV",
       "notes": "inputs/daily/2026-06-03/leadership.csv",
-      "retrieved_at": "2026-06-03T13:12:17.068638Z"
+      "retrieved_at": "2026-06-03T13:33:38.988918Z"
     },
     "options_csv": {
       "capabilities": [
@@ -250,7 +250,7 @@
       "category": "options",
       "name": "Local options CSV",
       "notes": "inputs/daily/2026-06-03/options.csv",
-      "retrieved_at": "2026-06-03T13:12:17.068962Z"
+      "retrieved_at": "2026-06-03T13:33:38.989208Z"
     },
     "taiex_price": {
       "capabilities": [
@@ -276,7 +276,7 @@
       "category": "price",
       "name": "TAIEX price provider",
       "notes": "inputs/daily/2026-06-03/price.csv",
-      "retrieved_at": "2026-06-03T13:12:17.067933Z"
+      "retrieved_at": "2026-06-03T13:33:38.988352Z"
     }
   },
   "trade_date": "2026-06-03",
@@ -294,322 +294,322 @@
         "advancing_issues": {
           "field": "advancing_issues",
           "notes": "inputs/daily/2026-06-03/breadth.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068488Z",
+          "retrieved_at": "2026-06-03T13:33:38.988782Z",
           "source_id": "breadth_csv",
           "source_name": "Local breadth CSV"
         },
         "bcd": {
           "field": "bcd",
           "notes": "inputs/daily/2026-06-03/options.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068962Z",
+          "retrieved_at": "2026-06-03T13:33:38.989208Z",
           "source_id": "options_csv",
           "source_name": "Local options CSV"
         },
         "breadth_weakens_for_2_days": {
           "field": "breadth_weakens_for_2_days",
           "notes": "inputs/daily/2026-06-03/breadth.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068488Z",
+          "retrieved_at": "2026-06-03T13:33:38.988782Z",
           "source_id": "breadth_csv",
           "source_name": "Local breadth CSV"
         },
         "close": {
           "field": "close",
           "notes": "inputs/daily/2026-06-03/price.csv",
-          "retrieved_at": "2026-06-03T13:12:17.067933Z",
+          "retrieved_at": "2026-06-03T13:33:38.988352Z",
           "source_id": "taiex_price",
           "source_name": "TAIEX price provider"
         },
         "close_below_ma20_consecutive_days": {
           "field": "close_below_ma20_consecutive_days",
           "notes": "inputs/daily/2026-06-03/price.csv",
-          "retrieved_at": "2026-06-03T13:12:17.067933Z",
+          "retrieved_at": "2026-06-03T13:33:38.988352Z",
           "source_id": "taiex_price",
           "source_name": "TAIEX price provider"
         },
         "count_main_7_below_ma20": {
           "field": "count_main_7_below_ma20",
           "notes": "inputs/daily/2026-06-03/leadership.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068638Z",
+          "retrieved_at": "2026-06-03T13:33:38.988918Z",
           "source_id": "leadership_csv",
           "source_name": "Local leadership CSV"
         },
         "count_main_7_below_ma60": {
           "field": "count_main_7_below_ma60",
           "notes": "inputs/daily/2026-06-03/leadership.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068638Z",
+          "retrieved_at": "2026-06-03T13:33:38.988918Z",
           "source_id": "leadership_csv",
           "source_name": "Local leadership CSV"
         },
         "declining_gt_advancing_consecutive_days": {
           "field": "declining_gt_advancing_consecutive_days",
           "notes": "inputs/daily/2026-06-03/breadth.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068488Z",
+          "retrieved_at": "2026-06-03T13:33:38.988782Z",
           "source_id": "breadth_csv",
           "source_name": "Local breadth CSV"
         },
         "declining_issues": {
           "field": "declining_issues",
           "notes": "inputs/daily/2026-06-03/breadth.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068488Z",
+          "retrieved_at": "2026-06-03T13:33:38.988782Z",
           "source_id": "breadth_csv",
           "source_name": "Local breadth CSV"
         },
         "declining_issues_significantly_expand": {
           "field": "declining_issues_significantly_expand",
           "notes": "inputs/daily/2026-06-03/breadth.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068488Z",
+          "retrieved_at": "2026-06-03T13:33:38.988782Z",
           "source_id": "breadth_csv",
           "source_name": "Local breadth CSV"
         },
         "declining_issues_significantly_gt_advancing": {
           "field": "declining_issues_significantly_gt_advancing",
           "notes": "inputs/daily/2026-06-03/breadth.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068488Z",
+          "retrieved_at": "2026-06-03T13:33:38.988782Z",
           "source_id": "breadth_csv",
           "source_name": "Local breadth CSV"
         },
         "foreign_large_sell": {
           "field": "foreign_large_sell",
           "notes": "inputs/daily/2026-06-03/foreign_flow.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068143Z",
+          "retrieved_at": "2026-06-03T13:33:38.988538Z",
           "source_id": "foreign_flow_csv",
           "source_name": "Local foreign-flow CSV"
         },
         "foreign_spot_large_sell": {
           "field": "foreign_spot_large_sell",
           "notes": "inputs/daily/2026-06-03/foreign_flow.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068143Z",
+          "retrieved_at": "2026-06-03T13:33:38.988538Z",
           "source_id": "foreign_flow_csv",
           "source_name": "Local foreign-flow CSV"
         },
         "foreign_spot_net_buy": {
           "field": "foreign_spot_net_buy",
           "notes": "inputs/daily/2026-06-03/foreign_flow.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068143Z",
+          "retrieved_at": "2026-06-03T13:33:38.988538Z",
           "source_id": "foreign_flow_csv",
           "source_name": "Local foreign-flow CSV"
         },
         "foreign_spot_net_sell": {
           "field": "foreign_spot_net_sell",
           "notes": "inputs/daily/2026-06-03/foreign_flow.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068143Z",
+          "retrieved_at": "2026-06-03T13:33:38.988538Z",
           "source_id": "foreign_flow_csv",
           "source_name": "Local foreign-flow CSV"
         },
         "foreign_spot_net_sell_consecutive_days": {
           "field": "foreign_spot_net_sell_consecutive_days",
           "notes": "inputs/daily/2026-06-03/foreign_flow.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068143Z",
+          "retrieved_at": "2026-06-03T13:33:38.988538Z",
           "source_id": "foreign_flow_csv",
           "source_name": "Local foreign-flow CSV"
         },
         "futures_hedging_increases": {
           "field": "futures_hedging_increases",
           "notes": "inputs/daily/2026-06-03/futures.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068836Z",
+          "retrieved_at": "2026-06-03T13:33:38.989086Z",
           "source_id": "futures_csv",
           "source_name": "Local futures CSV"
         },
         "futures_hedging_significant": {
           "field": "futures_hedging_significant",
           "notes": "inputs/daily/2026-06-03/futures.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068836Z",
+          "retrieved_at": "2026-06-03T13:33:38.989086Z",
           "source_id": "futures_csv",
           "source_name": "Local futures CSV"
         },
         "futures_net_short_decreases": {
           "field": "futures_net_short_decreases",
           "notes": "inputs/daily/2026-06-03/futures.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068836Z",
+          "retrieved_at": "2026-06-03T13:33:38.989086Z",
           "source_id": "futures_csv",
           "source_name": "Local futures CSV"
         },
         "futures_net_short_increases": {
           "field": "futures_net_short_increases",
           "notes": "inputs/daily/2026-06-03/futures.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068836Z",
+          "retrieved_at": "2026-06-03T13:33:38.989086Z",
           "source_id": "futures_csv",
           "source_name": "Local futures CSV"
         },
         "index_5d_return_pct": {
           "field": "index_5d_return_pct",
           "notes": "inputs/daily/2026-06-03/price.csv",
-          "retrieved_at": "2026-06-03T13:12:17.067933Z",
+          "retrieved_at": "2026-06-03T13:33:38.988352Z",
           "source_id": "taiex_price",
           "source_name": "TAIEX price provider"
         },
         "index_down": {
           "field": "index_down",
           "notes": "inputs/daily/2026-06-03/breadth.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068488Z",
+          "retrieved_at": "2026-06-03T13:33:38.988782Z",
           "source_id": "breadth_csv",
           "source_name": "Local breadth CSV"
         },
         "ma20": {
           "field": "ma20",
           "notes": "inputs/daily/2026-06-03/price.csv",
-          "retrieved_at": "2026-06-03T13:12:17.067933Z",
+          "retrieved_at": "2026-06-03T13:33:38.988352Z",
           "source_id": "taiex_price",
           "source_name": "TAIEX price provider"
         },
         "ma20_slope": {
           "field": "ma20_slope",
           "notes": "inputs/daily/2026-06-03/price.csv",
-          "retrieved_at": "2026-06-03T13:12:17.067933Z",
+          "retrieved_at": "2026-06-03T13:33:38.988352Z",
           "source_id": "taiex_price",
           "source_name": "TAIEX price provider"
         },
         "ma5": {
           "field": "ma5",
           "notes": "inputs/daily/2026-06-03/price.csv",
-          "retrieved_at": "2026-06-03T13:12:17.067933Z",
+          "retrieved_at": "2026-06-03T13:33:38.988352Z",
           "source_id": "taiex_price",
           "source_name": "TAIEX price provider"
         },
         "ma60": {
           "field": "ma60",
           "notes": "inputs/daily/2026-06-03/price.csv",
-          "retrieved_at": "2026-06-03T13:12:17.067933Z",
+          "retrieved_at": "2026-06-03T13:33:38.988352Z",
           "source_id": "taiex_price",
           "source_name": "TAIEX price provider"
         },
         "main_7_below_ma20_symbols": {
           "field": "main_7_below_ma20_symbols",
           "notes": "inputs/daily/2026-06-03/leadership.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068638Z",
+          "retrieved_at": "2026-06-03T13:33:38.988918Z",
           "source_id": "leadership_csv",
           "source_name": "Local leadership CSV"
         },
         "main_7_symbols": {
           "field": "main_7_symbols",
           "notes": "inputs/daily/2026-06-03/leadership.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068638Z",
+          "retrieved_at": "2026-06-03T13:33:38.988918Z",
           "source_id": "leadership_csv",
           "source_name": "Local leadership CSV"
         },
         "majority_main_7_assets_above_ma20": {
           "field": "majority_main_7_assets_above_ma20",
           "notes": "inputs/daily/2026-06-03/leadership.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068638Z",
+          "retrieved_at": "2026-06-03T13:33:38.988918Z",
           "source_id": "leadership_csv",
           "source_name": "Local leadership CSV"
         },
         "mhs": {
           "field": "mhs",
           "notes": "inputs/daily/2026-06-03/leadership.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068638Z",
+          "retrieved_at": "2026-06-03T13:33:38.988918Z",
           "source_id": "leadership_csv",
           "source_name": "Local leadership CSV"
         },
         "observed_at": {
           "field": "observed_at",
           "notes": "inputs/daily/2026-06-03/options.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068962Z",
+          "retrieved_at": "2026-06-03T13:33:38.989208Z",
           "source_id": "options_csv",
           "source_name": "Local options CSV"
         },
         "one_day_return_pct": {
           "field": "one_day_return_pct",
           "notes": "inputs/daily/2026-06-03/price.csv",
-          "retrieved_at": "2026-06-03T13:12:17.067933Z",
+          "retrieved_at": "2026-06-03T13:33:38.988352Z",
           "source_id": "taiex_price",
           "source_name": "TAIEX price provider"
         },
         "pcr_rises": {
           "field": "pcr_rises",
           "notes": "inputs/daily/2026-06-03/options.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068962Z",
+          "retrieved_at": "2026-06-03T13:33:38.989208Z",
           "source_id": "options_csv",
           "source_name": "Local options CSV"
         },
         "pcr_stable": {
           "field": "pcr_stable",
           "notes": "inputs/daily/2026-06-03/options.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068962Z",
+          "retrieved_at": "2026-06-03T13:33:38.989208Z",
           "source_id": "options_csv",
           "source_name": "Local options CSV"
         },
         "previous_ma60": {
           "field": "previous_ma60",
           "notes": "inputs/daily/2026-06-03/price.csv",
-          "retrieved_at": "2026-06-03T13:12:17.067933Z",
+          "retrieved_at": "2026-06-03T13:33:38.988352Z",
           "source_id": "taiex_price",
           "source_name": "TAIEX price provider"
         },
         "return_60d_pct": {
           "field": "return_60d_pct",
           "notes": "inputs/daily/2026-06-03/price.csv",
-          "retrieved_at": "2026-06-03T13:12:17.067933Z",
+          "retrieved_at": "2026-06-03T13:33:38.988352Z",
           "source_id": "taiex_price",
           "source_name": "TAIEX price provider"
         },
         "tail_risk": {
           "field": "tail_risk",
           "notes": "inputs/daily/2026-06-03/options.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068962Z",
+          "retrieved_at": "2026-06-03T13:33:38.989208Z",
           "source_id": "options_csv",
           "source_name": "Local options CSV"
         },
         "turnover_amount": {
           "field": "turnover_amount",
           "notes": "inputs/daily/2026-06-03/price.csv",
-          "retrieved_at": "2026-06-03T13:12:17.067933Z",
+          "retrieved_at": "2026-06-03T13:33:38.988352Z",
           "source_id": "taiex_price",
           "source_name": "TAIEX price provider"
         },
         "twd_appreciates": {
           "field": "twd_appreciates",
           "notes": "inputs/daily/2026-06-03/fx.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068337Z",
+          "retrieved_at": "2026-06-03T13:33:38.988667Z",
           "source_id": "fx_csv",
           "source_name": "Local FX CSV"
         },
         "twd_depreciates_significantly": {
           "field": "twd_depreciates_significantly",
           "notes": "inputs/daily/2026-06-03/fx.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068337Z",
+          "retrieved_at": "2026-06-03T13:33:38.988667Z",
           "source_id": "fx_csv",
           "source_name": "Local FX CSV"
         },
         "twd_stable": {
           "field": "twd_stable",
           "notes": "inputs/daily/2026-06-03/fx.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068337Z",
+          "retrieved_at": "2026-06-03T13:33:38.988667Z",
           "source_id": "fx_csv",
           "source_name": "Local FX CSV"
         },
         "two_day_return_pct": {
           "field": "two_day_return_pct",
           "notes": "inputs/daily/2026-06-03/price.csv",
-          "retrieved_at": "2026-06-03T13:12:17.067933Z",
+          "retrieved_at": "2026-06-03T13:33:38.988352Z",
           "source_id": "taiex_price",
           "source_name": "TAIEX price provider"
         },
         "usd_twd_3d_change_pct": {
           "field": "usd_twd_3d_change_pct",
           "notes": "inputs/daily/2026-06-03/fx.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068337Z",
+          "retrieved_at": "2026-06-03T13:33:38.988667Z",
           "source_id": "fx_csv",
           "source_name": "Local FX CSV"
         },
         "usd_twd_5d_change_pct": {
           "field": "usd_twd_5d_change_pct",
           "notes": "inputs/daily/2026-06-03/fx.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068337Z",
+          "retrieved_at": "2026-06-03T13:33:38.988667Z",
           "source_id": "fx_csv",
           "source_name": "Local FX CSV"
         },
         "vix_rises": {
           "field": "vix_rises",
           "notes": "inputs/daily/2026-06-03/options.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068962Z",
+          "retrieved_at": "2026-06-03T13:33:38.989208Z",
           "source_id": "options_csv",
           "source_name": "Local options CSV"
         },
         "vix_stable": {
           "field": "vix_stable",
           "notes": "inputs/daily/2026-06-03/options.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068962Z",
+          "retrieved_at": "2026-06-03T13:33:38.989208Z",
           "source_id": "options_csv",
           "source_name": "Local options CSV"
         }
@@ -620,7 +620,7 @@
         "assembly_context": {
           "name": "Assembler context",
           "notes": "--as-of value",
-          "retrieved_at": "2026-06-03T13:12:17.062127Z"
+          "retrieved_at": "2026-06-03T13:33:38.983442Z"
         },
         "breadth_csv": {
           "capabilities": [
@@ -645,7 +645,7 @@
           "category": "breadth",
           "name": "Local breadth CSV",
           "notes": "inputs/daily/2026-06-03/breadth.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068488Z"
+          "retrieved_at": "2026-06-03T13:33:38.988782Z"
         },
         "foreign_flow_csv": {
           "capabilities": [
@@ -668,7 +668,7 @@
           "category": "foreign_flow",
           "name": "Local foreign-flow CSV",
           "notes": "inputs/daily/2026-06-03/foreign_flow.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068143Z"
+          "retrieved_at": "2026-06-03T13:33:38.988538Z"
         },
         "futures_csv": {
           "capabilities": [
@@ -688,7 +688,7 @@
           "category": "futures",
           "name": "Local futures CSV",
           "notes": "inputs/daily/2026-06-03/futures.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068836Z"
+          "retrieved_at": "2026-06-03T13:33:38.989086Z"
         },
         "fx_csv": {
           "capabilities": [
@@ -709,7 +709,7 @@
           "category": "fx",
           "name": "Local FX CSV",
           "notes": "inputs/daily/2026-06-03/fx.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068337Z"
+          "retrieved_at": "2026-06-03T13:33:38.988667Z"
         },
         "leadership_csv": {
           "capabilities": [
@@ -731,7 +731,7 @@
           "category": "leadership",
           "name": "Local leadership CSV",
           "notes": "inputs/daily/2026-06-03/leadership.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068638Z"
+          "retrieved_at": "2026-06-03T13:33:38.988918Z"
         },
         "options_csv": {
           "capabilities": [
@@ -753,7 +753,7 @@
           "category": "options",
           "name": "Local options CSV",
           "notes": "inputs/daily/2026-06-03/options.csv",
-          "retrieved_at": "2026-06-03T13:12:17.068962Z"
+          "retrieved_at": "2026-06-03T13:33:38.989208Z"
         },
         "taiex_price": {
           "capabilities": [
@@ -779,7 +779,7 @@
           "category": "price",
           "name": "TAIEX price provider",
           "notes": "inputs/daily/2026-06-03/price.csv",
-          "retrieved_at": "2026-06-03T13:12:17.067933Z"
+          "retrieved_at": "2026-06-03T13:33:38.988352Z"
         }
       },
       "warnings": []
