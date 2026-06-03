@@ -1,0 +1,128 @@
+{
+  "notes": "Configurable public endpoints for provider CSV generation. Endpoints are public structured JSON where available; unavailable optional sources are recorded in fetch_manifest.json.",
+  "sources": [
+    {
+      "source_id": "twse_taiex_price",
+      "source_name": "TWSE TAIEX monthly OHLC (MI_5MINS_HIST)",
+      "provider_category": "price",
+      "adapter": "twse_taiex_price",
+      "endpoint_url_template": "https://www.twse.com.tw/rwd/en/TAIEX/MI_5MINS_HIST?date={yyyymmdd}&response=json",
+      "request_parameters": {"date": "{yyyymmdd}", "response": "json"},
+      "response_type": "json",
+      "rows_path": "data",
+      "field_extraction_mapping": {
+        "date": "Date",
+        "open": "Opening Index",
+        "high": "Highest Index",
+        "low": "Lowest Index",
+        "close": "Closing Index"
+      },
+      "freshness_rules": {"max_lag_days": 3},
+      "min_bars": 1,
+      "notes": "Official TWSE TAIEX OHLC endpoint. A single current-month endpoint may not contain enough history to derive MA60 early in a month; canonical fields are required for full pipeline use."
+    },
+    {
+      "source_id": "twse_market_breadth",
+      "source_name": "TWSE market breadth / summary",
+      "provider_category": "breadth",
+      "adapter": "generic_json",
+      "endpoint_url_template": "https://www.twse.com.tw/rwd/en/afterTrading/MI_INDEX?date={yyyymmdd}&type=ALLBUT0999&response=json",
+      "request_parameters": {"date": "{yyyymmdd}", "type": "ALLBUT0999", "response": "json"},
+      "response_type": "json",
+      "field_extraction_mapping": {
+        "date": "date",
+        "advancing_issues": "advancing_issues",
+        "declining_issues": "declining_issues",
+        "index_down": "index_down",
+        "breadth_weakens_for_2_days": "breadth_weakens_for_2_days"
+      },
+      "freshness_rules": {"max_lag_days": 3},
+      "required_fields": ["advancing_issues", "declining_issues"],
+      "notes": "Configured as optional because TWSE response structure can vary by language/table. Missing mapped fields mark breadth unavailable."
+    },
+    {
+      "source_id": "twse_foreign_flow",
+      "source_name": "TWSE foreign investor flow (T86)",
+      "provider_category": "foreign_flow",
+      "adapter": "generic_json",
+      "endpoint_url_template": "https://www.twse.com.tw/rwd/en/fund/T86?date={yyyymmdd}&selectType=ALL&response=json",
+      "request_parameters": {"date": "{yyyymmdd}", "selectType": "ALL", "response": "json"},
+      "response_type": "json",
+      "field_extraction_mapping": {
+        "date": "date",
+        "foreign_spot_net_buy": "foreign_spot_net_buy",
+        "foreign_spot_net_sell_consecutive_days": "foreign_spot_net_sell_consecutive_days",
+        "foreign_large_sell": "foreign_large_sell",
+        "futures_hedging_increases": "futures_hedging_increases"
+      },
+      "freshness_rules": {"max_lag_days": 3},
+      "required_fields": ["foreign_spot_net_sell_consecutive_days"],
+      "notes": "Optional. Endpoint is official TWSE JSON; aggregate/model-specific hedging fields may remain unavailable without a deterministic mapping."
+    },
+    {
+      "source_id": "twse_margin",
+      "source_name": "TWSE margin trading summary",
+      "provider_category": "margin",
+      "adapter": "generic_json",
+      "endpoint_url_template": "https://www.twse.com.tw/rwd/en/marginTrading/MI_MARGN?date={yyyymmdd}&selectType=MS&response=json",
+      "request_parameters": {"date": "{yyyymmdd}", "selectType": "MS", "response": "json"},
+      "response_type": "json",
+      "field_extraction_mapping": {
+        "date": "date",
+        "margin_balance_5d_flat_or_down": "margin_balance_5d_flat_or_down",
+        "hot_stock_margin_fast_increase": "hot_stock_margin_fast_increase",
+        "margin_balance_5d_increases": "margin_balance_5d_increases",
+        "margin_balance_5d_decline_pct": "margin_balance_5d_decline_pct",
+        "margin_not_retreating": "margin_not_retreating"
+      },
+      "freshness_rules": {"max_lag_days": 3},
+      "notes": "Optional official TWSE JSON source. Derived 5-day fields require mapped deterministic values; otherwise margin remains unavailable."
+    },
+    {
+      "source_id": "public_usd_twd_fx",
+      "source_name": "Public USD/TWD FX endpoint",
+      "provider_category": "fx",
+      "adapter": "generic_json",
+      "endpoint_url_template": "",
+      "request_parameters": {},
+      "response_type": "json",
+      "field_extraction_mapping": {
+        "date": "date",
+        "usd_twd": "usd_twd",
+        "usd_twd_3d_change_pct": "usd_twd_3d_change_pct",
+        "usd_twd_5d_change_pct": "usd_twd_5d_change_pct"
+      },
+      "freshness_rules": {"max_lag_days": 3},
+      "notes": "Optional placeholder for a structured public FX JSON endpoint. No paid API key or broker login is used."
+    },
+    {
+      "source_id": "taifex_derivatives",
+      "source_name": "TAIFEX derivatives public structured endpoint",
+      "provider_category": "derivatives",
+      "adapter": "generic_json",
+      "endpoint_url_template": "",
+      "request_parameters": {},
+      "response_type": "json",
+      "field_extraction_mapping": {},
+      "freshness_rules": {"max_lag_days": 3},
+      "notes": "Optional derivatives/futures/options placeholder. If configured endpoint or deterministic mappings are absent, derivatives remain unavailable and no scores are fabricated."
+    },
+    {
+      "source_id": "main7_leadership",
+      "source_name": "Main-7 constituent leadership",
+      "provider_category": "leadership",
+      "adapter": "leadership_main7",
+      "endpoint_url_template": "",
+      "request_parameters": {},
+      "response_type": "json",
+      "field_extraction_mapping": {
+        "symbol": "symbol",
+        "close": "close",
+        "ma20": "ma20",
+        "ma60": "ma60"
+      },
+      "freshness_rules": {"max_lag_days": 3},
+      "notes": "Optional. Computes count_main_7_below_ma20 only when constituent close and MA20 fields are available for every configured symbol."
+    }
+  ]
+}
