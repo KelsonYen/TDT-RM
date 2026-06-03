@@ -71,6 +71,11 @@ def main() -> int:
         _print_price_failure_diagnostics(write_result.manifest, args, file=sys.stderr)
         _maybe_write_json_summary(args.json_summary, {"fetch": write_result.as_dict(), "pipeline": None, "blocking_error": "price provider unavailable"})
         return 0 if args.allow_partial and not args.run_pipeline else 1
+    missing_production_csvs = [str(item) for item in manifest.get("missing_production_csvs", [])] if isinstance(manifest.get("missing_production_csvs"), list) else []
+    if missing_production_csvs and not args.allow_partial:
+        print("ERROR production provider CSVs missing without --allow-partial: " + ", ".join(missing_production_csvs), file=sys.stderr)
+        _maybe_write_json_summary(args.json_summary, {"fetch": write_result.as_dict(), "pipeline": None, "blocking_error": "production provider CSVs missing"})
+        return 1
     if failed_optional and not args.allow_partial:
         print("ERROR optional public sources unavailable without --allow-partial: " + ", ".join(failed_optional), file=sys.stderr)
         _maybe_write_json_summary(args.json_summary, {"fetch": write_result.as_dict(), "pipeline": None, "blocking_error": "optional sources unavailable without --allow-partial"})
