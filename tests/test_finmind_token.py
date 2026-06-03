@@ -70,3 +70,33 @@ def test_price_bars_accept_finmind_index_price_field():
 
     assert [bar.close for bar in bars] == [100.5, 101.25]
     assert all(bar.turnover_amount == 0 for bar in bars)
+
+
+def _finmind_proxy_args(**overrides):
+    values = {"direct_finmind": False, "finmind_https_proxy": None, "finmind_http_proxy": None}
+    values.update(overrides)
+    return type("Args", (), values)()
+
+
+def test_finmind_direct_env_builds_custom_opener(monkeypatch):
+    module = _load_finmind_module()
+    monkeypatch.setenv("FINMIND_DIRECT", "1")
+
+    assert module.build_finmind_opener(_finmind_proxy_args()) is not None
+
+
+def test_finmind_specific_proxy_builds_custom_opener(monkeypatch):
+    module = _load_finmind_module()
+    monkeypatch.delenv("FINMIND_DIRECT", raising=False)
+    monkeypatch.setenv("FINMIND_HTTPS_PROXY", "http://finmind-proxy:8080")
+
+    assert module.build_finmind_opener(_finmind_proxy_args()) is not None
+
+
+def test_default_finmind_opener_uses_urllib_environment(monkeypatch):
+    module = _load_finmind_module()
+    monkeypatch.delenv("FINMIND_DIRECT", raising=False)
+    monkeypatch.delenv("FINMIND_HTTPS_PROXY", raising=False)
+    monkeypatch.delenv("FINMIND_HTTP_PROXY", raising=False)
+
+    assert module.build_finmind_opener(_finmind_proxy_args()) is None
