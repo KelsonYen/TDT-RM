@@ -1,0 +1,284 @@
+{
+  "as_of": "2026-06-02",
+  "generated_at": "2026-06-03T12:14:24.269326+00:00",
+  "providers": {
+    "breadth_provider": {
+      "as_of": "2026-06-02",
+      "diagnostics": {
+        "exception_class": "URLError",
+        "exception_message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+        "fallback_attempted": false,
+        "final_decision": "block_pipeline",
+        "freshness_passed": false,
+        "issues": [
+          {
+            "code": "fetch_failed",
+            "field": null,
+            "message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+            "provider_category": "breadth",
+            "severity": "error",
+            "source_id": "twse_market_breadth"
+          }
+        ],
+        "source_attempted": [
+          "twse_market_breadth"
+        ],
+        "source_selected": null,
+        "source_selected_status": "failed",
+        "source_selected_type": "live",
+        "validation_passed": false
+      },
+      "error_message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+      "fetch_duration_seconds": 0.00546,
+      "freshness_status": "not_applicable",
+      "provider_name": "breadth_provider",
+      "records_loaded": 0,
+      "source_type": "live",
+      "status": "failed"
+    },
+    "derivatives_provider": {
+      "as_of": "2026-06-02",
+      "diagnostics": {
+        "exception_class": "ValueError",
+        "exception_message": "source config missing endpoint_url_template/url or fixture_path",
+        "fallback_attempted": false,
+        "final_decision": "block_pipeline",
+        "freshness_passed": false,
+        "issues": [
+          {
+            "code": "fetch_failed",
+            "field": null,
+            "message": "source config missing endpoint_url_template/url or fixture_path",
+            "provider_category": "derivatives",
+            "severity": "error",
+            "source_id": "taifex_derivatives"
+          }
+        ],
+        "source_attempted": [
+          "taifex_derivatives"
+        ],
+        "source_selected": null,
+        "source_selected_status": "failed",
+        "source_selected_type": "live",
+        "validation_passed": false
+      },
+      "error_message": "source config missing endpoint_url_template/url or fixture_path",
+      "fetch_duration_seconds": 4.8e-05,
+      "freshness_status": "not_applicable",
+      "provider_name": "derivatives_provider",
+      "records_loaded": 0,
+      "source_type": "live",
+      "status": "failed"
+    },
+    "foreign_flow_provider": {
+      "as_of": "2026-06-02",
+      "diagnostics": {
+        "exception_class": "URLError",
+        "exception_message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+        "fallback_attempted": false,
+        "final_decision": "block_pipeline",
+        "freshness_passed": false,
+        "issues": [
+          {
+            "code": "fetch_failed",
+            "field": null,
+            "message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+            "provider_category": "foreign_flow",
+            "severity": "error",
+            "source_id": "twse_foreign_flow"
+          }
+        ],
+        "source_attempted": [
+          "twse_foreign_flow"
+        ],
+        "source_selected": null,
+        "source_selected_status": "failed",
+        "source_selected_type": "live",
+        "validation_passed": false
+      },
+      "error_message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+      "fetch_duration_seconds": 0.004871,
+      "freshness_status": "not_applicable",
+      "provider_name": "foreign_flow_provider",
+      "records_loaded": 0,
+      "source_type": "live",
+      "status": "failed"
+    },
+    "fx_provider": {
+      "as_of": "2026-06-02",
+      "diagnostics": {
+        "exception_class": "ValueError",
+        "exception_message": "source config missing endpoint_url_template/url or fixture_path",
+        "fallback_attempted": false,
+        "final_decision": "block_pipeline",
+        "freshness_passed": false,
+        "issues": [
+          {
+            "code": "fetch_failed",
+            "field": null,
+            "message": "source config missing endpoint_url_template/url or fixture_path",
+            "provider_category": "fx",
+            "severity": "error",
+            "source_id": "public_usd_twd_fx"
+          }
+        ],
+        "source_attempted": [
+          "public_usd_twd_fx"
+        ],
+        "source_selected": null,
+        "source_selected_status": "failed",
+        "source_selected_type": "live",
+        "validation_passed": false
+      },
+      "error_message": "source config missing endpoint_url_template/url or fixture_path",
+      "fetch_duration_seconds": 4.6e-05,
+      "freshness_status": "not_applicable",
+      "provider_name": "fx_provider",
+      "records_loaded": 0,
+      "source_type": "live",
+      "status": "failed"
+    },
+    "leadership_provider": {
+      "as_of": "2026-06-02",
+      "diagnostics": {
+        "exception_class": "ValueError",
+        "exception_message": "source config missing endpoint_url_template/url or fixture_path",
+        "fallback_attempted": false,
+        "final_decision": "block_pipeline",
+        "freshness_passed": false,
+        "issues": [
+          {
+            "code": "fetch_failed",
+            "field": null,
+            "message": "source config missing endpoint_url_template/url or fixture_path",
+            "provider_category": "leadership",
+            "severity": "error",
+            "source_id": "main7_leadership"
+          }
+        ],
+        "source_attempted": [
+          "main7_leadership"
+        ],
+        "source_selected": null,
+        "source_selected_status": "failed",
+        "source_selected_type": "live",
+        "validation_passed": false
+      },
+      "error_message": "source config missing endpoint_url_template/url or fixture_path",
+      "fetch_duration_seconds": 3e-05,
+      "freshness_status": "not_applicable",
+      "provider_name": "leadership_provider",
+      "records_loaded": 0,
+      "source_type": "live",
+      "status": "failed"
+    },
+    "margin_provider": {
+      "as_of": "2026-06-02",
+      "diagnostics": {
+        "exception_class": "URLError",
+        "exception_message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+        "fallback_attempted": false,
+        "final_decision": "block_pipeline",
+        "freshness_passed": false,
+        "issues": [
+          {
+            "code": "fetch_failed",
+            "field": null,
+            "message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+            "provider_category": "margin",
+            "severity": "error",
+            "source_id": "twse_margin"
+          }
+        ],
+        "source_attempted": [
+          "twse_margin"
+        ],
+        "source_selected": null,
+        "source_selected_status": "failed",
+        "source_selected_type": "live",
+        "validation_passed": false
+      },
+      "error_message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+      "fetch_duration_seconds": 0.004483,
+      "freshness_status": "not_applicable",
+      "provider_name": "margin_provider",
+      "records_loaded": 0,
+      "source_type": "live",
+      "status": "failed"
+    },
+    "price_provider": {
+      "as_of": "2026-06-02",
+      "diagnostics": {
+        "exception_class": "URLError",
+        "exception_message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+        "fallback_attempted": true,
+        "final_decision": "use_provider_with_warning",
+        "freshness_passed": true,
+        "issues": [
+          {
+            "code": "fetch_failed",
+            "field": null,
+            "message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+            "provider_category": "price",
+            "severity": "error",
+            "source_id": "twse_taiex_price"
+          }
+        ],
+        "messages": [
+          "<urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider used local fallback"
+        ],
+        "source_attempted": [
+          "twse_taiex_price",
+          "cli_price_fallback_csv"
+        ],
+        "source_selected": "cli_price_fallback_csv",
+        "source_selected_status": "success",
+        "source_selected_type": "local_fallback",
+        "validation_passed": true
+      },
+      "error_message": "",
+      "fetch_duration_seconds": 0.018143,
+      "freshness_status": "passed",
+      "provider_name": "price_provider",
+      "records_loaded": 1,
+      "source_type": "local_fallback",
+      "status": "warning"
+    }
+  },
+  "summary": {
+    "failed_providers": [
+      "breadth_provider",
+      "derivatives_provider",
+      "foreign_flow_provider",
+      "fx_provider",
+      "leadership_provider",
+      "margin_provider"
+    ],
+    "freshness_failed_providers": [],
+    "healthy_providers": [],
+    "live_providers": [
+      "breadth_provider",
+      "derivatives_provider",
+      "foreign_flow_provider",
+      "fx_provider",
+      "leadership_provider",
+      "margin_provider"
+    ],
+    "local_fallback_providers": [
+      "price_provider"
+    ],
+    "total_providers": 7,
+    "warning_providers": [
+      "price_provider"
+    ],
+    "zero_record_providers": [
+      "breadth_provider",
+      "derivatives_provider",
+      "foreign_flow_provider",
+      "fx_provider",
+      "leadership_provider",
+      "margin_provider"
+    ]
+  }
+}
