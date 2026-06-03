@@ -1,0 +1,48 @@
+{
+  "BCD": 8.0,
+  "CP": 3.3,
+  "ETI-5": 0,
+  "MHS": 5.0,
+  "TCWRS": 0,
+  "Tail Risk": 12.5,
+  "artifact_paths": {
+    "assembled_snapshot": "outputs/daily/assembled_daily_snapshot_2026-06-03.json",
+    "json": "outputs/daily/tdt_rm_daily_2026-06-03.json",
+    "manifest": "outputs/daily/tdt_rm_daily_2026-06-03_manifest.json",
+    "markdown": "outputs/daily/tdt_rm_daily_2026-06-03.md"
+  },
+  "assembled_snapshot_path": "outputs/daily/assembled_daily_snapshot_2026-06-03.json",
+  "available_eti_components": [
+    "ETI-1",
+    "ETI-2",
+    "ETI-3",
+    "ETI-4",
+    "ETI-5"
+  ],
+  "data_status": "enriched_snapshot",
+  "exposure_limit": "80-100%",
+  "fallback_proxies": {},
+  "latest_bar_date": "2026-06-03",
+  "provider_warnings": [],
+  "regime_state": "risk-on",
+  "scores": {
+    "BCD": 8.0,
+    "CP": 3.3,
+    "ETI-5": 0,
+    "MHS": 5.0,
+    "TCWRS": 0,
+    "Tail Risk": 12.5
+  },
+  "signal": "Green",
+  "trade_date": "2026-06-03",
+  "validation": {
+    "error_count": 0,
+    "errors": [],
+    "issues": [],
+    "passed": true,
+    "status": "passed",
+    "warning_count": 0,
+    "warnings": []
+  },
+  "validation_status": "passed"
+}
