@@ -1,0 +1,67 @@
+{
+  "api_endpoint": "https://api.finmindtrade.com/api/v4/data",
+  "checked_at": "2026-06-03T23:43:11Z",
+  "dataset_probes": [
+    {
+      "api_calls": [
+        "GET https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockTotalReturnIndex&start_date=2026-02-03&end_date=2026-06-03&data_id=TAIEX",
+        "GET https://api.finmindtrade.com/api/v4/data?dataset=TaiwanVariousIndicators5Seconds&start_date=2026-02-03&end_date=2026-06-03&data_id=TAIEX",
+        "GET https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&start_date=2026-02-03&end_date=2026-06-03&data_id=TAIEX",
+        "GET https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPriceAdj&start_date=2026-02-03&end_date=2026-06-03&data_id=TAIEX"
+      ],
+      "failure_type": "NETWORK_ERROR",
+      "http_status": "CONNECT 403",
+      "pass": false,
+      "raw_response_row_count": 0,
+      "sample_raw_rows": [],
+      "target_dataset": "TaiwanStockTotalReturnIndex:TAIEX",
+      "tdt_rm_csv": "price.csv"
+    },
+    {
+      "api_calls": [
+        "GET https://api.finmindtrade.com/api/v4/data?dataset=TaiwanExchangeRate&start_date=2026-02-03&end_date=2026-06-03&data_id=USD"
+      ],
+      "failure_type": "NETWORK_ERROR",
+      "http_status": "CONNECT 403",
+      "pass": false,
+      "raw_response_row_count": 0,
+      "sample_raw_rows": [],
+      "target_dataset": "TaiwanExchangeRate:USD",
+      "tdt_rm_csv": "fx.csv"
+    }
+  ],
+  "debug_validation_executed": {
+    "command": "python scripts/fetch_daily_data_finmind.py --debug-ingestion --sample-rows 10 --summary-json /tmp/tdt_rm_finmind_debug_summary.json",
+    "exit_code": 1,
+    "latest_available_trade_date_resolution": {
+      "diagnostic_probe_date": "2026-06-03",
+      "exception": "FinMind request failed for TaiwanStockTotalReturnIndex: <urlopen error Tunnel connection failed: 403 Forbidden>; FinMind request failed for TaiwanVariousIndicators5Seconds: <urlopen error Tunnel connection failed: 403 Forbidden>; FinMind request failed for TaiwanStockPrice: <urlopen error Tunnel connection failed: 403 Forbidden>; FinMind request failed for TaiwanStockPriceAdj: <urlopen error Tunnel connection failed: 403 Forbidden>",
+      "latest_available_date": null,
+      "ok": false
+    },
+    "token_detected": false
+  },
+  "latest_close": null,
+  "latest_date": null,
+  "latest_volume": null,
+  "live_finmind_success": false,
+  "live_finmind_success_reason": "FALSE because the current ingestion workflow could not retrieve any FinMind rows in this environment: HTTPS CONNECT to api.finmindtrade.com through the configured proxy returned 403 Forbidden, and no FINMIND_TOKEN/FINMIND_API_TOKEN was present.",
+  "provider": "FinMind",
+  "raw_sample_rows": [],
+  "raw_sample_rows_limit": 10,
+  "requested_fields": {
+    "latest_available_date": null,
+    "taiex_close": null,
+    "taiex_volume": null,
+    "usd_twd": null
+  },
+  "row_count": 0,
+  "source_dataset_used": "TaiwanStockTotalReturnIndex:TAIEX (primary attempted by current ingestion workflow); fallback attempts: TaiwanVariousIndicators5Seconds:TAIEX, TaiwanStockPrice:TAIEX, TaiwanStockPriceAdj:TAIEX",
+  "usd_twd": null,
+  "workflow_executed": {
+    "command": "python scripts/fetch_daily_data_finmind.py --input-dir /tmp/tdt_rm_live_finmind_inputs --reports-dir /tmp/tdt_rm_live_finmind_reports --summary-json /tmp/tdt_rm_finmind_summary.json",
+    "exit_code": 1,
+    "status": "failed_before_trade_date_resolution",
+    "stderr_stdout_summary": "WARNING neither FINMIND_TOKEN nor FINMIND_API_TOKEN is set; ERROR could not resolve FinMind trade date because all TAIEX FinMind dataset requests failed with Tunnel connection failed: 403 Forbidden."
+  }
+}
