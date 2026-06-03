@@ -552,3 +552,7 @@ Expected daily output artifacts when price data is available and the pipeline ru
 
 The public fetch layer does not change model scoring logic and does not fabricate missing optional inputs. Missing, stale, malformed, or unavailable optional sources are recorded in `fetch_manifest.json`; formal Tail Risk / BCD / MHS are only written when explicitly supplied by a deterministic source. See `docs/PUBLIC_DATA_FETCHER_GUIDE.md` for configuration details and limitations.
 
+### When public data fetch is blocked
+
+Official public endpoints can be blocked by network policy, endpoint-side 403 controls, proxies, or transient service changes. Price remains a required provider, so the fetcher blocks full runs rather than fabricating missing price data. Operators can recover by supplying externally downloaded/user-owned local price CSV or JSON fallback files; see the [Public Data Fetcher Guide](docs/PUBLIC_DATA_FETCHER_GUIDE.md#local-price-fallback-workflow) for live-first and offline examples. The sample fallback fixture under `examples/provider_inputs/` is deterministic test data only, not real market data.
+

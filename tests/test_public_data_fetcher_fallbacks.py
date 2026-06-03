@@ -1,0 +1,151 @@
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from datetime import date
+from pathlib import Path
+
+from tdt_rm.daily_pipeline import run_daily_pipeline
+from tdt_rm.public_data_fetchers import PublicDataFetchContext, PublicDataFetcherRegistry, write_provider_csvs
+
+AS_OF = date(2026, 6, 2)
+FIXTURE_DIR = Path(__file__).parent / "fixtures" / "public_data"
+SAMPLE_FALLBACK = Path("examples/provider_inputs/sample_price_fallback_2026-06-02.csv")
+
+
+def _live_price(source_id: str = "live_price_failure") -> dict[str, object]:
+    return {
+        "source_id": source_id,
+        "source_name": source_id,
+        "provider_category": "price",
+        "adapter": "twse_taiex_price",
+        "source_type": "twse_json",
+        "enabled": True,
+        "fallback_order": 10,
+        "fixture_path": str(FIXTURE_DIR / "malformed_response.json"),
+        "rows_path": "data",
+        "freshness_rules": {"max_lag_days": 3},
+    }
+
+
+def _local_csv(path: Path, *, source_id: str = "local_price_csv", order: int = 20, max_lag_days: int = 0) -> dict[str, object]:
+    return {
+        "source_id": source_id,
+        "source_name": source_id,
+        "provider_category": "price",
+        "adapter": "local_price_fallback",
+        "source_type": "local_csv_fallback",
+        "enabled": True,
+        "fallback_order": order,
+        "path": str(path),
+        "freshness_rules": {"max_lag_days": max_lag_days},
+    }
+
+
+def _write(tmp_path: Path, config: dict[str, object], *, offline: bool = False):
+    registry = PublicDataFetcherRegistry.from_config(config)
+    results = registry.fetch_all(PublicDataFetchContext(as_of=AS_OF, offline=offline))
+    written = write_provider_csvs(results, tmp_path, AS_OF)
+    manifest = json.loads(Path(written.fetch_manifest_path).read_text(encoding="utf-8"))
+    return results, written, manifest
+
+
+def test_live_price_failure_then_local_csv_fallback_succeeds(tmp_path: Path):
+    results, written, manifest = _write(tmp_path, {"sources": [_live_price(), _local_csv(SAMPLE_FALLBACK)]})
+
+    assert [result.source_id for result in results] == ["live_price_failure", "local_price_csv"]
+    assert results[0].success is False
+    assert results[1].success is True
+    assert Path(written.provider_csv_paths["price"]).exists()
+    assert manifest["data_status"] in {"public_full", "public_partial"}
+
+
+def test_offline_mode_uses_local_fallback_and_does_not_attempt_live_source(tmp_path: Path):
+    results, written, manifest = _write(tmp_path, {"sources": [_live_price(), _local_csv(SAMPLE_FALLBACK)]}, offline=True)
+
+    assert [result.source_id for result in results] == ["local_price_csv"]
+    assert "live_price_failure" not in manifest["attempted_sources"]
+    assert "price" in written.provider_csv_paths
+
+
+def test_all_price_sources_fail_blocks_run(tmp_path: Path):
+    config_path = tmp_path / "sources.json"
+    config_path.write_text(json.dumps({"sources": [_live_price()]}), encoding="utf-8")
+    proc = subprocess.run(
+        [sys.executable, "scripts/fetch_daily_provider_csvs.py", "--as-of", AS_OF.isoformat(), "--output-dir", str(tmp_path / "inputs"), "--source-config", str(config_path)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode != 0
+    assert "required provider price failed" in proc.stderr
+
+
+def test_allow_partial_allows_manifest_generation_but_does_not_fabricate_price_csv(tmp_path: Path):
+    config_path = tmp_path / "sources.json"
+    output_dir = tmp_path / "inputs"
+    config_path.write_text(json.dumps({"sources": [_live_price()]}), encoding="utf-8")
+    proc = subprocess.run(
+        [sys.executable, "scripts/fetch_daily_provider_csvs.py", "--as-of", AS_OF.isoformat(), "--output-dir", str(output_dir), "--source-config", str(config_path), "--allow-partial"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0
+    assert (output_dir / "fetch_manifest.json").exists()
+    assert not (output_dir / "price.csv").exists()
+    manifest = json.loads((output_dir / "fetch_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["data_status"] == "price_unavailable"
+
+
+def test_fetch_manifest_records_all_attempted_fallback_sources(tmp_path: Path):
+    _, _, manifest = _write(tmp_path, {"sources": [_live_price(), _local_csv(SAMPLE_FALLBACK)]})
+
+    attempts = manifest["source_attempts"]
+    assert [attempt["source_id"] for attempt in attempts] == ["live_price_failure", "local_price_csv"]
+    assert attempts[0]["attempted"] is True
+    assert attempts[0]["success"] is False
+    assert attempts[0]["failure_reason"]
+    assert attempts[1]["local_fallback"] is True
+    assert "taiex_close" in attempts[1]["fields_extracted"]
+
+
+def test_stale_fallback_price_data_fails_freshness_validation(tmp_path: Path):
+    stale_csv = tmp_path / "stale_price.csv"
+    stale_csv.write_text(
+        "date,taiex_close,taiex_ma5,taiex_ma20,taiex_ma60,taiex_ma20_slope\n2026-05-20,42120,42040,41780,40530,36\n",
+        encoding="utf-8",
+    )
+    results, written, manifest = _write(tmp_path / "inputs", {"sources": [_local_csv(stale_csv, max_lag_days=1)]})
+
+    assert results[0].status == "stale"
+    assert "price" not in written.provider_csv_paths
+    assert not (tmp_path / "inputs" / "price.csv").exists()
+    assert manifest["source_attempts"][0]["stale_status"] == "stale"
+
+
+def test_fallback_generated_price_csv_can_pass_into_run_daily_pipeline(tmp_path: Path):
+    _, written, _ = _write(tmp_path / "inputs", {"sources": [_live_price(), _local_csv(SAMPLE_FALLBACK)]})
+
+    result = run_daily_pipeline(as_of=AS_OF, output_dir=tmp_path / "outputs", price_csv=written.provider_csv_paths["price"], field_map=written.provider_field_map_path)
+
+    assert result["trade_date"] == AS_OF.isoformat()
+    assert Path(result["artifact_paths"]["json"]).exists()
+
+
+def test_diagnostics_include_suggested_fallback_command(tmp_path: Path):
+    config_path = tmp_path / "sources.json"
+    config_path.write_text(json.dumps({"sources": [_live_price()]}), encoding="utf-8")
+    proc = subprocess.run(
+        [sys.executable, "scripts/fetch_daily_provider_csvs.py", "--as-of", AS_OF.isoformat(), "--output-dir", str(tmp_path / "inputs"), "--source-config", str(config_path)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert "attempted sources" in proc.stderr
+    assert "failure_reason" in proc.stderr
+    assert "--price-fallback-csv path/to/price.csv" in proc.stderr

@@ -74,6 +74,8 @@ class PublicDataFetchContext:
     timeout_seconds: float = 20.0
     user_agent: str = "TDT-RM public daily fetcher/0.1 (+https://www.twse.com.tw/)"
     retrieved_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    offline: bool = False
+    fail_fast: bool = False
 
 
 @dataclass(frozen=True)
@@ -157,7 +159,10 @@ class PublicDataFetcherRegistry:
             if not isinstance(item, Mapping) or item.get("enabled", True) is False:
                 continue
             adapter = str(item.get("adapter") or item.get("provider_category") or "generic_json")
-            if adapter == "twse_taiex_price" or item.get("provider_category") == "price":
+            source_type = str(item.get("source_type") or "").lower()
+            if source_type in {"local_csv_fallback", "local_json_fallback"}:
+                sources.append(LocalPriceFallbackSource(item))
+            elif adapter == "twse_taiex_price" or source_type == "twse_json":
                 sources.append(TWSETAIEXPriceSource(item))
             elif adapter == "leadership_main7":
                 sources.append(LeadershipMain7Source(item))
@@ -166,10 +171,51 @@ class PublicDataFetcherRegistry:
         return cls(sources)
 
     def fetch_all(self, context: PublicDataFetchContext) -> tuple[PublicDataFetchResult, ...]:
-        return tuple(source.fetch(context) for source in self.sources)
+        """Fetch configured sources by provider category with priority fallback.
+
+        Sources are grouped by provider category and ordered by ``fallback_order``
+        (or legacy ``priority``). Live/network sources are skipped in offline mode.
+        For each category the registry stops after the first successful enabled
+        source; required categories therefore get fallback behavior without
+        fabricating missing data.
+        """
+
+        results: list[PublicDataFetchResult] = []
+        by_category: dict[str, list[PublicDataSource]] = {}
+        for source in self.sources:
+            if context.offline and not _is_local_fallback_source(source):
+                continue
+            by_category.setdefault(source.provider_category, []).append(source)
+
+        for category in sorted(by_category, key=lambda item: (item not in _REQUIRED_PROVIDER_CATEGORIES, item)):
+            category_sources = sorted(by_category[category], key=_source_fallback_order)
+            for source in category_sources:
+                result = source.fetch(context)
+                results.append(result)
+                if result.success:
+                    break
+                if context.fail_fast:
+                    break
+        return tuple(results)
 
     def source_ids(self) -> tuple[str, ...]:
         return tuple(source.source_id for source in self.sources)
+
+
+def _source_fallback_order(source: PublicDataSource) -> tuple[int, str]:
+    config = getattr(source, "config", {})
+    order = config.get("fallback_order", config.get("priority", 100)) if isinstance(config, Mapping) else 100
+    try:
+        order_int = int(order)
+    except (TypeError, ValueError):
+        order_int = 100
+    return (order_int, source.source_id)
+
+
+def _is_local_fallback_source(source: PublicDataSource) -> bool:
+    config = getattr(source, "config", {})
+    source_type = str(config.get("source_type") or "") if isinstance(config, Mapping) else ""
+    return source_type in {"local_csv_fallback", "local_json_fallback"} or isinstance(source, LocalPriceFallbackSource)
 
 
 @dataclass(frozen=True)
@@ -248,6 +294,95 @@ class TWSETAIEXPriceSource:
             return _result(self, "success", retrieved_at=retrieved_at, rows=(normalized,), canonical=normalized, metadata={"endpoint": _render_url(self.config, context), "bar_count": len(bars), "mode": "price_history"})
         except Exception as exc:  # noqa: BLE001
             return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at)
+
+
+@dataclass(frozen=True)
+class LocalPriceFallbackSource:
+    """User-supplied local price fallback file source.
+
+    Local fallback files are treated as externally supplied data, not generated
+    market data. They must contain canonical price fields and pass the same
+    as-of/freshness checks before ``price.csv`` is written.
+    """
+
+    config: Mapping[str, Any]
+
+    @property
+    def source_id(self) -> str:
+        return str(self.config.get("source_id") or "local_price_fallback")
+
+    @property
+    def source_name(self) -> str:
+        return str(self.config.get("source_name") or self.source_id)
+
+    @property
+    def provider_category(self) -> str:
+        return "price"
+
+    def fetch(self, context: PublicDataFetchContext) -> PublicDataFetchResult:
+        retrieved_at = context.retrieved_at.isoformat()
+        try:
+            source_type = str(self.config.get("source_type") or "local_csv_fallback")
+            path = _local_fallback_path(self.config)
+            if not path:
+                return _result(
+                    self,
+                    "unavailable",
+                    (_issue(self, "warning", "local_fallback_missing", "local price fallback path is not configured"),),
+                    retrieved_at=retrieved_at,
+                    metadata={"source_type": source_type, "local_fallback": True},
+                )
+            fallback_path = Path(path)
+            if not fallback_path.exists():
+                return _result(
+                    self,
+                    "failed",
+                    (_issue(self, "error", "local_fallback_not_found", f"local price fallback file not found: {fallback_path}"),),
+                    retrieved_at=retrieved_at,
+                    metadata={"source_type": source_type, "local_fallback": True, "path": str(fallback_path)},
+                )
+            rows = _read_local_fallback_rows(fallback_path, source_type, self.config)
+            row = _select_local_fallback_row(rows, self.config, context.as_of)
+            if row is None:
+                return _result(
+                    self,
+                    "unavailable",
+                    (_issue(self, "warning", "row_missing", f"local fallback has no row for {context.as_of.isoformat()}"),),
+                    retrieved_at=retrieved_at,
+                    metadata={"source_type": source_type, "local_fallback": True, "path": str(fallback_path)},
+                )
+            mapped = _map_fields(row, self.config.get("field_mapping") or self.config.get("field_extraction_mapping") or {})
+            normalized = _normalize_provider_row("price", mapped, context.as_of)
+            if _local_price_is_stale(normalized, self.config, context.as_of):
+                return _result(
+                    self,
+                    "stale",
+                    (_issue(self, "error", "stale_data", f"local price fallback is stale for {context.as_of.isoformat()}"),),
+                    retrieved_at=retrieved_at,
+                    canonical=normalized,
+                    metadata={"source_type": source_type, "local_fallback": True, "path": str(fallback_path)},
+                )
+            missing = tuple(field for field in ("taiex_close", "taiex_ma5", "taiex_ma20", "taiex_ma60", "taiex_ma20_slope") if _missing(normalized.get(field)))
+            if missing:
+                return _result(
+                    self,
+                    "missing_fields",
+                    tuple(_issue(self, "error", "missing_field", f"local price fallback missing required field {field}", field=field) for field in missing),
+                    retrieved_at=retrieved_at,
+                    canonical=normalized,
+                    metadata={"source_type": source_type, "local_fallback": True, "path": str(fallback_path)},
+                )
+            normalized["date"] = context.as_of.isoformat()
+            return _result(
+                self,
+                "success",
+                retrieved_at=retrieved_at,
+                rows=(normalized,),
+                canonical=normalized,
+                metadata={"source_type": source_type, "local_fallback": True, "path": str(fallback_path)},
+            )
+        except Exception as exc:  # noqa: BLE001
+            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"local_fallback": True})
 
 
 @dataclass(frozen=True)
@@ -344,9 +479,10 @@ def build_fetch_manifest(fetch_results: Sequence[PublicDataFetchResult], provide
     stale = [result.source_id for result in fetch_results if result.status == "stale"]
     missing_fields = [issue.as_dict() for result in fetch_results for issue in result.issues if issue.code in {"missing_field", "constituents_missing", "constituent_field_missing"} or result.status == "missing_fields"]
     unavailable = [result.source_id for result in fetch_results if result.status in {"unavailable", "missing_fields", "stale"}]
+    source_attempts = [_source_attempt_manifest(result) for result in fetch_results]
     price_available = "price" in provider_paths
     optional_categories = sorted(set(_DEFAULT_OPTIONAL_CATEGORIES) - set(provider_paths))
-    limitations = ["Public data endpoints may be delayed, unavailable, or revised after publication.", "No paid API, broker login, browser automation, or ETF Exit policy is used."]
+    limitations = ["Public data endpoints may be delayed, unavailable, blocked by network policy/403 restrictions, or revised after publication.", "No paid API, broker login, browser automation, or ETF Exit policy is used."]
     if "scores" not in provider_paths:
         limitations.append("Formal Tail Risk / BCD / MHS were not supplied by public fetchers; the daily pipeline will use existing fallback behavior for Tail Risk/BCD and MHS remains 0.0 unless supplied.")
     if "leadership" not in provider_paths:
@@ -361,11 +497,32 @@ def build_fetch_manifest(fetch_results: Sequence[PublicDataFetchResult], provide
         "stale_sources": stale,
         "unavailable_sources": unavailable,
         "missing_fields": missing_fields,
+        "source_attempts": source_attempts,
         "provider_csv_paths": dict(provider_paths),
         "data_status": data_status,
         "limitations": limitations,
         "optional_categories_unavailable": optional_categories,
         "sources": [result.as_dict() for result in fetch_results],
+    }
+
+
+def _source_attempt_manifest(result: PublicDataFetchResult) -> dict[str, Any]:
+    failure_reason = "; ".join(issue.message for issue in result.issues) if not result.success else ""
+    source_type = str(result.raw_metadata.get("source_type") or "")
+    if not source_type:
+        source_type = "local_fallback" if result.raw_metadata.get("local_fallback") else "unknown"
+    return {
+        "source_id": result.source_id,
+        "source_name": result.source_name,
+        "provider_category": result.provider_category,
+        "source_type": source_type,
+        "local_fallback": bool(result.raw_metadata.get("local_fallback")),
+        "attempted": True,
+        "success": result.success,
+        "status": result.status,
+        "failure_reason": failure_reason,
+        "stale_status": "stale" if result.status == "stale" else "fresh_or_not_applicable",
+        "fields_extracted": sorted(str(key) for key, value in result.canonical_fields.items() if not _missing(value)),
     }
 
 
@@ -393,7 +550,13 @@ def load_main7_symbols(path: str | Path | None = None) -> tuple[str, ...]:
 
 
 def _result(source: PublicDataSource, status: str, issues: Sequence[PublicDataFetchIssue] = (), *, retrieved_at: str | None = None, rows: Sequence[Mapping[str, Any]] = (), canonical: Mapping[str, Any] | None = None, metadata: Mapping[str, Any] | None = None) -> PublicDataFetchResult:
-    return PublicDataFetchResult(source.source_id, source.source_name, source.provider_category, status, tuple(rows), dict(canonical or {}), dict(metadata or {}), tuple(issues), retrieved_at)
+    raw_metadata = dict(metadata or {})
+    config = getattr(source, "config", {})
+    if isinstance(config, Mapping):
+        raw_metadata.setdefault("source_type", config.get("source_type") or config.get("adapter") or source.provider_category)
+        if str(raw_metadata.get("source_type")) in {"local_csv_fallback", "local_json_fallback"}:
+            raw_metadata.setdefault("local_fallback", True)
+    return PublicDataFetchResult(source.source_id, source.source_name, source.provider_category, status, tuple(rows), dict(canonical or {}), raw_metadata, tuple(issues), retrieved_at)
 
 
 def _issue(source: PublicDataSource, severity: str, code: str, message: str, *, field: str | None = None) -> PublicDataFetchIssue:
@@ -535,6 +698,47 @@ def _value_by_names(row: Mapping[str, Any], fields: Sequence[str], names: Sequen
     if fields and fallback_index < 0 and len(fields) >= abs(fallback_index):
         return row.get(fields[fallback_index])
     return None
+
+
+def _local_price_is_stale(row: Mapping[str, Any], config: Mapping[str, Any], as_of: date) -> bool:
+    freshness = config.get("freshness_rules") if isinstance(config.get("freshness_rules"), Mapping) else {}
+    max_lag_days = int(freshness.get("max_lag_days", 0) or 0) if isinstance(freshness, Mapping) else 0
+    row_date = _parse_date(row.get("date") or row.get("trade_date") or row.get("observed_at"))
+    if row_date is None or row_date > as_of:
+        return True
+    return (as_of - row_date).days > max_lag_days
+
+
+def _local_fallback_path(config: Mapping[str, Any]) -> str:
+    value = config.get("path") or config.get("file_path") or config.get("fixture_path")
+    if value:
+        return str(value)
+    url = str(config.get("url") or "")
+    if url.startswith("file://"):
+        return urllib.parse.urlparse(url).path
+    return ""
+
+
+def _read_local_fallback_rows(path: Path, source_type: str, config: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    if source_type == "local_json_fallback" or path.suffix.lower() == ".json":
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(payload, list):
+            return [row for row in payload if isinstance(row, Mapping)]
+        rows = _extract_rows(payload, config)
+        if rows:
+            return rows
+        return [payload] if isinstance(payload, Mapping) else []
+    with path.open(newline="", encoding="utf-8-sig") as handle:
+        return [dict(row) for row in csv.DictReader(handle)]
+
+
+def _select_local_fallback_row(rows: Sequence[Mapping[str, Any]], config: Mapping[str, Any], as_of: date) -> Mapping[str, Any] | None:
+    date_fields = tuple(str(item) for item in config.get("date_fields", ("date", "trade_date", "observed_at", "日期")))
+    for row in rows:
+        for field_name in date_fields:
+            if field_name in row and _parse_date(row[field_name]) == as_of:
+                return row
+    return rows[-1] if len(rows) == 1 else None
 
 
 def _write_csv(path: Path, fields: Sequence[str], row: Mapping[str, Any]) -> None:
