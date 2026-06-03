@@ -157,3 +157,29 @@ def test_cli_can_generate_provider_csvs_from_fixture_responses(tmp_path):
     assert proc.returncode == 0, proc.stderr
     assert (tmp_path / "inputs" / "price.csv").exists()
     assert summary_path.exists()
+
+
+def test_production_required_provider_csvs_are_generated_from_official_parser_fixtures(tmp_path):
+    config = _config(
+        {**_source("official_price", "price", "official_price_response.json"), "adapter": "twse_fmtqik_price", "min_bars": 60},
+        {**_source("official_foreign", "foreign_flow", "foreign_flow_response.json"), "adapter": "twse_t86_foreign_flow"},
+        {**_source("official_fx", "fx", "fx_response.json"), "adapter": "taifex_daily_fx"},
+        {**_source("official_breadth", "breadth", "market_breadth_response.json"), "adapter": "twse_mi_index_breadth"},
+        {**_source("official_futures", "futures", "futures_response.json"), "adapter": "taifex_txf_futures"},
+        {**_source("official_options", "options", "options_response.json"), "adapter": "taifex_txo_options"},
+        {
+            "source_id": "official_leadership",
+            "source_name": "official_leadership",
+            "provider_category": "leadership",
+            "adapter": "leadership_main7",
+            "fixture_path": str(FIXTURE_DIR / "leadership_response.json"),
+            "rows_path": "data",
+            "freshness_rules": {"max_lag_days": 3},
+        },
+    )
+
+    _, written = _fetch_write(tmp_path / "inputs", config)
+
+    assert set(written.provider_csv_paths) >= {"price", "foreign_flow", "fx", "breadth", "futures", "options", "leadership"}
+    assert Path(written.provider_csv_paths["futures"]).name == "futures.csv"
+    assert Path(written.provider_csv_paths["options"]).name == "options.csv"

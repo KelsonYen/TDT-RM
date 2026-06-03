@@ -8,22 +8,25 @@ ETI-5, Crash Probability, Bear Trend Filter, CAL, or decision-matrix logic.
 from __future__ import annotations
 
 import csv
+import html
 import json
 import math
+import re
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 import hashlib
 from dataclasses import dataclass, field, replace
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Mapping, Protocol, Sequence
 
 from .market_data import MarketPriceBar, derive_price_features
 
 _REQUIRED_PROVIDER_CATEGORIES = {"price"}
-_DEFAULT_OPTIONAL_CATEGORIES = ("foreign_flow", "fx", "breadth", "leadership", "margin", "scores", "derivatives")
+_PRODUCTION_REQUIRED_PROVIDER_CATEGORIES = ("price", "foreign_flow", "fx", "breadth", "futures", "options", "leadership")
+_DEFAULT_OPTIONAL_CATEGORIES = ("foreign_flow", "fx", "breadth", "futures", "options", "leadership", "margin", "scores")
 _PROVIDER_CSV_NAMES = {
     "price": "price.csv",
     "foreign_flow": "foreign_flow.csv",
@@ -32,6 +35,8 @@ _PROVIDER_CSV_NAMES = {
     "leadership": "leadership.csv",
     "margin": "margin.csv",
     "scores": "scores.csv",
+    "futures": "futures.csv",
+    "options": "options.csv",
 }
 _PROVIDER_FIELDS = {
     "price": ("date", "taiex_close", "taiex_ma5", "taiex_ma20", "taiex_ma60", "taiex_ma20_slope", "one_day_return_pct", "two_day_return_pct", "turnover_amount", "ma20_turnover"),
@@ -41,6 +46,8 @@ _PROVIDER_FIELDS = {
     "leadership": ("date", "count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols"),
     "margin": ("date", "margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "index_5d_return_pct", "margin_balance_5d_decline_pct", "margin_not_retreating"),
     "scores": ("date", "tail_risk", "bcd", "mhs", "score_status", "score_notes"),
+    "futures": ("date", "txf_close", "txf_settlement", "txf_volume", "txf_open_interest", "txf_basis", "futures_source_contract"),
+    "options": ("date", "txo_put_call_ratio", "txo_put_volume", "txo_call_volume", "taifex_vix", "options_source_contract"),
 }
 
 
@@ -168,10 +175,22 @@ class PublicDataFetcherRegistry:
             source_type = str(item.get("source_type") or "").lower()
             if source_type in {"local_csv_fallback", "local_json_fallback"}:
                 sources.append(LocalPriceFallbackSource(item))
+            elif adapter == "twse_fmtqik_price":
+                sources.append(TWSEFMTQIKPriceSource(item))
+            elif adapter == "twse_t86_foreign_flow":
+                sources.append(TWSET86ForeignFlowSource(item))
+            elif adapter == "taifex_daily_fx":
+                sources.append(TAIFEXDailyFXSource(item))
+            elif adapter == "twse_mi_index_breadth":
+                sources.append(TWSEMarketBreadthSource(item))
+            elif adapter == "taifex_txf_futures":
+                sources.append(TAIFEXTXFFuturesSource(item))
+            elif adapter == "taifex_txo_options":
+                sources.append(TAIFEXTXOOptionsSource(item))
+            elif adapter == "twse_main7_leadership" or adapter == "leadership_main7":
+                sources.append(TWSEMain7LeadershipSource(item) if adapter == "twse_main7_leadership" else LeadershipMain7Source(item))
             elif adapter == "twse_taiex_price" or source_type == "twse_json":
                 sources.append(TWSETAIEXPriceSource(item))
-            elif adapter == "leadership_main7":
-                sources.append(LeadershipMain7Source(item))
             else:
                 sources.append(GenericJsonPublicDataSource(item))
         return cls(sources)
@@ -559,6 +578,267 @@ class LeadershipMain7Source:
             return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"exception_class": exc.__class__.__name__, "exception_message": str(exc)})
 
 
+
+@dataclass(frozen=True)
+class TWSEFMTQIKPriceSource:
+    """Official TWSE monthly market summary source for TAIEX close/turnover."""
+
+    config: Mapping[str, Any]
+
+    @property
+    def source_id(self) -> str:
+        return str(self.config.get("source_id") or "twse_fmtqik_price")
+
+    @property
+    def source_name(self) -> str:
+        return str(self.config.get("source_name") or "TWSE FMTQIK market summary")
+
+    @property
+    def provider_category(self) -> str:
+        return "price"
+
+    def fetch(self, context: PublicDataFetchContext) -> PublicDataFetchResult:
+        retrieved_at = context.retrieved_at.isoformat()
+        try:
+            payloads = _fetch_configured_payloads(self.config, context)
+            bars: list[MarketPriceBar] = []
+            for payload in payloads:
+                bars.extend(_parse_fmtqik_price_bars(payload, context.as_of))
+            bars = sorted({bar.observed_at: bar for bar in bars if bar.observed_at <= context.as_of}.values(), key=lambda item: item.observed_at)
+            if len(bars) < max(60, int(self.config.get("min_bars", 60))):
+                return _result(self, "failed", (_issue(self, "error", "insufficient_price_history", f"TWSE FMTQIK returned {len(bars)} usable bars; cannot derive MA60"),), retrieved_at=retrieved_at, metadata={"endpoint": _render_url(self.config, context), "bar_count": len(bars)})
+            latest_date = bars[-1].observed_at
+            if _date_lag_failed(latest_date, self.config, context.as_of):
+                return _result(self, "stale", (_issue(self, "error", "stale_data", f"latest TWSE FMTQIK row is {latest_date.isoformat()} for as-of {context.as_of.isoformat()}"),), retrieved_at=retrieved_at, metadata={"endpoint": _render_url(self.config, context), "bar_count": len(bars)})
+            features = derive_price_features(tuple(bars))
+            normalized = _normalize_provider_row("price", features, context.as_of)
+            normalized["date"] = context.as_of.isoformat()
+            return _result(self, "success", retrieved_at=retrieved_at, rows=(normalized,), canonical=normalized, metadata={"endpoint": _render_url(self.config, context), "bar_count": len(bars), "official_source": "TWSE FMTQIK"})
+        except Exception as exc:  # noqa: BLE001
+            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"exception_class": exc.__class__.__name__, "exception_message": str(exc)})
+
+
+@dataclass(frozen=True)
+class TWSET86ForeignFlowSource:
+    """Official TWSE T86 foreign investor net buy/sell parser."""
+
+    config: Mapping[str, Any]
+
+    @property
+    def source_id(self) -> str:
+        return str(self.config.get("source_id") or "twse_t86_foreign_flow")
+
+    @property
+    def source_name(self) -> str:
+        return str(self.config.get("source_name") or "TWSE T86 foreign flow")
+
+    @property
+    def provider_category(self) -> str:
+        return "foreign_flow"
+
+    def fetch(self, context: PublicDataFetchContext) -> PublicDataFetchResult:
+        retrieved_at = context.retrieved_at.isoformat()
+        try:
+            payloads = _fetch_configured_payloads(self.config, context)
+            daily = [_parse_t86_foreign_flow(payload, context.as_of - timedelta(days=offset)) for offset, payload in enumerate(payloads)]
+            rows = [row for row in daily if row]
+            if not rows:
+                return _result(self, "unavailable", (_issue(self, "warning", "row_missing", f"no TWSE T86 row for {context.as_of.isoformat()}"),), retrieved_at=retrieved_at)
+            current = rows[0]
+            sell_days = 0
+            for row in rows:
+                if bool(row.get("foreign_spot_net_sell")):
+                    sell_days += 1
+                else:
+                    break
+            current["foreign_spot_net_sell_consecutive_days"] = sell_days
+            return _result(self, "success", retrieved_at=retrieved_at, rows=(current,), canonical=current, metadata={"endpoint": _render_url(self.config, context), "official_source": "TWSE T86"})
+        except Exception as exc:  # noqa: BLE001
+            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"exception_class": exc.__class__.__name__, "exception_message": str(exc)})
+
+
+@dataclass(frozen=True)
+class TAIFEXDailyFXSource:
+    """Official TAIFEX daily foreign-exchange-rate parser for USD/TWD."""
+
+    config: Mapping[str, Any]
+
+    @property
+    def source_id(self) -> str:
+        return str(self.config.get("source_id") or "taifex_daily_fx")
+
+    @property
+    def source_name(self) -> str:
+        return str(self.config.get("source_name") or "TAIFEX daily foreign exchange rates")
+
+    @property
+    def provider_category(self) -> str:
+        return "fx"
+
+    def fetch(self, context: PublicDataFetchContext) -> PublicDataFetchResult:
+        retrieved_at = context.retrieved_at.isoformat()
+        try:
+            rows: list[dict[str, Any]] = []
+            for payload in _fetch_configured_payloads(self.config, context):
+                rows.extend(_parse_taifex_fx_rows(payload, context.as_of))
+            rows = sorted({row["date"]: row for row in rows if _parse_date(row.get("date")) and _parse_date(row.get("date")) <= context.as_of}.values(), key=lambda item: str(item["date"]))
+            if not rows:
+                return _result(self, "unavailable", (_issue(self, "warning", "row_missing", f"no TAIFEX USD/TWD row for {context.as_of.isoformat()}"),), retrieved_at=retrieved_at)
+            row = rows[-1]
+            row["usd_twd_3d_change_pct"] = _pct_change_from_rows(rows, 3, "usd_twd")
+            row["usd_twd_5d_change_pct"] = _pct_change_from_rows(rows, 5, "usd_twd")
+            change5 = _to_float(row.get("usd_twd_5d_change_pct")) or 0.0
+            row["twd_appreciates"] = change5 < -0.5
+            row["twd_stable"] = abs(change5) <= 0.5
+            row["twd_depreciates_significantly"] = change5 >= 1.0
+            return _result(self, "success", retrieved_at=retrieved_at, rows=(row,), canonical=row, metadata={"endpoint": _render_url(self.config, context), "official_source": "TAIFEX DailyForeignExchangeRates"})
+        except Exception as exc:  # noqa: BLE001
+            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"exception_class": exc.__class__.__name__, "exception_message": str(exc)})
+
+
+@dataclass(frozen=True)
+class TWSEMarketBreadthSource:
+    """Official TWSE MI_INDEX market breadth parser."""
+
+    config: Mapping[str, Any]
+
+    @property
+    def source_id(self) -> str:
+        return str(self.config.get("source_id") or "twse_mi_index_breadth")
+
+    @property
+    def source_name(self) -> str:
+        return str(self.config.get("source_name") or "TWSE MI_INDEX breadth")
+
+    @property
+    def provider_category(self) -> str:
+        return "breadth"
+
+    def fetch(self, context: PublicDataFetchContext) -> PublicDataFetchResult:
+        retrieved_at = context.retrieved_at.isoformat()
+        try:
+            rows = [_parse_twse_breadth(payload, context.as_of) for payload in _fetch_configured_payloads(self.config, context)]
+            row = next((item for item in rows if item), None)
+            if not row:
+                return _result(self, "unavailable", (_issue(self, "warning", "row_missing", f"no TWSE breadth row for {context.as_of.isoformat()}"),), retrieved_at=retrieved_at)
+            normalized = _normalize_provider_row("breadth", row, context.as_of)
+            return _result(self, "success", retrieved_at=retrieved_at, rows=(normalized,), canonical=normalized, metadata={"endpoint": _render_url(self.config, context), "official_source": "TWSE MI_INDEX"})
+        except Exception as exc:  # noqa: BLE001
+            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"exception_class": exc.__class__.__name__, "exception_message": str(exc)})
+
+
+@dataclass(frozen=True)
+class TAIFEXTXFFuturesSource:
+    """Official TAIFEX daily market report parser for TAIEX futures."""
+
+    config: Mapping[str, Any]
+
+    @property
+    def source_id(self) -> str:
+        return str(self.config.get("source_id") or "taifex_txf_futures")
+
+    @property
+    def source_name(self) -> str:
+        return str(self.config.get("source_name") or "TAIFEX TXF futures")
+
+    @property
+    def provider_category(self) -> str:
+        return "futures"
+
+    def fetch(self, context: PublicDataFetchContext) -> PublicDataFetchResult:
+        retrieved_at = context.retrieved_at.isoformat()
+        try:
+            row = next((parsed for payload in _fetch_configured_payloads(self.config, context) for parsed in [_parse_taifex_futures(payload, context.as_of)] if parsed), None)
+            if not row:
+                return _result(self, "unavailable", (_issue(self, "warning", "row_missing", f"no TAIFEX TXF row for {context.as_of.isoformat()}"),), retrieved_at=retrieved_at)
+            return _result(self, "success", retrieved_at=retrieved_at, rows=(row,), canonical=row, metadata={"endpoint": _render_url(self.config, context), "official_source": "TAIFEX DailyMarketReportFut"})
+        except Exception as exc:  # noqa: BLE001
+            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"exception_class": exc.__class__.__name__, "exception_message": str(exc)})
+
+
+@dataclass(frozen=True)
+class TAIFEXTXOOptionsSource:
+    """Official TAIFEX PCR and VIX parser for TAIEX options."""
+
+    config: Mapping[str, Any]
+
+    @property
+    def source_id(self) -> str:
+        return str(self.config.get("source_id") or "taifex_txo_options")
+
+    @property
+    def source_name(self) -> str:
+        return str(self.config.get("source_name") or "TAIFEX TXO options PCR/VIX")
+
+    @property
+    def provider_category(self) -> str:
+        return "options"
+
+    def fetch(self, context: PublicDataFetchContext) -> PublicDataFetchResult:
+        retrieved_at = context.retrieved_at.isoformat()
+        try:
+            payloads = _fetch_configured_payloads(self.config, context)
+            row: dict[str, Any] = {"date": context.as_of.isoformat()}
+            for payload in payloads:
+                row.update(_parse_taifex_options(payload, context.as_of))
+            if _missing(row.get("txo_put_call_ratio")) and _missing(row.get("taifex_vix")):
+                return _result(self, "unavailable", (_issue(self, "warning", "row_missing", f"no TAIFEX PCR/VIX row for {context.as_of.isoformat()}"),), retrieved_at=retrieved_at)
+            row.setdefault("options_source_contract", "TXO")
+            return _result(self, "success", retrieved_at=retrieved_at, rows=(row,), canonical=row, metadata={"endpoint": _render_url(self.config, context), "official_source": "TAIFEX PutCallRatio/TAIFEXVIX"})
+        except Exception as exc:  # noqa: BLE001
+            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"exception_class": exc.__class__.__name__, "exception_message": str(exc)})
+
+
+@dataclass(frozen=True)
+class TWSEMain7LeadershipSource:
+    """Official TWSE per-stock history parser for Main-7 leadership."""
+
+    config: Mapping[str, Any]
+
+    @property
+    def source_id(self) -> str:
+        return str(self.config.get("source_id") or "twse_main7_leadership")
+
+    @property
+    def source_name(self) -> str:
+        return str(self.config.get("source_name") or "TWSE Main-7 leadership")
+
+    @property
+    def provider_category(self) -> str:
+        return "leadership"
+
+    def fetch(self, context: PublicDataFetchContext) -> PublicDataFetchResult:
+        retrieved_at = context.retrieved_at.isoformat()
+        try:
+            symbols = tuple(context.main7_symbols or tuple(str(item) for item in self.config.get("symbols", ())))
+            if not symbols:
+                return _result(self, "unavailable", (_issue(self, "warning", "main7_config_missing", "main-7 symbol list is empty"),), retrieved_at=retrieved_at)
+            below20: list[str] = []
+            below60: list[str] = []
+            missing: list[str] = []
+            for symbol in symbols:
+                bars: list[float] = []
+                for payload in _fetch_symbol_payloads(self.config, context, symbol):
+                    bars.extend(_parse_stock_closes(payload, context.as_of))
+                closes = [value for value in bars if value is not None]
+                if len(closes) < 60:
+                    missing.append(symbol)
+                    continue
+                close = closes[-1]
+                ma20 = sum(closes[-20:]) / 20
+                ma60 = sum(closes[-60:]) / 60
+                if close < ma20:
+                    below20.append(symbol)
+                if close < ma60:
+                    below60.append(symbol)
+            if missing:
+                return _result(self, "missing_fields", (_issue(self, "warning", "constituents_missing", "missing 60-day TWSE stock history for: " + ",".join(missing), field="main_7_symbols"),), retrieved_at=retrieved_at)
+            normalized = {"date": context.as_of.isoformat(), "count_main_7_below_ma20": len(below20), "count_main_7_below_ma60": len(below60), "majority_main_7_assets_above_ma20": len(below20) < math.ceil(len(symbols) / 2), "main_7_symbols": ",".join(symbols), "main_7_below_ma20_symbols": ",".join(below20)}
+            return _result(self, "success", retrieved_at=retrieved_at, rows=(normalized,), canonical=normalized, metadata={"endpoint": _render_url(self.config, context), "official_source": "TWSE STOCK_DAY"})
+        except Exception as exc:  # noqa: BLE001
+            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"exception_class": exc.__class__.__name__, "exception_message": str(exc)})
+
+
 def write_provider_csvs(fetch_results: Sequence[PublicDataFetchResult], output_dir: str | Path, as_of: date) -> ProviderCsvWriteResult:
     """Write provider CSV inputs and fetch manifests for successful public results."""
 
@@ -605,6 +885,7 @@ def build_fetch_manifest(fetch_results: Sequence[PublicDataFetchResult], provide
     health_payload = dict(provider_health or build_provider_health(fetch_results, as_of))
     price_available = "price" in provider_paths
     optional_categories = sorted(set(_DEFAULT_OPTIONAL_CATEGORIES) - set(provider_paths))
+    missing_production_csvs = [category for category in _PRODUCTION_REQUIRED_PROVIDER_CATEGORIES if category not in provider_paths]
     limitations = ["Public data endpoints may be delayed, unavailable, blocked by network policy/403 restrictions, or revised after publication.", "No paid API, broker login, browser automation, or ETF Exit policy is used."]
     if "scores" not in provider_paths:
         limitations.append("Formal Tail Risk / BCD / MHS were not supplied by public fetchers; the daily pipeline will use existing fallback behavior for Tail Risk/BCD and MHS remains 0.0 unless supplied.")
@@ -624,6 +905,9 @@ def build_fetch_manifest(fetch_results: Sequence[PublicDataFetchResult], provide
         "provider_health_summary": health_payload.get("summary", {}),
         "provider_health": health_payload.get("providers", {}),
         "provider_csv_paths": dict(provider_paths),
+        "production_required_categories": list(_PRODUCTION_REQUIRED_PROVIDER_CATEGORIES),
+        "missing_production_csvs": missing_production_csvs,
+        "production_required_csvs_present": not missing_production_csvs,
         "data_status": data_status,
         "limitations": limitations,
         "optional_categories_unavailable": optional_categories,
@@ -795,6 +1079,213 @@ def _issue(source: PublicDataSource, severity: str, code: str, message: str, *, 
     return PublicDataFetchIssue(severity, code, message, source.source_id, source.provider_category, field)
 
 
+
+def _fetch_configured_payloads(config: Mapping[str, Any], context: PublicDataFetchContext) -> list[Any]:
+    if "fixture_path" in config:
+        return [_fetch_json_payload(config, context)]
+    templates = config.get("endpoint_url_templates") or config.get("urls")
+    if isinstance(templates, list) and templates:
+        return [_fetch_any_payload({**dict(config), "endpoint_url_template": str(template)}, context) for template in templates]
+    months = int(config.get("lookback_months", 1) or 1)
+    if months > 1:
+        payloads = []
+        seen: set[str] = set()
+        current = date(context.as_of.year, context.as_of.month, 1)
+        for _ in range(months):
+            month_context = replace(context, as_of=current)
+            url = _render_url(config, month_context)
+            if url and url not in seen:
+                seen.add(url)
+                payloads.append(_fetch_any_payload(config, month_context))
+            current = _previous_month(current)
+        return list(reversed(payloads))
+    return [_fetch_any_payload(config, context)]
+
+
+def _fetch_symbol_payloads(config: Mapping[str, Any], context: PublicDataFetchContext, symbol: str) -> list[Any]:
+    payloads = []
+    months = int(config.get("lookback_months", 4) or 4)
+    current = date(context.as_of.year, context.as_of.month, 1)
+    for _ in range(months):
+        symbol_context = replace(context, as_of=current)
+        url = _render_url_for_symbol(config, symbol_context, symbol)
+        payloads.append(_fetch_any_payload({**dict(config), "endpoint_url_template": url}, symbol_context))
+        current = _previous_month(current)
+    return list(reversed(payloads))
+
+
+def _fetch_any_payload(config: Mapping[str, Any], context: PublicDataFetchContext) -> Any:
+    if "fixture_path" in config:
+        return json.loads(Path(str(config["fixture_path"])).read_text(encoding="utf-8"))
+    url = _render_url(config, context)
+    if not url:
+        raise ValueError("source config missing endpoint_url_template/url or fixture_path")
+    if url.startswith("file://"):
+        text = Path(urllib.parse.urlparse(url).path).read_text(encoding="utf-8-sig")
+    else:
+        request = urllib.request.Request(url, headers={"User-Agent": context.user_agent, "Accept": "application/json,text/csv,text/html;q=0.9,*/*;q=0.5"})
+        try:
+            with urllib.request.urlopen(request, timeout=context.timeout_seconds) as response:  # noqa: S310 - configured public endpoints only.
+                text = response.read().decode("utf-8-sig")
+        except urllib.error.HTTPError as exc:
+            raise ValueError(f"HTTP {exc.code} from {url}") from exc
+    stripped = text.lstrip()
+    if stripped.startswith("{") or stripped.startswith("["):
+        return json.loads(text)
+    return {"_text": text, "_url": url}
+
+
+def _previous_month(value: date) -> date:
+    return date(value.year - (1 if value.month == 1 else 0), 12 if value.month == 1 else value.month - 1, 1)
+
+
+def _render_url_for_symbol(config: Mapping[str, Any], context: PublicDataFetchContext, symbol: str) -> str:
+    template = str(config.get("symbol_endpoint_url_template") or config.get("endpoint_url_template") or config.get("url") or "")
+    values = {"symbol": symbol, "stock_no": symbol, "as_of": context.as_of.isoformat(), "yyyymmdd": context.as_of.strftime("%Y%m%d"), "yyyymm": context.as_of.strftime("%Y%m"), "yyyy": context.as_of.strftime("%Y"), "mm": context.as_of.strftime("%m"), "dd": context.as_of.strftime("%d")}
+    return template.format(**values)
+
+
+def _parse_fmtqik_price_bars(payload: Any, as_of: date) -> list[MarketPriceBar]:
+    rows = _payload_rows(payload)
+    bars: list[MarketPriceBar] = []
+    for row in rows:
+        observed = _parse_date(_first(row, "日期", "Date", "date", "trade_date"))
+        if observed is None or observed > as_of:
+            continue
+        close = _to_float(_first(row, "發行量加權股價指數", "TAIEX", "taiex_close", "close"))
+        turnover = _to_float(_first(row, "成交金額", "Trading Value", "turnover_amount", "turnover"))
+        if close is not None:
+            bars.append(MarketPriceBar(observed_at=observed, close=close, turnover_amount=turnover or 0.0))
+    return bars
+
+
+def _parse_t86_foreign_flow(payload: Any, as_of: date) -> dict[str, Any] | None:
+    rows = _payload_rows(payload)
+    net_values = []
+    for row in rows:
+        net = _to_float(_first(row, "外資及陸資買賣超股數(不含外資自營商)", "外資及陸資買賣超股數", "Foreign_Investor_Buy_Sell_Difference", "Foreign Investor Buy/Sell Difference", "foreign_spot_net_buy"))
+        if net is not None:
+            net_values.append(net)
+    if not net_values:
+        return None
+    total_net = sum(net_values)
+    return {"date": as_of.isoformat(), "foreign_spot_net_buy": total_net, "foreign_spot_net_sell": total_net < 0, "foreign_spot_large_sell": total_net <= -10_000_000_000, "foreign_large_sell": total_net <= -10_000_000_000, "futures_hedging_increases": False, "futures_hedging_significant": False}
+
+
+def _parse_taifex_fx_rows(payload: Any, as_of: date) -> list[dict[str, Any]]:
+    output = []
+    for row in _payload_rows(payload):
+        observed = _parse_date(_first(row, "日期", "Date", "date", "交易日期", "TradeDate"))
+        if observed is None or observed > as_of:
+            continue
+        value = _to_float(_first(row, "美元／新台幣", "美元/新台幣", "USD/NTD", "USD/TWD", "USDTWD", "usd_twd"))
+        if value is not None:
+            output.append({"date": observed.isoformat(), "usd_twd": value})
+    return output
+
+
+def _parse_twse_breadth(payload: Any, as_of: date) -> dict[str, Any] | None:
+    rows = _payload_rows(payload)
+    adv = dec = None
+    for row in rows:
+        label = str(_first(row, "類型", "Type", "name", "Name", "指數", "證券名稱") or "")
+        if "上漲" in label or label.lower() in {"up", "advance", "advancing issues"}:
+            adv = _to_float(_first(row, "家數", "Count", "count", "advancing_issues"))
+        if "下跌" in label or label.lower() in {"down", "decline", "declining issues"}:
+            dec = _to_float(_first(row, "家數", "Count", "count", "declining_issues"))
+        adv = adv if adv is not None else _to_float(_first(row, "上漲家數", "advancing_issues"))
+        dec = dec if dec is not None else _to_float(_first(row, "下跌家數", "declining_issues"))
+    if adv is None or dec is None:
+        return None
+    return {"date": as_of.isoformat(), "advancing_issues": int(adv), "declining_issues": int(dec), "index_down": dec > adv, "declining_gt_advancing_consecutive_days": 1 if dec > adv else 0, "breadth_weakens_for_2_days": False}
+
+
+def _parse_taifex_futures(payload: Any, as_of: date) -> dict[str, Any] | None:
+    for row in _payload_rows(payload):
+        contract = str(_first(row, "契約", "商品代號", "Contract", "ContractCode", "product_id", "futures_source_contract") or "").upper()
+        if contract and not contract.startswith("TX"):
+            continue
+        close = _to_float(_first(row, "收盤價", "Close", "close", "txf_close"))
+        settle = _to_float(_first(row, "結算價", "Settlement Price", "settlement", "txf_settlement"))
+        volume = _to_float(_first(row, "成交量", "Volume", "volume", "txf_volume"))
+        oi = _to_float(_first(row, "未沖銷契約數", "Open Interest", "open_interest", "txf_open_interest"))
+        if close is not None or settle is not None:
+            return {"date": as_of.isoformat(), "txf_close": close or settle, "txf_settlement": settle or close, "txf_volume": volume, "txf_open_interest": oi, "futures_source_contract": contract or "TX"}
+    return None
+
+
+def _parse_taifex_options(payload: Any, as_of: date) -> dict[str, Any]:
+    row_out: dict[str, Any] = {"date": as_of.isoformat()}
+    for row in _payload_rows(payload):
+        pcr = _to_float(_first(row, "賣權/買權比", "Put/Call Ratio", "put_call_ratio", "txo_put_call_ratio"))
+        if pcr is not None:
+            row_out["txo_put_call_ratio"] = pcr
+            row_out["txo_put_volume"] = _to_float(_first(row, "賣權成交量", "Put Volume", "put_volume", "txo_put_volume"))
+            row_out["txo_call_volume"] = _to_float(_first(row, "買權成交量", "Call Volume", "call_volume", "txo_call_volume"))
+        vix = _to_float(_first(row, "臺指選擇權波動率指數", "TAIFEX VIX", "VIX", "vix", "taifex_vix"))
+        if vix is not None:
+            row_out["taifex_vix"] = vix
+    return row_out
+
+
+def _parse_stock_closes(payload: Any, as_of: date) -> list[float]:
+    closes = []
+    for row in _payload_rows(payload):
+        observed = _parse_date(_first(row, "日期", "Date", "date", "trade_date"))
+        if observed is not None and observed > as_of:
+            continue
+        close = _to_float(_first(row, "收盤價", "Closing Price", "Close", "close"))
+        if close is not None:
+            closes.append(close)
+    return closes
+
+
+def _payload_rows(payload: Any) -> list[Mapping[str, Any]]:
+    if isinstance(payload, Mapping) and "_text" in payload:
+        return _html_table_rows(str(payload.get("_text") or ""))
+    rows = _extract_rows(payload, {"rows_path": "data"}) if isinstance(payload, Mapping) else payload if isinstance(payload, list) else []
+    if isinstance(rows, list):
+        return [row for row in rows if isinstance(row, Mapping)]
+    return []
+
+
+def _html_table_rows(text: str) -> list[Mapping[str, Any]]:
+    rows = []
+    for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", text, flags=re.I | re.S):
+        cells = [html.unescape(re.sub(r"<.*?>", "", cell)).strip() for cell in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", tr, flags=re.I | re.S)]
+        if cells:
+            rows.append(cells)
+    if not rows:
+        return []
+    header = rows[0]
+    return [{header[index]: cell for index, cell in enumerate(row) if index < len(header)} for row in rows[1:]]
+
+
+def _first(row: Mapping[str, Any], *names: str) -> Any:
+    normalized = {_normalize_label(key): value for key, value in row.items()}
+    for name in names:
+        if name in row and not _missing(row.get(name)):
+            return row.get(name)
+        value = normalized.get(_normalize_label(name))
+        if not _missing(value):
+            return value
+    return None
+
+
+def _normalize_label(value: Any) -> str:
+    return re.sub(r"[\s_()（）/／%-]+", "", str(value)).lower()
+
+
+def _pct_change_from_rows(rows: Sequence[Mapping[str, Any]], periods: int, field: str) -> float | None:
+    if len(rows) <= periods:
+        return None
+    current = _to_float(rows[-1].get(field))
+    previous = _to_float(rows[-1 - periods].get(field))
+    if current is None or previous in (None, 0):
+        return None
+    return (current - previous) / previous * 100.0
+
+
 def _fetch_json_payload(config: Mapping[str, Any], context: PublicDataFetchContext) -> Any:
     if "fixture_path" in config:
         return json.loads(Path(str(config["fixture_path"])).read_text(encoding="utf-8"))
@@ -888,7 +1379,7 @@ def _normalize_provider_row(category: str, row: Mapping[str, Any], as_of: date) 
     output = {str(key): _clean_value(value) for key, value in row.items()}
     output.setdefault("date", output.get("observed_at") or output.get("trade_date") or as_of.isoformat())
     if category == "price":
-        renames = {"close": "taiex_close", "ma5": "taiex_ma5", "ma20": "taiex_ma20", "ma60": "taiex_ma60"}
+        renames = {"close": "taiex_close", "ma5": "taiex_ma5", "ma20": "taiex_ma20", "ma60": "taiex_ma60", "ma20_slope": "taiex_ma20_slope"}
         for source, dest in renames.items():
             if source in output and dest not in output:
                 output[dest] = output[source]
@@ -1009,6 +1500,14 @@ def _has_price_minimum(row: Mapping[str, Any]) -> bool:
     return all(not _missing(row.get(field)) for field in ("taiex_close", "taiex_ma5", "taiex_ma20", "taiex_ma60", "taiex_ma20_slope"))
 
 
+
+def _date_lag_failed(observed: date | None, config: Mapping[str, Any], as_of: date) -> bool:
+    if observed is None:
+        return True
+    freshness = config.get("freshness_rules") if isinstance(config.get("freshness_rules"), Mapping) else {}
+    max_lag_days = int(freshness.get("max_lag_days", 0) or 0) if isinstance(freshness, Mapping) else 0
+    return max_lag_days >= 0 and (as_of - observed).days > max_lag_days
+
 def _parse_date(value: Any) -> date | None:
     if isinstance(value, date):
         return value
@@ -1017,6 +1516,12 @@ def _parse_date(value: Any) -> date | None:
     text = str(value).strip().replace("/", "-")
     if not text:
         return None
+    compact = re.sub(r"[^0-9]", "", text.split()[0])
+    if len(compact) == 8 and "-" not in text.split()[0]:
+        try:
+            return date(int(compact[:4]), int(compact[4:6]), int(compact[6:8]))
+        except ValueError:
+            return None
     parts = text.split()[0].split("-")
     try:
         if len(parts) == 3 and len(parts[0]) <= 3:
