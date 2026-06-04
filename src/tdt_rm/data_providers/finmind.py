@@ -27,6 +27,7 @@ from fetch_daily_data_finmind import (  # type: ignore  # noqa: E402
     build_futures,
     build_fx,
     build_leadership,
+    build_margin,
     build_options,
     build_price,
 )
@@ -40,7 +41,7 @@ class FinMindProvider(DailyDataProvider):
 
     token: str | None = None
     name: str = "FINMIND_FALLBACK"
-    datasets: tuple[str, ...] = ("price", "foreign_flow", "fx", "breadth", "futures", "options", "leadership")
+    datasets: tuple[str, ...] = ("price", "foreign_flow", "fx", "breadth", "futures", "options", "leadership", "margin")
 
     def fetch(self, dataset: str, context: ProviderContext) -> ProviderResult:
         token = self.token or os.environ.get("FINMIND_TOKEN") or os.environ.get("FINMIND_API_TOKEN")
@@ -58,6 +59,7 @@ class FinMindProvider(DailyDataProvider):
             "futures": lambda: build_futures(client, context.trade_date, start, fetched_at),
             "options": lambda: build_options(client, context.trade_date, start, fetched_at),
             "leadership": lambda: build_leadership(client, context.trade_date, start, fetched_at, context.main7_symbols),
+            "margin": lambda: build_margin(client, context.trade_date, start, fetched_at),
         }
         if dataset not in builders:
             raise ValueError(f"FinMind provider does not support {dataset}")

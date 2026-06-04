@@ -7,7 +7,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Mapping, Protocol
 
-DATASETS: tuple[str, ...] = ("price", "foreign_flow", "fx", "breadth", "futures", "options", "leadership")
+DATASETS: tuple[str, ...] = ("price", "foreign_flow", "fx", "breadth", "futures", "options", "leadership", "margin")
 CSV_BY_DATASET = {dataset: f"{dataset}.csv" for dataset in DATASETS}
 REAL_SOURCE_TYPE = "REAL_PROVIDER"
 
