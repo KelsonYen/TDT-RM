@@ -1,0 +1,421 @@
+{
+  "as_of": "2026-06-04",
+  "generated_at": "2026-06-04T08:02:56Z",
+  "providers": {
+    "breadth_provider": {
+      "attempts": [
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "breadth",
+          "failure_reason": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "metadata": {},
+          "output_path": null,
+          "provider": "TWSE_OFFICIAL",
+          "selected": false,
+          "status": "failed"
+        },
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "breadth",
+          "failure_reason": "live FinMind fallback disabled; pass --allow-finmind-live or set TDT_RM_ALLOW_FINMIND_LIVE=true to opt in",
+          "metadata": {},
+          "output_path": null,
+          "provider": "FINMIND_FALLBACK",
+          "selected": false,
+          "status": "failed"
+        }
+      ],
+      "dataset": "breadth",
+      "failed_providers": [
+        {
+          "message": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "TWSE_OFFICIAL"
+        },
+        {
+          "message": "live FinMind fallback disabled; pass --allow-finmind-live or set TDT_RM_ALLOW_FINMIND_LIVE=true to opt in",
+          "provider": "FINMIND_FALLBACK"
+        }
+      ],
+      "final_decision": "block_pipeline",
+      "output_path": null,
+      "provider_used": null,
+      "reconciliation_checks": [],
+      "source_selected": null,
+      "status": "failed"
+    },
+    "foreign_flow_provider": {
+      "attempts": [
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "foreign_flow",
+          "failure_reason": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "metadata": {},
+          "output_path": null,
+          "provider": "TWSE_OFFICIAL",
+          "selected": false,
+          "status": "failed"
+        },
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "foreign_flow",
+          "failure_reason": "live FinMind fallback disabled; pass --allow-finmind-live or set TDT_RM_ALLOW_FINMIND_LIVE=true to opt in",
+          "metadata": {},
+          "output_path": null,
+          "provider": "FINMIND_FALLBACK",
+          "selected": false,
+          "status": "failed"
+        }
+      ],
+      "dataset": "foreign_flow",
+      "failed_providers": [
+        {
+          "message": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "TWSE_OFFICIAL"
+        },
+        {
+          "message": "live FinMind fallback disabled; pass --allow-finmind-live or set TDT_RM_ALLOW_FINMIND_LIVE=true to opt in",
+          "provider": "FINMIND_FALLBACK"
+        }
+      ],
+      "final_decision": "block_pipeline",
+      "output_path": null,
+      "provider_used": null,
+      "reconciliation_checks": [],
+      "source_selected": null,
+      "status": "failed"
+    },
+    "futures_provider": {
+      "attempts": [
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "futures",
+          "failure_reason": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "metadata": {},
+          "output_path": null,
+          "provider": "TAIFEX_OFFICIAL",
+          "selected": false,
+          "status": "failed"
+        },
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "futures",
+          "failure_reason": "live FinMind fallback disabled; pass --allow-finmind-live or set TDT_RM_ALLOW_FINMIND_LIVE=true to opt in",
+          "metadata": {},
+          "output_path": null,
+          "provider": "FINMIND_FALLBACK",
+          "selected": false,
+          "status": "failed"
+        }
+      ],
+      "dataset": "futures",
+      "failed_providers": [
+        {
+          "message": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "TAIFEX_OFFICIAL"
+        },
+        {
+          "message": "live FinMind fallback disabled; pass --allow-finmind-live or set TDT_RM_ALLOW_FINMIND_LIVE=true to opt in",
+          "provider": "FINMIND_FALLBACK"
+        }
+      ],
+      "final_decision": "block_pipeline",
+      "output_path": null,
+      "provider_used": null,
+      "reconciliation_checks": [],
+      "source_selected": null,
+      "status": "failed"
+    },
+    "fx_provider": {
+      "attempts": [
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "fx",
+          "failure_reason": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "metadata": {},
+          "output_path": null,
+          "provider": "TAIFEX_OFFICIAL",
+          "selected": false,
+          "status": "failed"
+        },
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "fx",
+          "failure_reason": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "metadata": {},
+          "output_path": null,
+          "provider": "CBC_OFFICIAL",
+          "selected": false,
+          "status": "failed"
+        },
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "fx",
+          "failure_reason": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+          "metadata": {},
+          "output_path": null,
+          "provider": "YAHOO_FINANCE",
+          "selected": false,
+          "status": "failed"
+        },
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "fx",
+          "failure_reason": "live FinMind fallback disabled; pass --allow-finmind-live or set TDT_RM_ALLOW_FINMIND_LIVE=true to opt in",
+          "metadata": {},
+          "output_path": null,
+          "provider": "FINMIND_FALLBACK",
+          "selected": false,
+          "status": "failed"
+        }
+      ],
+      "dataset": "fx",
+      "failed_providers": [
+        {
+          "message": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "TAIFEX_OFFICIAL"
+        },
+        {
+          "message": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "CBC_OFFICIAL"
+        },
+        {
+          "message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "YAHOO_FINANCE"
+        },
+        {
+          "message": "live FinMind fallback disabled; pass --allow-finmind-live or set TDT_RM_ALLOW_FINMIND_LIVE=true to opt in",
+          "provider": "FINMIND_FALLBACK"
+        }
+      ],
+      "final_decision": "block_pipeline",
+      "output_path": null,
+      "provider_used": null,
+      "reconciliation_checks": [],
+      "source_selected": null,
+      "status": "failed"
+    },
+    "leadership_provider": {
+      "attempts": [
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "leadership",
+          "failure_reason": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "metadata": {},
+          "output_path": null,
+          "provider": "TWSE_OFFICIAL",
+          "selected": false,
+          "status": "failed"
+        },
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "leadership",
+          "failure_reason": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+          "metadata": {},
+          "output_path": null,
+          "provider": "YAHOO_FINANCE",
+          "selected": false,
+          "status": "failed"
+        },
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "leadership",
+          "failure_reason": "live FinMind fallback disabled; pass --allow-finmind-live or set TDT_RM_ALLOW_FINMIND_LIVE=true to opt in",
+          "metadata": {},
+          "output_path": null,
+          "provider": "FINMIND_FALLBACK",
+          "selected": false,
+          "status": "failed"
+        }
+      ],
+      "dataset": "leadership",
+      "failed_providers": [
+        {
+          "message": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "TWSE_OFFICIAL"
+        },
+        {
+          "message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "YAHOO_FINANCE"
+        },
+        {
+          "message": "live FinMind fallback disabled; pass --allow-finmind-live or set TDT_RM_ALLOW_FINMIND_LIVE=true to opt in",
+          "provider": "FINMIND_FALLBACK"
+        }
+      ],
+      "final_decision": "block_pipeline",
+      "output_path": null,
+      "provider_used": null,
+      "reconciliation_checks": [],
+      "source_selected": null,
+      "status": "failed"
+    },
+    "options_provider": {
+      "attempts": [
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "options",
+          "failure_reason": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "metadata": {},
+          "output_path": null,
+          "provider": "TAIFEX_OFFICIAL",
+          "selected": false,
+          "status": "failed"
+        },
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "options",
+          "failure_reason": "live FinMind fallback disabled; pass --allow-finmind-live or set TDT_RM_ALLOW_FINMIND_LIVE=true to opt in",
+          "metadata": {},
+          "output_path": null,
+          "provider": "FINMIND_FALLBACK",
+          "selected": false,
+          "status": "failed"
+        }
+      ],
+      "dataset": "options",
+      "failed_providers": [
+        {
+          "message": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "TAIFEX_OFFICIAL"
+        },
+        {
+          "message": "live FinMind fallback disabled; pass --allow-finmind-live or set TDT_RM_ALLOW_FINMIND_LIVE=true to opt in",
+          "provider": "FINMIND_FALLBACK"
+        }
+      ],
+      "final_decision": "block_pipeline",
+      "output_path": null,
+      "provider_used": null,
+      "reconciliation_checks": [],
+      "source_selected": null,
+      "status": "failed"
+    },
+    "price_provider": {
+      "attempts": [
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "price",
+          "failure_reason": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "metadata": {},
+          "output_path": null,
+          "provider": "TWSE_OFFICIAL",
+          "selected": false,
+          "status": "failed"
+        },
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "price",
+          "failure_reason": "missing enabled Taiwan Index Plus price source config",
+          "metadata": {},
+          "output_path": null,
+          "provider": "TAIWAN_INDEX_PLUS_OFFICIAL",
+          "selected": false,
+          "status": "failed"
+        },
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "price",
+          "failure_reason": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+          "metadata": {},
+          "output_path": null,
+          "provider": "YAHOO_FINANCE",
+          "selected": false,
+          "status": "failed"
+        },
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "price",
+          "failure_reason": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+          "metadata": {},
+          "output_path": null,
+          "provider": "STOOQ",
+          "selected": false,
+          "status": "failed"
+        },
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "price",
+          "failure_reason": "live FinMind fallback disabled; pass --allow-finmind-live or set TDT_RM_ALLOW_FINMIND_LIVE=true to opt in",
+          "metadata": {},
+          "output_path": null,
+          "provider": "FINMIND_FALLBACK",
+          "selected": false,
+          "status": "failed"
+        }
+      ],
+      "dataset": "price",
+      "failed_providers": [
+        {
+          "message": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "TWSE_OFFICIAL"
+        },
+        {
+          "message": "missing enabled Taiwan Index Plus price source config",
+          "provider": "TAIWAN_INDEX_PLUS_OFFICIAL"
+        },
+        {
+          "message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "YAHOO_FINANCE"
+        },
+        {
+          "message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "STOOQ"
+        },
+        {
+          "message": "live FinMind fallback disabled; pass --allow-finmind-live or set TDT_RM_ALLOW_FINMIND_LIVE=true to opt in",
+          "provider": "FINMIND_FALLBACK"
+        }
+      ],
+      "final_decision": "block_pipeline",
+      "output_path": null,
+      "provider_used": null,
+      "reconciliation_checks": [],
+      "source_selected": null,
+      "status": "failed"
+    }
+  },
+  "summary": {
+    "fail_closed": true,
+    "failed_providers": [
+      "breadth_provider",
+      "foreign_flow_provider",
+      "futures_provider",
+      "fx_provider",
+      "leadership_provider",
+      "options_provider",
+      "price_provider"
+    ],
+    "healthy_providers": [],
+    "total_providers": 7,
+    "validation_failed": true
+  },
+  "validation_errors": [
+    "missing required CSV: /workspace/TDT-RM/inputs/daily/2026-06-04/_strict_provider_csvs/price.csv",
+    "missing required CSV: /workspace/TDT-RM/inputs/daily/2026-06-04/_strict_provider_csvs/foreign_flow.csv",
+    "missing required CSV: /workspace/TDT-RM/inputs/daily/2026-06-04/_strict_provider_csvs/fx.csv",
+    "missing required CSV: /workspace/TDT-RM/inputs/daily/2026-06-04/_strict_provider_csvs/breadth.csv",
+    "missing required CSV: /workspace/TDT-RM/inputs/daily/2026-06-04/_strict_provider_csvs/futures.csv",
+    "missing required CSV: /workspace/TDT-RM/inputs/daily/2026-06-04/_strict_provider_csvs/options.csv",
+    "missing required CSV: /workspace/TDT-RM/inputs/daily/2026-06-04/_strict_provider_csvs/leadership.csv"
+  ]
+}
