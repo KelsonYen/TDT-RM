@@ -8,8 +8,10 @@ on:
         required: false
         type: string
   schedule:
-    # 16:30 Asia/Taipei (08:30 UTC), Monday-Friday, after Taiwan market close.
-    - cron: "30 8 * * 1-5"
+    # 18:30 Asia/Taipei (10:30 UTC), Monday-Friday.
+    # This starts after the official same-day release windows for TWSE T86
+    # foreign-flow data and final TWSE end-of-day market reports.
+    - cron: "30 10 * * 1-5"
 
 permissions:
   contents: write
@@ -23,7 +25,7 @@ jobs:
   production-fetch:
     name: Fetch and validate production data
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 210
 
     steps:
       - name: Check out repository
@@ -73,10 +75,27 @@ jobs:
           if [[ -n "${FINMIND_TOKEN:-}" ]]; then
             extra_args+=(--allow-finmind-live)
           fi
-          python scripts/run_github_actions_production_fetch.py \
-            --trade-date "$TRADE_DATE" \
-            --source-config config/public_data_sources.json \
-            "${extra_args[@]}"
+
+          # Same-day official rows can appear after the first post-close run.
+          # Retry the whole fail-closed fetch/report command without weakening
+          # provider validation or accepting stale/synthetic data.
+          max_attempts=6
+          delay_seconds=1800
+          for attempt in $(seq 1 "$max_attempts"); do
+            echo "Production fetch attempt ${attempt}/${max_attempts} for ${TRADE_DATE}."
+            if python scripts/run_github_actions_production_fetch.py \
+              --trade-date "$TRADE_DATE" \
+              --source-config config/public_data_sources.json \
+              "${extra_args[@]}"; then
+              exit 0
+            fi
+            if [[ "$attempt" -eq "$max_attempts" ]]; then
+              echo "Production fetch remained fail-closed after ${max_attempts} attempts." >&2
+              exit 1
+            fi
+            echo "Official same-day rows may still be unpublished; retrying in ${delay_seconds} seconds."
+            sleep "$delay_seconds"
+          done
 
       - name: Commit production CSVs and reports
         shell: bash
