@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import traceback
 from datetime import UTC, date, datetime
@@ -92,12 +93,14 @@ def main() -> int:
     missing = [f"{dataset}.csv" for dataset, result in results.items() if dataset in DATASETS and not result.ok]
     provider_health = _provider_health_payload(results, args.trade_date, fetched_at, validation_errors)
     health_path.write_text(json.dumps(provider_health, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    finmind_status = _finmind_fallback_status(args.allow_finmind_live)
     summary = {
         "trade_date": args.trade_date.isoformat(),
         "fetched_at": fetched_at.isoformat().replace("+00:00", "Z"),
         "input_dir": str(input_dir),
         "provider_priority": list(_PROVIDER_PRIORITY),
         "finmind_live_enabled": bool(args.allow_finmind_live),
+        "finmind_fallback": finmind_status,
         "datasets": {dataset: result.as_dict() for dataset, result in results.items() if dataset in DATASETS},
         "missing_datasets": missing,
         "validation_errors": validation_errors,
@@ -115,6 +118,24 @@ def _normalize_dash_args(argv: list[str]) -> list[str]:
     """Accept copied commands that use Unicode en/em dashes before option names."""
 
     return [arg.replace("–", "--", 1).replace("—", "--", 1) if arg.startswith(("–", "—")) else arg for arg in argv]
+
+
+def _finmind_fallback_status(allow_finmind_live: bool) -> dict[str, Any]:
+    token_present = bool(os.environ.get("FINMIND_TOKEN"))
+    api_token_present = bool(os.environ.get("FINMIND_API_TOKEN"))
+    env_opt_in = os.environ.get("TDT_RM_ALLOW_FINMIND_LIVE", "").strip().lower() in {"1", "true", "yes", "y", "on"}
+    allowed = bool(allow_finmind_live or env_opt_in)
+    has_token = bool(token_present or api_token_present)
+    return {
+        "allow_finmind": allowed,
+        "finmind_token_present": token_present,
+        "finmind_api_token_present": api_token_present,
+        "token_present": has_token,
+        "skipped": not (allowed and has_token),
+        "skip_reason": "" if allowed and has_token else (
+            "missing FINMIND_TOKEN/FINMIND_API_TOKEN" if allowed else "allow_finmind false"
+        ),
+    }
 
 
 def _provider_chains(source_config: str | None) -> dict[str, tuple[object, ...]]:
@@ -223,6 +244,16 @@ def _print_summary(summary: Mapping[str, Any]) -> None:
             for failed in result.get("failed_providers", []) if isinstance(result.get("failed_providers"), list) else []:
                 if isinstance(failed, dict):
                     print(f"  failed {failed.get('provider')}: {failed.get('message')}")
+    finmind = summary.get("finmind_fallback")
+    if isinstance(finmind, dict):
+        print(
+            "finmind_fallback: "
+            f"allow_finmind={finmind.get('allow_finmind')} "
+            f"FINMIND_TOKEN_present={finmind.get('finmind_token_present')} "
+            f"FINMIND_API_TOKEN_present={finmind.get('finmind_api_token_present')} "
+            f"skipped={finmind.get('skipped')} "
+            f"skip_reason={finmind.get('skip_reason') or '-'}"
+        )
     print(f"overall_status: {summary.get('overall_status')}")
     missing = summary.get("missing_datasets")
     if missing:

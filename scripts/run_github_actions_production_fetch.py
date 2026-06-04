@@ -321,6 +321,7 @@ def _write_fetch_manifest(
         "production_ready": bool(status == "READY" and not missing_datasets and not validation_errors and not production_errors),
         "official_source_first": True,
         "finmind_live_enabled": bool(allow_finmind_live),
+        "finmind_fallback": _finmind_fallback_status(allow_finmind_live),
         "fail_closed": bool(status != "READY" or missing_datasets or validation_errors or production_errors),
         "blocking_error": blocking_error,
         "required_datasets": list(REQUIRED_DATASETS),
@@ -341,6 +342,23 @@ def _write_fetch_manifest(
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _finmind_fallback_status(allow_finmind_live: bool) -> dict[str, Any]:
+    token_present = bool(os.environ.get("FINMIND_TOKEN"))
+    api_token_present = bool(os.environ.get("FINMIND_API_TOKEN"))
+    allowed = bool(allow_finmind_live)
+    has_token = bool(token_present or api_token_present)
+    return {
+        "allow_finmind": allowed,
+        "finmind_token_present": token_present,
+        "finmind_api_token_present": api_token_present,
+        "token_present": has_token,
+        "fallback_skipped": not (allowed and has_token),
+        "skip_reason": "" if allowed and has_token else (
+            "missing FINMIND_TOKEN/FINMIND_API_TOKEN" if allowed else "allow_finmind false"
+        ),
+    }
 
 
 def _missing_datasets(fetch_summary: Mapping[str, Any], provider_csv_paths: Mapping[str, str]) -> list[str]:

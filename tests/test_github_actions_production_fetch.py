@@ -221,3 +221,32 @@ def test_fetch_manifest_attempt_diagnostics_classifies_http_auth_failure(tmp_pat
     assert attempt["parser_status"] == "not_reached"
     assert attempt["validation_status"] == "not_reached"
     assert attempt["failure_class"] == "auth/token"
+
+
+def test_fetch_manifest_finmind_fallback_status_reports_flags_without_secrets(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("FINMIND_TOKEN", raising=False)
+    monkeypatch.setenv("FINMIND_API_TOKEN", "api-token-secret")
+    outputs_manifest = tmp_path / "outputs" / AS_OF.isoformat() / "fetch_manifest.json"
+
+    write_fetch_manifest(
+        outputs_manifest,
+        AS_OF,
+        "NOT_READY",
+        tmp_path / "staging",
+        tmp_path / "inputs" / AS_OF.isoformat(),
+        tmp_path / "reports" / AS_OF.isoformat(),
+        tmp_path / "reports" / AS_OF.isoformat() / "artifacts",
+        tmp_path / "reports" / AS_OF.isoformat() / "artifacts" / "production_fetch_summary.json",
+        tmp_path / "reports" / AS_OF.isoformat() / "artifacts" / "provider_health.json",
+        tmp_path / "reports" / AS_OF.isoformat() / "artifacts" / "validation_report.json",
+        allow_finmind_live=False,
+        blocking_error="not ready",
+    )
+
+    manifest_text = outputs_manifest.read_text(encoding="utf-8")
+    manifest = json.loads(manifest_text)
+    assert manifest["finmind_fallback"]["allow_finmind"] is False
+    assert manifest["finmind_fallback"]["finmind_token_present"] is False
+    assert manifest["finmind_fallback"]["finmind_api_token_present"] is True
+    assert manifest["finmind_fallback"]["fallback_skipped"] is True
+    assert "api-token-secret" not in manifest_text

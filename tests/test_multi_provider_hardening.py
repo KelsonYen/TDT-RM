@@ -118,3 +118,18 @@ def test_provider_exception_artifacts_include_traceback(tmp_path: Path):
     assert raw["exception_class"] == "RuntimeError"
     assert raw["error"] == "network unavailable"
     assert "Traceback (most recent call last)" in raw["traceback"]
+
+
+def test_finmind_fallback_summary_reports_token_flags_without_secret_values(monkeypatch):
+    monkeypatch.delenv("FINMIND_TOKEN", raising=False)
+    monkeypatch.setenv("FINMIND_API_TOKEN", "api-token-secret")
+    monkeypatch.delenv("TDT_RM_ALLOW_FINMIND_LIVE", raising=False)
+
+    status = _FETCH_MODULE._finmind_fallback_status(False)
+
+    assert status["allow_finmind"] is False
+    assert status["finmind_token_present"] is False
+    assert status["finmind_api_token_present"] is True
+    assert status["token_present"] is True
+    assert status["skipped"] is True
+    assert "api-token-secret" not in str(status)
