@@ -29,6 +29,8 @@ if str(SCRIPTS_DIR) not in sys.path:
 from validate_daily_input_csvs import validate_daily_input_csvs  # noqa: E402
 
 FORBIDDEN_SOURCE_TYPES = {"demo", "mock", "synthetic", "fixture", "test", "sample", "stale", "local_csv_fallback", "local_json_fallback"}
+REQUIRED_DATASETS = ("price", "foreign_flow", "fx", "breadth", "futures", "options", "leadership", "margin")
+
 REQUIRED_PRODUCTION_FILES = (
     "taiex_price.csv",
     "twse_foreign_investor.csv",
@@ -65,6 +67,7 @@ def main() -> int:
     parser.add_argument("--trade-date", required=True, type=date.fromisoformat, help="Trade date YYYY-MM-DD.")
     parser.add_argument("--inputs-root", default="inputs/daily", help="Root for production input directories.")
     parser.add_argument("--reports-root", default="reports/daily", help="Root for dated production reports.")
+    parser.add_argument("--outputs-root", default="outputs/daily", help="Root for dated GitHub Actions fetch manifests and summaries.")
     parser.add_argument("--source-config", default="config/public_data_sources.json", help="Public provider source configuration.")
     parser.add_argument("--allow-finmind-live", action="store_true", help="Allow FinMind only as an explicit token-gated vendor fallback.")
     parser.add_argument("--skip-fetch", action="store_true", help="Testing hook: do not call live providers; consume an existing staging directory.")
@@ -75,6 +78,7 @@ def main() -> int:
     production_dir = REPO_ROOT / args.inputs_root / trade_date.isoformat()
     staging_dir = Path(args.staging_dir) if args.staging_dir else production_dir / "_strict_provider_csvs"
     reports_dir = REPO_ROOT / args.reports_root / trade_date.isoformat()
+    outputs_dir = REPO_ROOT / args.outputs_root / trade_date.isoformat()
     artifacts_dir = reports_dir / "artifacts"
     fetch_summary = artifacts_dir / "production_fetch_summary.json"
     provider_health = artifacts_dir / "provider_health.json"
@@ -82,7 +86,10 @@ def main() -> int:
     normalized_dir = artifacts_dir / "normalized"
     validation_report = artifacts_dir / "validation_report.json"
     run_summary = artifacts_dir / "run_summary.json"
+    fetch_manifest = outputs_dir / "fetch_manifest.json"
+    outputs_summary = outputs_dir / "summary.json"
 
+    outputs_dir.mkdir(parents=True, exist_ok=True)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     staging_dir.mkdir(parents=True, exist_ok=True)
     raw_dir.mkdir(parents=True, exist_ok=True)
@@ -109,8 +116,12 @@ def main() -> int:
 
         _run_daily_report(trade_date, staging_dir, reports_dir, artifacts_dir)
         _write_run_summary(run_summary, trade_date, "READY", production_dir, reports_dir, artifacts_dir, validation_report, fetch_summary, provider_health)
+        _write_fetch_manifest(fetch_manifest, trade_date, "READY", staging_dir, production_dir, reports_dir, artifacts_dir, fetch_summary, provider_health, validation_report, allow_finmind_live=allow_finmind_live)
+        _copy_if_exists(run_summary, outputs_summary)
     except Exception as exc:  # noqa: BLE001 - CLI must fail closed with exact blocking reason.
         _write_run_summary(run_summary, trade_date, "NOT_READY", production_dir, reports_dir, artifacts_dir, validation_report, fetch_summary, provider_health, blocking_error=str(exc))
+        _write_fetch_manifest(fetch_manifest, trade_date, "NOT_READY", staging_dir, production_dir, reports_dir, artifacts_dir, fetch_summary, provider_health, validation_report, allow_finmind_live=_production_finmind_live_allowed(args.allow_finmind_live), blocking_error=str(exc))
+        _copy_if_exists(run_summary, outputs_summary)
         print(f"ERROR GitHub Actions production fetch failed closed: {exc}", file=sys.stderr)
         return 1
 
@@ -118,18 +129,14 @@ def main() -> int:
     print(f"production_inputs: {production_dir}")
     print(f"reports: {reports_dir}")
     print(f"artifacts: {artifacts_dir}")
+    print(f"fetch_manifest: {fetch_manifest}")
     return 0
 
 
 def _production_finmind_live_allowed(cli_allowed: bool) -> bool:
     if cli_allowed:
         return True
-    env_allowed = os.environ.get("TDT_RM_ALLOW_FINMIND_LIVE", "").strip().lower() in {"1", "true", "yes", "y", "on"}
-    if env_allowed:
-        return True
-    production_mode = os.environ.get("TDT_RM_PRODUCTION_MODE", "").strip().lower() in {"1", "true", "yes", "y", "on"}
-    token_present = bool(os.environ.get("FINMIND_TOKEN") or os.environ.get("FINMIND_API_TOKEN"))
-    return production_mode and token_present
+    return os.environ.get("TDT_RM_ALLOW_FINMIND_LIVE", "").strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 def _run_fetchers(trade_date: date, staging_dir: Path, summary_path: Path, health_path: Path, source_config: str, allow_finmind_live: bool) -> None:
@@ -281,6 +288,108 @@ def _write_taifex_combined_file(trade_date: date, futures_path: Path, options_pa
     _write_csv(dest, CSV_SPECS["taifex_futures_options.csv"].required_columns + ("futures_net_short_increases", "futures_net_short_decreases"), row)
 
 
+
+def _write_fetch_manifest(
+    path: Path,
+    trade_date: date,
+    status: str,
+    staging_dir: Path,
+    production_dir: Path,
+    reports_dir: Path,
+    artifacts_dir: Path,
+    fetch_summary_path: Path,
+    provider_health_path: Path,
+    validation_report_path: Path,
+    *,
+    allow_finmind_live: bool,
+    blocking_error: str | None = None,
+) -> None:
+    fetch_summary = _load_json_if_exists(fetch_summary_path)
+    provider_health = _load_json_if_exists(provider_health_path)
+    validation_report = _load_json_if_exists(validation_report_path)
+    provider_csv_paths = {dataset: str(staging_dir / f"{dataset}.csv") for dataset in REQUIRED_DATASETS if (staging_dir / f"{dataset}.csv").exists()}
+    missing_datasets = _missing_datasets(fetch_summary, provider_csv_paths)
+    validation_errors = validation_report.get("staging_validation", {}).get("errors", []) if isinstance(validation_report.get("staging_validation"), dict) else []
+    production_errors = validation_report.get("production_validation", {}).get("errors", []) if isinstance(validation_report.get("production_validation"), dict) else []
+    failed_sources = _failed_source_names(provider_health)
+    payload = {
+        "as_of": trade_date.isoformat(),
+        "trade_date": trade_date.isoformat(),
+        "generated_at": datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "data_status": "READY" if status == "READY" and not missing_datasets and not validation_errors and not production_errors else "NOT_READY",
+        "pipeline_status": "passed" if status == "READY" else "failed",
+        "production_ready": bool(status == "READY" and not missing_datasets and not validation_errors and not production_errors),
+        "official_source_first": True,
+        "finmind_live_enabled": bool(allow_finmind_live),
+        "fail_closed": bool(status != "READY" or missing_datasets or validation_errors or production_errors),
+        "blocking_error": blocking_error,
+        "required_datasets": list(REQUIRED_DATASETS),
+        "provider_csv_paths": provider_csv_paths,
+        "missing_production_csvs": missing_datasets,
+        "failed_sources": failed_sources,
+        "stale_sources": [],
+        "source_attempts": _source_attempts(fetch_summary, provider_health),
+        "artifact_paths": {
+            "production_inputs": str(production_dir),
+            "reports": str(reports_dir),
+            "artifacts": str(artifacts_dir),
+            "production_fetch_summary": str(fetch_summary_path),
+            "provider_health": str(provider_health_path),
+            "validation_report": str(validation_report_path),
+            "fetch_manifest": str(path),
+        },
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _missing_datasets(fetch_summary: Mapping[str, Any], provider_csv_paths: Mapping[str, str]) -> list[str]:
+    summary_missing = fetch_summary.get("missing_datasets")
+    if isinstance(summary_missing, list) and summary_missing:
+        return [str(item).removesuffix(".csv") for item in summary_missing]
+    return [dataset for dataset in REQUIRED_DATASETS if dataset not in provider_csv_paths]
+
+
+def _source_attempts(fetch_summary: Mapping[str, Any], provider_health: Mapping[str, Any]) -> list[dict[str, Any]]:
+    attempts: list[dict[str, Any]] = []
+    datasets = fetch_summary.get("datasets")
+    if isinstance(datasets, dict):
+        for dataset, result in datasets.items():
+            if not isinstance(result, dict):
+                continue
+            provider_used = result.get("provider_used")
+            if provider_used:
+                attempts.append({"provider_category": dataset, "source_id": provider_used, "source_type": "provider", "success": True, "retry_attempts": len(result.get("failed_providers", [])) if isinstance(result.get("failed_providers"), list) else 0})
+            for failed in result.get("failed_providers", []) if isinstance(result.get("failed_providers"), list) else []:
+                if isinstance(failed, dict):
+                    attempts.append({"provider_category": dataset, "source_id": failed.get("provider"), "source_type": "provider", "success": False, "error": failed.get("message")})
+    providers = provider_health.get("providers")
+    if not attempts and isinstance(providers, dict):
+        for entry in providers.values():
+            if not isinstance(entry, dict):
+                continue
+            dataset = entry.get("dataset")
+            for attempt in entry.get("attempts", []) if isinstance(entry.get("attempts"), list) else []:
+                if isinstance(attempt, dict):
+                    attempts.append({"provider_category": dataset, "source_id": attempt.get("provider"), "source_type": "provider", "success": attempt.get("status") == "healthy"})
+    return attempts
+
+
+def _failed_source_names(provider_health: Mapping[str, Any]) -> list[str]:
+    summary = provider_health.get("summary")
+    if isinstance(summary, dict) and isinstance(summary.get("failed_providers"), list):
+        return [str(item) for item in summary["failed_providers"]]
+    return []
+
+
+def _load_json_if_exists(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 def _copy_if_exists(source: Path, dest: Path) -> None:
     if source.exists():

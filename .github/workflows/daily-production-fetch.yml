@@ -28,8 +28,9 @@ permissions:
 env:
   PYTHON_VERSION: "3.11"
   TDT_RM_PRODUCTION_MODE: "true"
-  TDT_RM_ALLOW_FINMIND_LIVE: ${{ (github.event_name == 'workflow_dispatch' && inputs.allow_finmind) && 'true' || '' }}
+  TDT_RM_ALLOW_FINMIND_LIVE: ${{ (github.event_name == 'workflow_dispatch' && inputs.allow_finmind) && 'true' || 'false' }}
   FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+  FINMIND_API_TOKEN: ${{ secrets.FINMIND_API_TOKEN }}
 
 jobs:
   production-fetch:
@@ -77,17 +78,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          finmind_args=()
-          if [[ -n "${FINMIND_TOKEN:-}" ]]; then
-            export TDT_RM_ALLOW_FINMIND_LIVE=true
-            finmind_args+=(--allow-finmind-live)
-            echo "FinMind fallback enabled for production because FINMIND_TOKEN is present."
+          if [[ "${TDT_RM_ALLOW_FINMIND_LIVE:-false}" == "true" ]]; then
+            if [[ -z "${FINMIND_TOKEN:-}" && -z "${FINMIND_API_TOKEN:-}" ]]; then
+              echo "allow_finmind=true requires FINMIND_TOKEN or FINMIND_API_TOKEN GitHub Secret." >&2
+              exit 1
+            fi
+            echo "FinMind fallback enabled for production because allow_finmind=true and a token secret is present."
           else
-            echo "FinMind fallback unavailable for production: FINMIND_TOKEN is missing; provider chain remains fail-closed if official endpoints fail." >&2
+            echo "FinMind fallback disabled; official-source-first provider chain must complete without live FinMind fallback."
           fi
-          python scripts/run_github_actions_production_fetch.py \
-            --trade-date "$AS_OF" \
-            "${finmind_args[@]}"
+          python scripts/run_github_actions_production_fetch.py --trade-date "$AS_OF"
 
       - name: Write GitHub step summary
         if: always()
@@ -102,7 +102,7 @@ jobs:
           as_of = os.environ["AS_OF"]
           input_dir = Path("inputs/daily") / as_of
           output_dir = Path("outputs/daily") / as_of
-          manifest_path = input_dir / "fetch_manifest.json"
+          manifest_path = output_dir / "fetch_manifest.json"
           summary_path = output_dir / "summary.json"
           required = ["price", "foreign_flow", "fx", "breadth", "futures", "options", "leadership", "margin"]
 
@@ -165,7 +165,7 @@ jobs:
             inputs/daily/${{ steps.as-of.outputs.as_of }}/
             outputs/daily/${{ steps.as-of.outputs.as_of }}/
             reports/daily/${{ steps.as-of.outputs.as_of }}/
-            inputs/daily/${{ steps.as-of.outputs.as_of }}/fetch_manifest.json
+            outputs/daily/${{ steps.as-of.outputs.as_of }}/fetch_manifest.json
             outputs/daily/${{ steps.as-of.outputs.as_of }}/summary.json
           if-no-files-found: warn
           retention-days: 90
