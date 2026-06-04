@@ -28,7 +28,7 @@ permissions:
 env:
   PYTHON_VERSION: "3.11"
   TDT_RM_PRODUCTION_MODE: "true"
-  TDT_RM_ALLOW_FINMIND_LIVE: ${{ (github.event_name == 'workflow_dispatch' && inputs.allow_finmind) && 'true' || 'false' }}
+  TDT_RM_ALLOW_FINMIND_LIVE: ${{ (github.event_name == 'workflow_dispatch' && inputs.allow_finmind) && 'true' || '' }}
   FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
 
 jobs:
@@ -77,12 +77,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python scripts/fetch_daily_provider_csvs.py \
-            --as-of "$AS_OF" \
-            --output-dir "inputs/daily/$AS_OF/" \
-            --run-pipeline \
-            --pipeline-output-dir "outputs/daily/$AS_OF/" \
-            --json-summary "outputs/daily/$AS_OF/summary.json"
+          finmind_args=()
+          if [[ -n "${FINMIND_TOKEN:-}" ]]; then
+            export TDT_RM_ALLOW_FINMIND_LIVE=true
+            finmind_args+=(--allow-finmind-live)
+            echo "FinMind fallback enabled for production because FINMIND_TOKEN is present."
+          else
+            echo "FinMind fallback unavailable for production: FINMIND_TOKEN is missing; provider chain remains fail-closed if official endpoints fail." >&2
+          fi
+          python scripts/run_github_actions_production_fetch.py \
+            --trade-date "$AS_OF" \
+            "${finmind_args[@]}"
 
       - name: Write GitHub step summary
         if: always()
@@ -159,6 +164,7 @@ jobs:
           path: |
             inputs/daily/${{ steps.as-of.outputs.as_of }}/
             outputs/daily/${{ steps.as-of.outputs.as_of }}/
+            reports/daily/${{ steps.as-of.outputs.as_of }}/
             inputs/daily/${{ steps.as-of.outputs.as_of }}/fetch_manifest.json
             outputs/daily/${{ steps.as-of.outputs.as_of }}/summary.json
           if-no-files-found: warn

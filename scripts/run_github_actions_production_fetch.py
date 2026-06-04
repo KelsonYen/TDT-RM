@@ -89,8 +89,9 @@ def main() -> int:
     normalized_dir.mkdir(parents=True, exist_ok=True)
 
     try:
+        allow_finmind_live = _production_finmind_live_allowed(args.allow_finmind_live)
         if not args.skip_fetch:
-            _run_fetchers(trade_date, staging_dir, fetch_summary, provider_health, args.source_config, args.allow_finmind_live)
+            _run_fetchers(trade_date, staging_dir, fetch_summary, provider_health, args.source_config, allow_finmind_live)
         _copy_if_exists(fetch_summary, raw_dir / fetch_summary.name)
         _copy_if_exists(provider_health, raw_dir / provider_health.name)
 
@@ -120,6 +121,17 @@ def main() -> int:
     return 0
 
 
+def _production_finmind_live_allowed(cli_allowed: bool) -> bool:
+    if cli_allowed:
+        return True
+    env_allowed = os.environ.get("TDT_RM_ALLOW_FINMIND_LIVE", "").strip().lower() in {"1", "true", "yes", "y", "on"}
+    if env_allowed:
+        return True
+    production_mode = os.environ.get("TDT_RM_PRODUCTION_MODE", "").strip().lower() in {"1", "true", "yes", "y", "on"}
+    token_present = bool(os.environ.get("FINMIND_TOKEN") or os.environ.get("FINMIND_API_TOKEN"))
+    return production_mode and token_present
+
+
 def _run_fetchers(trade_date: date, staging_dir: Path, summary_path: Path, health_path: Path, source_config: str, allow_finmind_live: bool) -> None:
     cmd = [
         sys.executable,
@@ -137,8 +149,9 @@ def _run_fetchers(trade_date: date, staging_dir: Path, summary_path: Path, healt
         "--validate",
     ]
     if allow_finmind_live:
-        if not os.environ.get("FINMIND_TOKEN"):
-            raise RuntimeError("FINMIND_TOKEN secret is required before enabling FinMind fallback")
+        if not (os.environ.get("FINMIND_TOKEN") or os.environ.get("FINMIND_API_TOKEN")):
+            raise RuntimeError("FinMind fallback requested but FINMIND_TOKEN/FINMIND_API_TOKEN is missing")
+        os.environ["TDT_RM_ALLOW_FINMIND_LIVE"] = "true"
         cmd.append("--allow-finmind-live")
     _run(cmd, "production provider fetchers")
 

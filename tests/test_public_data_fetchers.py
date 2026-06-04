@@ -412,3 +412,73 @@ def test_finmind_sources_are_disabled_unless_explicitly_allowed(monkeypatch):
 
     monkeypatch.setenv("TDT_RM_ALLOW_FINMIND_LIVE", "true")
     assert PublicDataFetcherRegistry.from_config(config).source_ids() == ("finmind_price",)
+
+
+def _taifex_options_source_config():
+    return {
+        "source_id": "taifex_txo_options",
+        "source_name": "TAIFEX TXO options PCR and VIX",
+        "provider_category": "options",
+        "adapter": "taifex_txo_options",
+        "endpoint_url_templates": [
+            "https://openapi.taifex.com.tw/v1/PutCallRatio",
+            "https://openapi.taifex.com.tw/v1/TAIFEXVIX",
+        ],
+    }
+
+
+def _option_payload_for_url(url: str):
+    if "PutCallRatio" in url:
+        return [{"Date": AS_OF.isoformat(), "Put/Call Ratio": "1.15", "Put Volume": "1150", "Call Volume": "1000"}]
+    if "TAIFEXVIX" in url:
+        return [{"Date": AS_OF.isoformat(), "TAIFEX VIX": "21.5"}]
+    raise AssertionError(url)
+
+
+@pytest.mark.parametrize(
+    ("failing_endpoint", "expected_fields", "expected_issue_count"),
+    [
+        ("TAIFEXVIX", {"txo_put_call_ratio", "txo_put_volume", "txo_call_volume"}, 1),
+        ("PutCallRatio", {"taifex_vix"}, 1),
+        (None, {"txo_put_call_ratio", "txo_put_volume", "txo_call_volume", "taifex_vix"}, 0),
+    ],
+)
+def test_taifex_options_fetch_preserves_successful_endpoint_when_peer_endpoint_fails(monkeypatch, failing_endpoint, expected_fields, expected_issue_count):
+    from tdt_rm import public_data_fetchers as fetchers
+    from tdt_rm.public_data_fetchers import TAIFEXTXOOptionsSource
+
+    def fake_fetch_any_payload(config, context):
+        url = str(config.get("endpoint_url_template"))
+        if failing_endpoint and failing_endpoint in url:
+            raise RuntimeError(f"{failing_endpoint} unavailable")
+        return _option_payload_for_url(url)
+
+    monkeypatch.setattr(fetchers, "_fetch_any_payload", fake_fetch_any_payload)
+
+    result = TAIFEXTXOOptionsSource(_taifex_options_source_config()).fetch(PublicDataFetchContext(as_of=AS_OF))
+
+    assert result.success
+    assert {field for field in expected_fields if field in result.rows[0]} == expected_fields
+    assert len(result.issues) == expected_issue_count
+    endpoint_statuses = result.raw_metadata["endpoints"]
+    assert len(endpoint_statuses) == 2
+    if failing_endpoint:
+        failed = [item for item in endpoint_statuses if failing_endpoint in item["endpoint"]]
+        assert failed and failed[0]["status"] == "failed"
+
+
+def test_taifex_options_fetch_fails_when_both_endpoints_fail(monkeypatch):
+    from tdt_rm import public_data_fetchers as fetchers
+    from tdt_rm.public_data_fetchers import TAIFEXTXOOptionsSource
+
+    def fake_fetch_any_payload(config, context):
+        raise RuntimeError(f"{config.get('endpoint_url_template')} unavailable")
+
+    monkeypatch.setattr(fetchers, "_fetch_any_payload", fake_fetch_any_payload)
+
+    result = TAIFEXTXOOptionsSource(_taifex_options_source_config()).fetch(PublicDataFetchContext(as_of=AS_OF))
+
+    assert not result.success
+    assert result.status == "failed"
+    assert [item["status"] for item in result.raw_metadata["endpoints"]] == ["failed", "failed"]
+    assert any(issue.code == "row_missing" for issue in result.issues)

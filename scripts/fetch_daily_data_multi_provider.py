@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import traceback
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -161,9 +162,10 @@ def _fetch_dataset(dataset: str, providers: Iterable[object], context: ProviderC
             health.append(ProviderHealth(name, dataset, "healthy", selected=True, output_path=str(path), checks=checks, metadata=result.raw_metadata))
             return DatasetFetchResult(dataset, "success", provider_used=result.provider, output_path=str(path), failed_providers=tuple(failures), provider_health=tuple(health), reconciliation_checks=checks)
         except Exception as exc:  # noqa: BLE001 - fail closed for this provider, then advance to next provider.
-            _write_raw_provider_file(input_dir, dataset, name, "failed", {"error": str(exc), "exception_class": exc.__class__.__name__})
+            diagnostics = {"error": str(exc), "exception_class": exc.__class__.__name__, "traceback": traceback.format_exc()}
+            _write_raw_provider_file(input_dir, dataset, name, "failed", diagnostics)
             failures.append(ProviderError(name, str(exc)))
-            health.append(ProviderHealth(name, dataset, "failed", failure_reason=str(exc)))
+            health.append(ProviderHealth(name, dataset, "failed", failure_reason=str(exc), metadata=diagnostics))
     return DatasetFetchResult(dataset, "failed", failed_providers=tuple(failures), provider_health=tuple(health), validation_errors=(f"all providers failed for {dataset}",))
 
 
