@@ -24,6 +24,9 @@ jobs:
           python-version: "3.11"
 
       - name: Run connectivity audit
+        env:
+          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+          FINMIND_API_TOKEN: ${{ secrets.FINMIND_API_TOKEN }}
         run: python scripts/audit_market_data_connectivity.py --output-dir outputs/production_data_connectivity_audit --repeat 2
 
       - name: Publish connectivity audit summary
