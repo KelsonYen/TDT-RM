@@ -1629,6 +1629,10 @@ def _parse_t86_foreign_flow(payload: Any, as_of: date) -> dict[str, Any] | None:
                 "外陸資買賣超股數(不含外資自營商)",
                 "外資及陸資買賣超股數(不含自營商)",
                 "外資及陸資買賣超股數(不含外資自營商)",
+                "外資及陸資(不含自營商)買賣超股數",
+                "外資及陸資(不含外資自營商)買賣超股數",
+                "外陸資(不含自營商)買賣超股數",
+                "外陸資(不含外資自營商)買賣超股數",
                 "外資及陸資買賣超股數",
                 "外陸資買賣超股數",
                 "Foreign_Investor_Buy_Sell_Difference",
@@ -1636,6 +1640,39 @@ def _parse_t86_foreign_flow(payload: Any, as_of: date) -> dict[str, Any] | None:
                 "foreign_spot_net_buy",
             )
         )
+        if net is None:
+            buy = _to_float(
+                _first(
+                    row,
+                    "外陸資買進股數(不含自營商)",
+                    "外陸資買進股數(不含外資自營商)",
+                    "外資及陸資買進股數(不含自營商)",
+                    "外資及陸資買進股數(不含外資自營商)",
+                    "外資及陸資(不含自營商)買進股數",
+                    "外資及陸資(不含外資自營商)買進股數",
+                    "外陸資(不含自營商)買進股數",
+                    "外陸資(不含外資自營商)買進股數",
+                    "Foreign_Investor_Buy",
+                    "Foreign Investor Buy",
+                )
+            )
+            sell = _to_float(
+                _first(
+                    row,
+                    "外陸資賣出股數(不含自營商)",
+                    "外陸資賣出股數(不含外資自營商)",
+                    "外資及陸資賣出股數(不含自營商)",
+                    "外資及陸資賣出股數(不含外資自營商)",
+                    "外資及陸資(不含自營商)賣出股數",
+                    "外資及陸資(不含外資自營商)賣出股數",
+                    "外陸資(不含自營商)賣出股數",
+                    "外陸資(不含外資自營商)賣出股數",
+                    "Foreign_Investor_Sell",
+                    "Foreign Investor Sell",
+                )
+            )
+            if buy is not None and sell is not None:
+                net = buy - sell
         if net is not None:
             net_values.append(net)
     if not net_values:
@@ -1738,6 +1775,8 @@ def _payload_rows(payload: Any) -> list[Mapping[str, Any]]:
     if isinstance(payload, Mapping):
         rows = list(_table_rows(payload))
         if not rows:
+            rows = _numbered_table_rows(payload)
+        if not rows:
             for rows_path in ("data", "DataSet", "dataset", "Dataset", "rows", "items"):
                 rows = _extract_rows(payload, {"rows_path": rows_path})
                 if rows:
@@ -1745,6 +1784,26 @@ def _payload_rows(payload: Any) -> list[Mapping[str, Any]]:
     elif isinstance(payload, list):
         rows = payload
     return _flatten_mapping_rows(rows)
+
+
+def _numbered_table_rows(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    output: list[Mapping[str, Any]] = []
+    numbered_keys = sorted(
+        (key for key in payload if re.fullmatch(r"data\d+", str(key))),
+        key=lambda item: int(str(item)[4:]),
+    )
+    for data_key in numbered_keys:
+        data = payload.get(data_key)
+        fields = payload.get(f"fields{str(data_key)[4:]}")
+        if not isinstance(data, list) or not isinstance(fields, list):
+            continue
+        field_names = [str(field) for field in fields]
+        for raw_row in data:
+            if isinstance(raw_row, Mapping):
+                output.append(raw_row)
+            elif isinstance(raw_row, list):
+                output.append(_row_from_fields(field_names, raw_row))
+    return output
 
 
 def _flatten_mapping_rows(rows: Any) -> list[Mapping[str, Any]]:

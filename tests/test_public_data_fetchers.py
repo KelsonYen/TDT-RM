@@ -583,3 +583,29 @@ def test_taifex_nested_list_payload_flattens_to_mapping_rows_only():
     rows = _payload_rows([[{"ContractCode": "TXF"}, {"ContractCode": "MXF"}], "ignored", [[{"ContractCode": "TXO"}]]])
 
     assert rows == [{"ContractCode": "TXF"}, {"ContractCode": "MXF"}, {"ContractCode": "TXO"}]
+
+
+def test_twse_t86_20260603_parenthesized_foreign_flow_fixture_parses():
+    from tdt_rm.public_data_fetchers import _parse_t86_foreign_flow
+
+    payload = json.loads((FIXTURE_DIR / "twse_t86_20260603_response.json").read_text(encoding="utf-8"))
+    trade_date = date(2026, 6, 3)
+    row = _parse_t86_foreign_flow(payload, trade_date)
+
+    assert row is not None
+    assert row["date"] == trade_date.isoformat()
+    assert row["foreign_spot_net_buy"] == 10000.0
+    assert row["foreign_spot_net_sell"] is False
+
+
+def test_twse_mi_index_20260603_numbered_breadth_fixture_parses():
+    from tdt_rm.public_data_fetchers import _parse_twse_breadth
+
+    payload = json.loads((FIXTURE_DIR / "twse_mi_index_breadth_20260603_response.json").read_text(encoding="utf-8"))
+    trade_date = date(2026, 6, 3)
+    row = _parse_twse_breadth(payload, trade_date)
+
+    assert row is not None
+    assert row["date"] == trade_date.isoformat()
+    assert row["advancing_issues"] == 13691
+    assert row["declining_issues"] == 3215
