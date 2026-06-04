@@ -25,7 +25,7 @@ from typing import Any, Mapping, Protocol, Sequence
 from .market_data import MarketPriceBar, derive_price_features
 
 _REQUIRED_PROVIDER_CATEGORIES = {"price"}
-_PRODUCTION_REQUIRED_PROVIDER_CATEGORIES = ("price", "foreign_flow", "fx", "breadth", "futures", "options", "leadership")
+_PRODUCTION_REQUIRED_PROVIDER_CATEGORIES = ("price", "foreign_flow", "fx", "breadth", "futures", "options", "leadership", "margin")
 _DEFAULT_OPTIONAL_CATEGORIES = ("foreign_flow", "fx", "breadth", "futures", "options", "leadership", "margin", "scores")
 _PROVIDER_CSV_NAMES = {
     "price": "price.csv",
@@ -187,6 +187,8 @@ class PublicDataFetcherRegistry:
                 sources.append(CBCDailyFXSource(item))
             elif adapter == "twse_mi_index_breadth":
                 sources.append(TWSEMarketBreadthSource(item))
+            elif adapter == "twse_margin":
+                sources.append(TWSEMarginSource(item))
             elif adapter == "taifex_txf_futures":
                 sources.append(TAIFEXTXFFuturesSource(item))
             elif adapter == "taifex_txo_options":
@@ -802,6 +804,58 @@ class TWSEMarketBreadthSource:
 
 
 @dataclass(frozen=True)
+class TWSEMarginSource:
+    """Official TWSE MI_MARGN margin-balance parser."""
+
+    config: Mapping[str, Any]
+
+    @property
+    def source_id(self) -> str:
+        return str(self.config.get("source_id") or "twse_margin")
+
+    @property
+    def source_name(self) -> str:
+        return str(self.config.get("source_name") or "TWSE MI_MARGN margin balance")
+
+    @property
+    def provider_category(self) -> str:
+        return "margin"
+
+    def fetch(self, context: PublicDataFetchContext) -> PublicDataFetchResult:
+        retrieved_at = context.retrieved_at.isoformat()
+        try:
+            lookback_days = int(self.config.get("lookback_days", 14) or 14)
+            points_by_day: dict[date, float] = {}
+            for offset in range(lookback_days + 1):
+                observed = context.as_of - timedelta(days=offset)
+                payload = _fetch_any_payload(self.config, replace(context, as_of=observed))
+                balance = _parse_twse_margin_balance(payload)
+                if balance is not None:
+                    points_by_day[observed] = balance
+            points = sorted((day, balance) for day, balance in points_by_day.items() if day <= context.as_of)
+            if len(points) < 6 or points[-1][0] != context.as_of:
+                latest = points[-1][0].isoformat() if points else "none"
+                return _result(self, "unavailable", (_issue(self, "warning", "row_missing", f"TWSE MI_MARGN has {len(points)} usable observations through {latest}; need current as-of row plus 5 prior trading observations for {context.as_of.isoformat()}"),), retrieved_at=retrieved_at, metadata={"endpoint": _render_url(self.config, context), "observations": len(points), "latest_observation": latest})
+            current = points[-1][1]
+            previous = points[-2][1]
+            prior5 = points[-6][1]
+            decline_pct = ((prior5 - current) / prior5 * 100.0) if prior5 else 0.0
+            row = {
+                "date": context.as_of.isoformat(),
+                "margin_balance_5d_flat_or_down": current <= previous,
+                "hot_stock_margin_fast_increase": False,
+                "margin_balance_5d_increases": current > previous,
+                "index_5d_return_pct": 0.0,
+                "margin_balance_5d_decline_pct": max(0.0, decline_pct),
+                "margin_not_retreating": current >= prior5,
+            }
+            normalized = _normalize_provider_row("margin", row, context.as_of)
+            return _result(self, "success", retrieved_at=retrieved_at, rows=(normalized,), canonical=normalized, metadata={"endpoint": _render_url(self.config, context), "observations": len(points), "latest_margin_balance": current, "prior_5_observation_date": points[-6][0].isoformat(), "official_source": "TWSE MI_MARGN"})
+        except Exception as exc:  # noqa: BLE001
+            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"exception_class": exc.__class__.__name__, "exception_message": str(exc), "endpoint": _render_url(self.config, context)})
+
+
+@dataclass(frozen=True)
 class TAIFEXTXFFuturesSource:
     """Official TAIFEX daily market report parser for TAIEX futures."""
 
@@ -1304,7 +1358,7 @@ def _fetch_any_payload(config: Mapping[str, Any], context: PublicDataFetchContex
 
 _REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
 _DEFAULT_MAX_REDIRECTS = 5
-_TWSE_OFFICIAL_REDIRECT_HOSTS = {"www.twse.com.tw", "openapi.twse.com.tw"}
+_TWSE_OFFICIAL_REDIRECT_HOSTS = {"www.twse.com.tw", "wwwc.twse.com.tw", "openapi.twse.com.tw"}
 
 
 def _fetch_url_text(config: Mapping[str, Any], context: PublicDataFetchContext, url: str, *, accept: str) -> str:
@@ -1388,6 +1442,72 @@ def _parse_fmtqik_price_bars(payload: Any, as_of: date) -> list[MarketPriceBar]:
         if close is not None:
             bars.append(MarketPriceBar(observed_at=observed, close=close, turnover_amount=turnover or 0.0))
     return bars
+
+
+def _parse_twse_margin_balance(payload: Any) -> float | None:
+    rows = _payload_rows(payload)
+    if not rows:
+        return None
+    total_values: list[float] = []
+    financing_values: list[float] = []
+    row_values: list[float] = []
+    for row in rows:
+        value = _to_float(_first(row, "MarginPurchaseTodayBalance", "Margin Purchase Today Balance", "融資今日餘額", "融資餘額", "今日餘額", "TodayBalance"))
+        if value is None:
+            continue
+        label = str(_first(row, "股票代號", "證券代號", "項目", "Name", "name") or "")
+        normalized_label = re.sub(r"\s+", "", label)
+        if any(token in normalized_label for token in ("合計", "總計", "Total", "total")):
+            total_values.append(value)
+        elif _is_margin_financing_balance_label(normalized_label):
+            financing_values.append(value)
+        else:
+            row_values.append(value)
+    values = total_values or financing_values or row_values
+    return sum(values) if values else None
+
+
+def _is_margin_financing_balance_label(label: str) -> bool:
+    lower = label.lower()
+    if "融券" in label or "short" in lower:
+        return False
+    if "金額" in label or "amount" in lower:
+        return False
+    return "融資" in label or ("margin" in lower and "purchase" in lower)
+
+
+def _table_rows(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    output: list[Mapping[str, Any]] = []
+    tables = payload.get("tables")
+    if not isinstance(tables, list):
+        return output
+    for table in tables:
+        if not isinstance(table, Mapping):
+            continue
+        fields = table.get("fields")
+        data = table.get("data")
+        if not isinstance(fields, list) or not isinstance(data, list):
+            continue
+        field_names = [str(field) for field in fields]
+        for raw_row in data:
+            if isinstance(raw_row, Mapping):
+                output.append(raw_row)
+            elif isinstance(raw_row, list):
+                output.append(_row_from_fields(field_names, raw_row))
+    return output
+
+
+def _row_from_fields(fields: Sequence[str], values: Sequence[Any]) -> dict[str, Any]:
+    counts: dict[str, int] = {}
+    row: dict[str, Any] = {}
+    for index, field in enumerate(fields):
+        if index >= len(values):
+            break
+        count = counts.get(field, 0) + 1
+        counts[field] = count
+        key = field if count == 1 else f"{field}_{count}"
+        row[key] = values[index]
+    return row
 
 
 def _parse_t86_foreign_flow(payload: Any, as_of: date) -> dict[str, Any] | None:
@@ -1488,10 +1608,12 @@ def _payload_rows(payload: Any) -> list[Mapping[str, Any]]:
         return _html_table_rows(str(payload.get("_text") or ""))
     rows = []
     if isinstance(payload, Mapping):
-        for rows_path in ("data", "DataSet", "dataset", "Dataset", "rows", "items"):
-            rows = _extract_rows(payload, {"rows_path": rows_path})
-            if rows:
-                break
+        rows = _table_rows(payload)
+        if not rows:
+            for rows_path in ("data", "DataSet", "dataset", "Dataset", "rows", "items"):
+                rows = _extract_rows(payload, {"rows_path": rows_path})
+                if rows:
+                    break
     elif isinstance(payload, list):
         rows = payload
     if isinstance(rows, list):

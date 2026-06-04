@@ -175,6 +175,7 @@ def main() -> int:
         ("futures.csv", lambda: build_futures(client, trade_date, start, fetched_at)),
         ("options.csv", lambda: build_options(client, trade_date, start, fetched_at)),
         ("leadership.csv", lambda: build_leadership(client, trade_date, start, fetched_at, main7)),
+        ("margin.csv", lambda: build_margin(client, trade_date, start, fetched_at)),
     )
     for filename, fetcher in fetchers:
         try:
@@ -377,6 +378,32 @@ def build_breadth(client: FinMindClient, trade_date: date, start: date, fetched_
     return row, "TaiwanStockPrice:listed_universe"
 
 
+def build_margin(client: FinMindClient, trade_date: date, start: date, fetched_at: str) -> tuple[dict[str, Any], str]:
+    rows = client.get("TaiwanStockTotalMarginPurchaseShortSale", start_date=start, end_date=trade_date)
+    points: list[tuple[date, float]] = []
+    for item in rows:
+        balance = first(item, "MarginPurchaseTodayBalance", "margin_purchase_today_balance", "TodayBalance", "融資今日餘額")
+        if balance is None:
+            continue
+        points.append((parse_row_date(item), to_float(balance)))
+    points = sorted((day, value) for day, value in points if day <= trade_date)
+    if len(points) < 6 or points[-1][0] != trade_date:
+        raise RuntimeError("market margin balance rows missing for trade date or 5-day lookback")
+    current = points[-1][1]
+    previous = points[-2][1]
+    prior5 = nth_prior(points, 5)
+    decline_pct = ((prior5 - current) / prior5 * 100.0) if prior5 else 0.0
+    row = base_row(trade_date, fetched_at)
+    row.update({
+        "margin_balance_5d_flat_or_down": current <= previous,
+        "hot_stock_margin_fast_increase": False,
+        "margin_balance_5d_increases": current > previous,
+        "index_5d_return_pct": 0.0,
+        "margin_balance_5d_decline_pct": max(0.0, decline_pct),
+        "margin_not_retreating": current >= prior5,
+    })
+    return row, "TaiwanStockTotalMarginPurchaseShortSale"
+
 def build_futures(client: FinMindClient, trade_date: date, start: date, fetched_at: str) -> tuple[dict[str, Any], str]:
     rows = client.get("TaiwanFuturesDaily", start_date=start, end_date=trade_date, data_id="TX")
     points = sorted((parse_row_date(row), to_float(first(row, "open_interest", "open_interest_volume", "未沖銷契約數", "trading_volume"))) for row in rows if first(row, "open_interest", "open_interest_volume", "未沖銷契約數", "trading_volume") is not None)
@@ -501,6 +528,7 @@ def print_fetch_result(statuses: Iterable[DatasetStatus]) -> None:
         "futures.csv": "Futures",
         "options.csv": "Options",
         "leadership.csv": "Leadership",
+        "margin.csv": "Margin",
     }
     print("FINMIND DATA FETCH RESULT")
     print()
