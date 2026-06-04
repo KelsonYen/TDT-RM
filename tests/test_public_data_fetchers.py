@@ -482,3 +482,71 @@ def test_taifex_options_fetch_fails_when_both_endpoints_fail(monkeypatch):
     assert result.status == "failed"
     assert [item["status"] for item in result.raw_metadata["endpoints"]] == ["failed", "failed"]
     assert any(issue.code == "row_missing" for issue in result.issues)
+
+
+def test_twse_t86_compact_foreign_flow_alias_parses_non_null():
+    from tdt_rm.public_data_fetchers import _parse_t86_foreign_flow
+
+    row = _parse_t86_foreign_flow(
+        {"data": [{"證券代號": "2330", "外陸資買賣超股數(不含自營商)": "1,234"}]},
+        AS_OF,
+    )
+
+    assert row is not None
+    assert row["foreign_spot_net_buy"] == 1234.0
+    assert row["foreign_spot_net_sell"] is False
+
+
+def test_twse_mi_index_breadth_type_rows_parse_market_and_stock_counts():
+    from tdt_rm.public_data_fetchers import _parse_twse_breadth
+
+    row = _parse_twse_breadth(
+        {
+            "data": [
+                {"類型": "上漲", "整體市場": "634", "股票": "611"},
+                {"類型": "下跌", "整體市場": "311", "股票": "298"},
+            ]
+        },
+        AS_OF,
+    )
+
+    assert row is not None
+    assert row["advancing_issues"] == 634
+    assert row["declining_issues"] == 311
+
+
+def test_taifex_nested_daily_market_report_fut_parses_txf_row():
+    from tdt_rm.public_data_fetchers import _parse_taifex_futures
+
+    row = _parse_taifex_futures(
+        [[{"ContractCode": "TXF", "Close": "21,000", "SettlementPrice": "21,010", "Volume": "12,345", "OpenInterest": "67,890"}]],
+        AS_OF,
+    )
+
+    assert row is not None
+    assert row["txf_close"] == 21000.0
+    assert row["txf_settlement"] == 21010.0
+    assert row["txf_volume"] == 12345.0
+    assert row["txf_open_interest"] == 67890.0
+    assert row["futures_source_contract"] == "TXF"
+
+
+def test_taifex_put_call_ratio_compact_fields_parse_pcr():
+    from tdt_rm.public_data_fetchers import _parse_taifex_options
+
+    row = _parse_taifex_options(
+        [{"PutCallVolumeRatio": "118.25", "PutVolume": "11825", "CallVolume": "10000"}],
+        AS_OF,
+    )
+
+    assert row["txo_put_call_ratio"] == 118.25
+    assert row["txo_put_volume"] == 11825.0
+    assert row["txo_call_volume"] == 10000.0
+
+
+def test_taifex_nested_list_payload_flattens_to_mapping_rows_only():
+    from tdt_rm.public_data_fetchers import _payload_rows
+
+    rows = _payload_rows([[{"ContractCode": "TXF"}, {"ContractCode": "MXF"}], "ignored", [[{"ContractCode": "TXO"}]]])
+
+    assert rows == [{"ContractCode": "TXF"}, {"ContractCode": "MXF"}, {"ContractCode": "TXO"}]
