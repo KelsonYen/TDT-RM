@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from tdt_rm.daily_pipeline import run_daily_pipeline
-from tdt_rm.public_data_fetchers import PublicDataFetchContext, PublicDataFetcherRegistry, write_provider_csvs
+from tdt_rm.public_data_fetchers import CBCDailyFXSource, PublicDataFetchContext, PublicDataFetcherRegistry, write_provider_csvs
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "public_data"
 AS_OF = date(2026, 6, 2)
@@ -190,3 +190,24 @@ def test_production_required_provider_csvs_are_generated_from_official_parser_fi
     assert set(written.provider_csv_paths) >= {"price", "foreign_flow", "fx", "breadth", "futures", "options", "leadership"}
     assert Path(written.provider_csv_paths["futures"]).name == "futures.csv"
     assert Path(written.provider_csv_paths["options"]).name == "options.csv"
+
+
+def test_cbc_daily_fx_parser_generates_official_fx_fields():
+    source = CBCDailyFXSource(
+        {
+            "source_id": "cbc_daily_fx",
+            "source_name": "CBC daily FX",
+            "provider_category": "fx",
+            "adapter": "cbc_daily_fx",
+            "fixture_path": str(FIXTURE_DIR / "cbc_fx_response.json"),
+            "source_type": "cbc_official_json",
+        }
+    )
+
+    result = source.fetch(PublicDataFetchContext(as_of=date(2026, 6, 3)))
+
+    assert result.success
+    assert result.canonical_fields["date"] == "2026-06-03"
+    assert result.canonical_fields["usd_twd"] == 31.8
+    assert result.canonical_fields["usd_twd_3d_change_pct"] < 0
+    assert result.raw_metadata["official_source"] == "CBC Statistical Database BP01D01en"
