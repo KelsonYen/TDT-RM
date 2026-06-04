@@ -155,14 +155,24 @@ def _fetch_dataset(dataset: str, providers: Iterable[object], context: ProviderC
                 failures.append(ProviderError(name, f"strict validation/reconciliation failed: {message}"))
                 health.append(ProviderHealth(name, dataset, "failed", failure_reason=message, checks=checks, metadata=result.raw_metadata))
                 continue
+            _write_raw_provider_file(input_dir, dataset, name, "success", {"row": dict(result.row), "raw_source": result.raw_source, "raw_metadata": dict(result.raw_metadata)})
             write_strict_csv(path, dataset, result.row)
             health.append(ProviderHealth(name, dataset, "healthy", selected=True, output_path=str(path), checks=checks, metadata=result.raw_metadata))
             return DatasetFetchResult(dataset, "success", provider_used=result.provider, output_path=str(path), failed_providers=tuple(failures), provider_health=tuple(health), reconciliation_checks=checks)
         except Exception as exc:  # noqa: BLE001 - fail closed for this provider, then advance to next provider.
+            _write_raw_provider_file(input_dir, dataset, name, "failed", {"error": str(exc), "exception_class": exc.__class__.__name__})
             failures.append(ProviderError(name, str(exc)))
             health.append(ProviderHealth(name, dataset, "failed", failure_reason=str(exc)))
     return DatasetFetchResult(dataset, "failed", failed_providers=tuple(failures), provider_health=tuple(health), validation_errors=(f"all providers failed for {dataset}",))
 
+
+
+def _write_raw_provider_file(input_dir: Path, dataset: str, provider: str, status: str, payload: Mapping[str, Any]) -> None:
+    safe_provider = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in provider)
+    raw_dir = input_dir / "_raw" / dataset
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    output = {"dataset": dataset, "provider": provider, "status": status, **dict(payload)}
+    (raw_dir / f"{safe_provider}.json").write_text(json.dumps(output, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 def _provider_health_payload(results: Mapping[str, DatasetFetchResult], trade_date: date, fetched_at: datetime, validation_errors: list[str]) -> dict[str, Any]:
     providers: dict[str, Any] = {}

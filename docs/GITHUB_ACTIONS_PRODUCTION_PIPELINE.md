@@ -19,8 +19,10 @@ It performs the following fail-closed sequence:
 5. Validate strict provider CSV schemas.
 6. Materialize the required production input files in `inputs/daily/YYYY-MM-DD/`.
 7. Validate required production files, schemas, trade dates, and source types.
-8. Run the TDT-RM daily production report.
-9. Upload production inputs and reports as GitHub Actions artifacts.
+8. Write a machine-readable validation report and fail closed if staging or production validation fails.
+9. Run the TDT-RM daily production report.
+10. Write a run summary that points to the production inputs, normalized CSVs, manifest, validation report, provider health, fetch summary, and pipeline artifacts.
+11. Upload production inputs, fetched/normalized provider files, and reports as GitHub Actions artifacts.
 
 ## Data-source policy
 
@@ -53,11 +55,15 @@ If any file is missing, has a schema error, has a trade-date mismatch, contains 
 
 ## Manual run
 
-1. Open GitHub Actions.
-2. Select **Daily Production Data Fetch**.
-3. Click **Run workflow**.
-4. Optionally provide `trade_date` in `YYYY-MM-DD` format.
-5. If `trade_date` is blank, the workflow uses the current date in `Asia/Taipei`.
+The workflow includes `workflow_dispatch`, so it can be manually triggered from GitHub Actions.
+
+1. Open the repository on GitHub.
+2. Select **Actions** in the repository navigation.
+3. Select **Daily Production Data Fetch** in the workflow list.
+4. Click **Run workflow**.
+5. Optionally provide `trade_date` in `YYYY-MM-DD` format.
+6. If `trade_date` is blank, the workflow uses the current date in `Asia/Taipei`.
+7. Wait for the job to finish; a green job means every required provider CSV and production input passed the fail-closed validation gates.
 
 ## Scheduled run
 
@@ -86,10 +92,25 @@ Do not commit tokens to the repository. The workflow reads the token from `${{ s
 
 Every run uploads artifacts with 90-day retention:
 
-- `tdt-rm-production-inputs-YYYY-MM-DD`: the `inputs/daily/YYYY-MM-DD/` production input directory.
+- `tdt-rm-production-inputs-YYYY-MM-DD`: the `inputs/daily/YYYY-MM-DD/` production input directory, including required production CSVs and `manifest.json` when validation reaches materialization.
+- `tdt-rm-provider-fetch-files-YYYY-MM-DD`: the strict provider staging directory, provider-attempt raw JSON records under `inputs/daily/YYYY-MM-DD/_strict_provider_csvs/_raw/`, and mirrored normalized CSVs/provider diagnostics under `reports/daily/YYYY-MM-DD/artifacts/raw/` and `reports/daily/YYYY-MM-DD/artifacts/normalized/`.
 - `tdt-rm-production-reports-YYYY-MM-DD`: the dated report directory under `reports/daily/YYYY-MM-DD/`.
 
-The report artifact includes provider fetch summaries, provider health diagnostics, pipeline summaries, and TDT-RM daily production report outputs when the run reaches the report step.
+Inspect these artifact paths first:
+
+```text
+inputs/daily/YYYY-MM-DD/_strict_provider_csvs/
+inputs/daily/YYYY-MM-DD/_strict_provider_csvs/_raw/
+inputs/daily/YYYY-MM-DD/manifest.json
+reports/daily/YYYY-MM-DD/artifacts/production_fetch_summary.json
+reports/daily/YYYY-MM-DD/artifacts/provider_health.json
+reports/daily/YYYY-MM-DD/artifacts/validation_report.json
+reports/daily/YYYY-MM-DD/artifacts/run_summary.json
+reports/daily/YYYY-MM-DD/artifacts/pipeline_summary.json
+reports/daily/YYYY-MM-DD/artifacts/
+```
+
+The report artifact includes provider fetch summaries, provider health diagnostics, validation reports, pipeline summaries, run summaries, production snapshots/pipeline outputs, and TDT-RM daily production report outputs when the run reaches the report step.
 
 ## How to verify a production-valid run
 
@@ -105,3 +126,8 @@ A run is production-valid only if all of the following are true:
 8. The TDT-RM daily production report and pipeline summary artifacts exist.
 
 If any condition fails, the run is not production-valid and must be treated as blocked until the provider failure or schema issue is resolved.
+
+
+## Current production-readiness status
+
+As of the 2026-06-04 inspection, the workflow is correctly GitHub-Actions-targeted and manually triggerable, but daily automated production execution remains blocked until every required production dataset is produced by the provider layer. In particular, `twse_margin.csv` is listed as a required production input and validation fail-closes when it is absent; the current multi-provider dataset list does not yet include a live TWSE margin provider. Treat a failed run for a missing required dataset as a correct fail-closed result, not as a production-ready TDT-RM input set.
