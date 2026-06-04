@@ -70,10 +70,12 @@ The workflow includes `workflow_dispatch`, so it can be manually triggered from 
 The workflow schedule is:
 
 ```yaml
-cron: "30 8 * * 1-5"
+cron: "30 10 * * 1-5"
 ```
 
-That is 08:30 UTC / 16:30 Asia-Taipei, Monday through Friday, after Taiwan market close. The default `trade_date` for scheduled runs is resolved with `TZ=Asia/Taipei date +%F`.
+That is 10:30 UTC / 18:30 Asia/Taipei, Monday through Friday. The job starts after the official same-day publication window for TWSE foreign-flow data and final TWSE end-of-day reports. The default `trade_date` for scheduled runs is resolved with `TZ=Asia/Taipei date +%F`.
+
+The fetch/report step retries the whole fail-closed command up to six total attempts with a 30-minute delay between attempts, and the job timeout allows the full release-window retry span plus command runtime. The retry loop only waits for official same-day rows to appear; it does not accept stale, synthetic, demo, or otherwise validation-weakened data.
 
 ## FINMIND_TOKEN setup
 
