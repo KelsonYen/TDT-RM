@@ -102,3 +102,19 @@ def test_finmind_fallback_is_disabled_without_explicit_opt_in():
         assert "live FinMind fallback disabled" in str(exc)
     else:  # pragma: no cover - explicit failure path for hidden mutation tests.
         raise AssertionError("FinMindProvider must not perform live fetches unless explicitly enabled")
+
+
+def test_provider_exception_artifacts_include_traceback(tmp_path: Path):
+    context = ProviderContext(trade_date=date(2026, 6, 3), fetched_at=datetime(2026, 6, 3, tzinfo=UTC))
+
+    result = _fetch_dataset("price", (StaticProvider("BROKEN", error=RuntimeError("network unavailable")),), context, tmp_path)
+
+    assert not result.ok
+    metadata = dict(result.provider_health[0].metadata)
+    assert metadata["exception_class"] == "RuntimeError"
+    assert metadata["error"] == "network unavailable"
+    assert "Traceback (most recent call last)" in metadata["traceback"]
+    raw = __import__("json").loads((tmp_path / "_raw" / "price" / "BROKEN.json").read_text(encoding="utf-8"))
+    assert raw["exception_class"] == "RuntimeError"
+    assert raw["error"] == "network unavailable"
+    assert "Traceback (most recent call last)" in raw["traceback"]

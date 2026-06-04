@@ -920,17 +920,50 @@ class TAIFEXTXOOptionsSource:
 
     def fetch(self, context: PublicDataFetchContext) -> PublicDataFetchResult:
         retrieved_at = context.retrieved_at.isoformat()
-        try:
-            payloads = _fetch_configured_payloads(self.config, context)
-            row: dict[str, Any] = {"date": context.as_of.isoformat()}
-            for payload in payloads:
-                row.update(_parse_taifex_options(payload, context.as_of))
-            if _missing(row.get("txo_put_call_ratio")) and _missing(row.get("taifex_vix")):
-                return _result(self, "unavailable", (_issue(self, "warning", "row_missing", f"no TAIFEX PCR/VIX row for {context.as_of.isoformat()}"),), retrieved_at=retrieved_at)
-            row.setdefault("options_source_contract", "TXO")
-            return _result(self, "success", retrieved_at=retrieved_at, rows=(row,), canonical=row, metadata={"endpoint": _render_url(self.config, context), "official_source": "TAIFEX PutCallRatio/TAIFEXVIX"})
-        except Exception as exc:  # noqa: BLE001
-            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"exception_class": exc.__class__.__name__, "exception_message": str(exc)})
+        row: dict[str, Any] = {"date": context.as_of.isoformat()}
+        issues: list[PublicDataFetchIssue] = []
+        endpoint_statuses: list[dict[str, Any]] = []
+        for endpoint_config, endpoint_url in _iter_configured_endpoint_configs(self.config, context):
+            try:
+                payload = _fetch_any_payload(endpoint_config, context)
+                parsed = _parse_taifex_options(payload, context.as_of)
+                usable_fields = sorted(key for key, value in parsed.items() if key != "date" and not _missing(value))
+                if usable_fields:
+                    row.update(parsed)
+                    endpoint_statuses.append({
+                        "endpoint": endpoint_url,
+                        "status": "success",
+                        "usable_fields": usable_fields,
+                    })
+                else:
+                    endpoint_statuses.append({"endpoint": endpoint_url, "status": "unavailable", "usable_fields": []})
+                    issues.append(_issue(self, "warning", "endpoint_row_missing", f"no usable TAIFEX options row at {endpoint_url}"))
+            except Exception as exc:  # noqa: BLE001
+                endpoint_statuses.append({
+                    "endpoint": endpoint_url,
+                    "status": "failed",
+                    "exception_class": exc.__class__.__name__,
+                    "error": str(exc),
+                })
+                issues.append(_issue(self, "warning", "endpoint_fetch_failed", f"{endpoint_url}: {exc}"))
+        has_pcr = not _missing(row.get("txo_put_call_ratio"))
+        has_vix = not _missing(row.get("taifex_vix"))
+        metadata = {
+            "endpoint": _render_url(self.config, context),
+            "endpoints": endpoint_statuses,
+            "official_source": "TAIFEX PutCallRatio/TAIFEXVIX",
+        }
+        if not has_pcr and not has_vix:
+            severity = "error" if endpoint_statuses and all(item.get("status") == "failed" for item in endpoint_statuses) else "warning"
+            return _result(
+                self,
+                "failed" if severity == "error" else "unavailable",
+                tuple(issues) + (_issue(self, severity, "row_missing", f"no TAIFEX PCR/VIX row for {context.as_of.isoformat()}"),),
+                retrieved_at=retrieved_at,
+                metadata=metadata,
+            )
+        row.setdefault("options_source_contract", "TXO")
+        return _result(self, "success", tuple(issues), retrieved_at=retrieved_at, rows=(row,), canonical=row, metadata=metadata)
 
 
 @dataclass(frozen=True)
@@ -1325,6 +1358,16 @@ def _result(source: PublicDataSource, status: str, issues: Sequence[PublicDataFe
 def _issue(source: PublicDataSource, severity: str, code: str, message: str, *, field: str | None = None) -> PublicDataFetchIssue:
     return PublicDataFetchIssue(severity, code, message, source.source_id, source.provider_category, field)
 
+
+
+def _iter_configured_endpoint_configs(config: Mapping[str, Any], context: PublicDataFetchContext) -> list[tuple[Mapping[str, Any], str]]:
+    if "fixture_path" in config:
+        return [(config, str(config.get("fixture_path")))]
+    templates = config.get("endpoint_url_templates") or config.get("urls")
+    if isinstance(templates, list) and templates:
+        endpoint_configs = [{**dict(config), "endpoint_url_template": str(template)} for template in templates]
+        return [(endpoint_config, _render_url(endpoint_config, context)) for endpoint_config in endpoint_configs]
+    return [(config, _render_url(config, context))]
 
 
 def _fetch_configured_payloads(config: Mapping[str, Any], context: PublicDataFetchContext) -> list[Any]:

@@ -97,3 +97,20 @@ def test_no_demo_mock_or_synthetic_fallback_in_production_mode(tmp_path: Path):
     errors = validate_required_production_files(trade_date=AS_OF, input_dir=production)
 
     assert any("forbidden source_type 'synthetic'" in error for error in errors)
+
+
+def test_production_finmind_live_auto_enabled_when_token_present(monkeypatch):
+    monkeypatch.setenv("TDT_RM_PRODUCTION_MODE", "true")
+    monkeypatch.setenv("FINMIND_TOKEN", "prod-token")
+    monkeypatch.delenv("TDT_RM_ALLOW_FINMIND_LIVE", raising=False)
+
+    assert _MODULE._production_finmind_live_allowed(False) is True
+
+
+def test_production_finmind_live_not_enabled_without_token_or_opt_in(monkeypatch):
+    monkeypatch.setenv("TDT_RM_PRODUCTION_MODE", "true")
+    monkeypatch.delenv("FINMIND_TOKEN", raising=False)
+    monkeypatch.delenv("FINMIND_API_TOKEN", raising=False)
+    monkeypatch.delenv("TDT_RM_ALLOW_FINMIND_LIVE", raising=False)
+
+    assert _MODULE._production_finmind_live_allowed(False) is False
