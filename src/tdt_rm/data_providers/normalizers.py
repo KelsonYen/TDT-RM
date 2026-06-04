@@ -7,7 +7,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Mapping
 
-from .base import REAL_SOURCE_TYPE
+from .base import REAL_SOURCE_TYPE, ReconciliationCheck
 
 STRICT_COLUMNS: dict[str, tuple[str, ...]] = {
     "price": ("trade_date", "provider_source", "source_type", "close", "ma5", "ma20", "ma60", "ma20_slope", "one_day_return_pct", "two_day_return_pct", "close_below_ma20_consecutive_days", "index_5d_return_pct", "return_60d_pct", "previous_ma60", "turnover_amount"),
@@ -17,6 +17,23 @@ STRICT_COLUMNS: dict[str, tuple[str, ...]] = {
     "futures": ("trade_date", "provider_source", "source_type", "futures_hedging_increases", "futures_hedging_significant", "futures_net_short_increases", "futures_net_short_decreases"),
     "options": ("trade_date", "provider_source", "source_type", "pcr_stable", "pcr_rises", "vix_stable", "vix_rises", "tail_risk", "bcd"),
     "leadership": ("trade_date", "provider_source", "source_type", "count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols", "mhs"),
+}
+
+_NUMERIC_COLUMNS: dict[str, tuple[str, ...]] = {
+    "price": ("close", "ma5", "ma20", "ma60", "ma20_slope", "one_day_return_pct", "two_day_return_pct", "close_below_ma20_consecutive_days", "index_5d_return_pct", "return_60d_pct", "previous_ma60", "turnover_amount"),
+    "foreign_flow": ("foreign_spot_net_buy", "foreign_spot_net_sell", "foreign_spot_net_sell_consecutive_days"),
+    "fx": ("usd_twd_3d_change_pct", "usd_twd_5d_change_pct"),
+    "breadth": ("advancing_issues", "declining_issues", "declining_gt_advancing_consecutive_days"),
+    "options": ("tail_risk", "bcd"),
+    "leadership": ("count_main_7_below_ma20", "count_main_7_below_ma60", "mhs"),
+}
+_BOOL_COLUMNS: dict[str, tuple[str, ...]] = {
+    "foreign_flow": ("foreign_spot_large_sell", "foreign_large_sell"),
+    "fx": ("twd_appreciates", "twd_stable", "twd_depreciates_significantly"),
+    "breadth": ("index_down", "declining_issues_significantly_expand", "declining_issues_significantly_gt_advancing", "breadth_weakens_for_2_days"),
+    "futures": ("futures_hedging_increases", "futures_hedging_significant", "futures_net_short_increases", "futures_net_short_decreases"),
+    "options": ("pcr_stable", "pcr_rises", "vix_stable", "vix_rises"),
+    "leadership": ("majority_main_7_assets_above_ma20",),
 }
 
 
@@ -110,12 +127,81 @@ def normalize_public_row(dataset: str, row: Mapping[str, Any], *, trade_date: da
 
 
 def write_strict_csv(path: Path, dataset: str, row: Mapping[str, Any]) -> None:
+    errors = validate_strict_row(dataset, row)
+    if errors:
+        raise ValueError(f"{dataset} strict schema validation failed: " + "; ".join(errors))
     path.parent.mkdir(parents=True, exist_ok=True)
     columns = STRICT_COLUMNS[dataset]
     with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=columns)
+        writer = csv.DictWriter(handle, fieldnames=columns, extrasaction="raise")
         writer.writeheader()
         writer.writerow({column: _serialize(row.get(column, "")) for column in columns})
+
+
+def validate_strict_row(dataset: str, row: Mapping[str, Any]) -> list[str]:
+    if dataset not in STRICT_COLUMNS:
+        return [f"unsupported dataset: {dataset}"]
+    errors: list[str] = []
+    for column in STRICT_COLUMNS[dataset]:
+        value = row.get(column)
+        if value in {None, ""} and column not in {"main_7_below_ma20_symbols"}:
+            errors.append(f"missing required field {column}")
+    if row.get("source_type") != REAL_SOURCE_TYPE:
+        errors.append(f"source_type must be {REAL_SOURCE_TYPE!r}")
+    if str(row.get("trade_date") or "") == "":
+        errors.append("trade_date is required")
+    for column in _NUMERIC_COLUMNS.get(dataset, ()):  # parseability/range, not scoring.
+        value = row.get(column)
+        if value in {None, ""}:
+            continue
+        try:
+            number = _float(value)
+        except (TypeError, ValueError):
+            errors.append(f"numeric field {column} is not parseable: {value!r}")
+            continue
+        if column in {"close", "ma5", "ma20", "ma60", "previous_ma60"} and number <= 0:
+            errors.append(f"numeric field {column} must be positive")
+        if column in {"tail_risk", "bcd", "mhs"} and not 0 <= number <= 100:
+            errors.append(f"numeric field {column} must be in [0, 100]")
+    for column in _BOOL_COLUMNS.get(dataset, ()):  # strict bool normalization.
+        if row.get(column) in {None, ""}:
+            continue
+        if str(row.get(column)).strip().lower() not in {"true", "false", "1", "0", "yes", "no", "y", "n"}:
+            errors.append(f"boolean field {column} is not parseable: {row.get(column)!r}")
+    return errors
+
+
+def reconciliation_checks(dataset: str, row: Mapping[str, Any]) -> tuple[ReconciliationCheck, ...]:
+    checks: list[ReconciliationCheck] = []
+    schema_errors = validate_strict_row(dataset, row)
+    checks.append(ReconciliationCheck("strict_schema", "failed" if schema_errors else "passed", "; ".join(schema_errors)))
+    if dataset == "price":
+        close = _float(row.get("close"))
+        ma20 = _float(row.get("ma20"))
+        ma60 = _float(row.get("ma60"))
+        positive = close > 0 and ma20 > 0 and ma60 > 0
+        checks.append(ReconciliationCheck("price_positive", "passed" if positive else "failed", "close/MA values must be positive"))
+        ratio_ok = positive and 0.5 <= close / ma20 <= 1.5 and 0.5 <= close / ma60 <= 1.5
+        checks.append(ReconciliationCheck("ma_ratio_sanity", "passed" if ratio_ok else "failed", "TAIEX close diverges too far from moving averages"))
+    elif dataset == "foreign_flow":
+        net_buy = _float(row.get("foreign_spot_net_buy"))
+        net_sell = _float(row.get("foreign_spot_net_sell"))
+        checks.append(ReconciliationCheck("foreign_buy_sell_sign", "passed" if net_sell >= 0 and (net_buy >= 0 or net_sell > 0) else "failed", "net sell must reconcile with net buy sign"))
+    elif dataset == "leadership":
+        symbols = [item for item in str(row.get("main_7_symbols") or "").replace(";", ",").split(",") if item]
+        below20 = int(_float(row.get("count_main_7_below_ma20")))
+        below60 = int(_float(row.get("count_main_7_below_ma60")))
+        total = len(symbols) or 7
+        checks.append(ReconciliationCheck("leadership_counts", "passed" if 0 <= below20 <= total and 0 <= below60 <= total else "failed", "Main-7 below-MA counts exceed configured symbol count"))
+    elif dataset == "fx":
+        chg3 = abs(_float(row.get("usd_twd_3d_change_pct")))
+        chg5 = abs(_float(row.get("usd_twd_5d_change_pct")))
+        checks.append(ReconciliationCheck("fx_change_sanity", "passed" if chg3 <= 20 and chg5 <= 25 else "failed", "USD/TWD percentage change outside sanity bounds"))
+    elif dataset == "options":
+        checks.append(ReconciliationCheck("scores_range", "passed" if 0 <= _float(row.get("tail_risk")) <= 100 and 0 <= _float(row.get("bcd")) <= 100 else "failed", "tail_risk/bcd must be in [0, 100]"))
+    else:
+        checks.append(ReconciliationCheck("dataset_invariants", "passed", "no extra invariants configured"))
+    return tuple(checks)
 
 
 def _ensure_complete(dataset: str, row: Mapping[str, Any]) -> None:

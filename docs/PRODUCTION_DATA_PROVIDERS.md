@@ -25,18 +25,20 @@ A full production fetch validates and writes these generated inputs:
 | TAIEX futures | TAIFEX `DailyMarketReportFut` OpenAPI | `taifex_txf_futures` |
 | TAIEX options PCR and VIX | TAIFEX `PutCallRatio` and `TAIFEXVIX` OpenAPI endpoints | `taifex_txo_options` |
 | Main-7 leadership | TWSE `STOCK_DAY` per-constituent daily history | `twse_main7_leadership` |
+| TAIEX official index fallback | Taiwan Index Plus configured official endpoint/cache | `taiwan_index_plus_price` |
 
 The `cli_price_fallback_csv` runtime source remains available only as an operator break-glass path. It is not enabled in the production configuration and is not required for normal production runs.
 
 ## Validation behavior
 
 - Price is required and must provide enough history to derive MA60 and turnover MA20.
+- The multi-provider production fetcher uses the official-source-first priority order TWSE → TAIFEX/Public FX → Taiwan Index Plus → Yahoo → Stooq → FinMind, with FinMind live access disabled unless explicitly opted in.
 - The TWSE price parser checks configured freshness before writing `price.csv`.
 - Optional-but-required-for-full-production source failures prevent a no-`--allow-partial` production run from silently succeeding.
-- `fetch_manifest.json` and `provider_health.json` record selected sources, failed attempts, freshness status, extracted fields, source type, and cache status for audit.
+- `fetch_manifest.json`, `multi_provider_fetch_summary_YYYY-MM-DD.json`, and `provider_health.json` record selected sources, failed attempts, strict schema validation, reconciliation checks, freshness status, extracted fields, source type, and cache status for audit.
 
 ## Codex runtime and external-network-required providers
 
-FinMind remains available as a fallback fetcher for environments with approved external HTTPS egress, but it is an `external-network-required` provider. Codex runtime should not assume FinMind, TWSE, TAIFEX, or any other live HTTPS provider is reachable because the Codex proxy can reject outbound CONNECT tunnels before provider traffic leaves the container.
+FinMind remains available as a fallback fetcher for environments with approved external HTTPS egress, but it is an `external-network-required` provider and the hardened multi-provider CLI will not call it unless `--allow-finmind-live` or `TDT_RM_ALLOW_FINMIND_LIVE=true` is set. Codex runtime should not assume FinMind, TWSE, TAIFEX, or any other live HTTPS provider is reachable because the Codex proxy can reject outbound CONNECT tunnels before provider traffic leaves the container.
 
 For Codex-validated production runs, use the strict local CSV ingestion path documented in `docs/CODEX_NETWORK_LIMITATION.md`: all seven required CSVs must already exist under `inputs/daily/YYYY-MM-DD/`, must validate for schema and date consistency, and must pass before the model is scored. Missing local CSVs are blocking errors; the pipeline must not substitute mock, fallback, or neutral data.

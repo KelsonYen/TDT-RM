@@ -30,6 +30,7 @@ class ProviderContext:
     sleep_seconds: float = 0.25
     main7_symbols: tuple[str, ...] = ()
     main7_config: str | Path = "config/main7_symbols.json"
+    allow_finmind_live: bool = False
 
 
 @dataclass(frozen=True)
@@ -42,16 +43,65 @@ class ProviderResult:
 
 
 @dataclass(frozen=True)
+class ReconciliationCheck:
+    name: str
+    status: str
+    message: str = ""
+    details: Mapping[str, Any] = field(default_factory=dict)
+
+    @property
+    def ok(self) -> bool:
+        return self.status == "passed"
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "status": self.status,
+            "message": self.message,
+            "details": dict(self.details),
+        }
+
+
+@dataclass(frozen=True)
+class ProviderHealth:
+    provider: str
+    dataset: str
+    status: str
+    attempted: bool = True
+    selected: bool = False
+    failure_reason: str = ""
+    output_path: str | None = None
+    checks: tuple[ReconciliationCheck, ...] = ()
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "provider": self.provider,
+            "dataset": self.dataset,
+            "status": self.status,
+            "attempted": self.attempted,
+            "selected": self.selected,
+            "failure_reason": self.failure_reason,
+            "output_path": self.output_path,
+            "checks": [check.as_dict() for check in self.checks],
+            "metadata": dict(self.metadata),
+        }
+
+
+@dataclass(frozen=True)
 class DatasetFetchResult:
     dataset: str
     status: str
     provider_used: str | None = None
     output_path: str | None = None
     failed_providers: tuple[ProviderError, ...] = ()
+    provider_health: tuple[ProviderHealth, ...] = ()
+    reconciliation_checks: tuple[ReconciliationCheck, ...] = ()
+    validation_errors: tuple[str, ...] = ()
 
     @property
     def ok(self) -> bool:
-        return self.status == "success" and bool(self.provider_used) and bool(self.output_path)
+        return self.status == "success" and bool(self.provider_used) and bool(self.output_path) and not self.validation_errors and all(check.ok for check in self.reconciliation_checks)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -59,6 +109,9 @@ class DatasetFetchResult:
             "status": self.status,
             "output_path": self.output_path,
             "failed_providers": [error.as_dict() for error in self.failed_providers],
+            "provider_health": [health.as_dict() for health in self.provider_health],
+            "reconciliation_checks": [check.as_dict() for check in self.reconciliation_checks],
+            "validation_errors": list(self.validation_errors),
         }
 
 

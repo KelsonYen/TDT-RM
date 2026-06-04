@@ -44,6 +44,9 @@ class FinMindProvider(DailyDataProvider):
 
     def fetch(self, dataset: str, context: ProviderContext) -> ProviderResult:
         token = self.token or os.environ.get("FINMIND_TOKEN") or os.environ.get("FINMIND_API_TOKEN")
+        env_allowed = os.environ.get("TDT_RM_ALLOW_FINMIND_LIVE", "").strip().lower() in {"1", "true", "yes", "y"}
+        if not (context.allow_finmind_live or env_allowed):
+            raise RuntimeError("live FinMind fallback disabled; pass --allow-finmind-live or set TDT_RM_ALLOW_FINMIND_LIVE=true to opt in")
         client = FinMindClient(token, timeout=context.timeout, sleep_seconds=context.sleep_seconds, opener=None)
         start = context.trade_date - timedelta(days=context.lookback_days)
         fetched_at = context.fetched_at.isoformat().replace("+00:00", "Z")
