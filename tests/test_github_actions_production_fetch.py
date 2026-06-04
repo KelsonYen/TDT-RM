@@ -17,6 +17,7 @@ _SPEC.loader.exec_module(_MODULE)
 REQUIRED_PRODUCTION_FILES = _MODULE.REQUIRED_PRODUCTION_FILES
 build_production_input_directory = _MODULE.build_production_input_directory
 validate_required_production_files = _MODULE.validate_required_production_files
+write_fetch_manifest = _MODULE._write_fetch_manifest
 
 AS_OF = date(2026, 6, 3)
 
@@ -99,10 +100,16 @@ def test_no_demo_mock_or_synthetic_fallback_in_production_mode(tmp_path: Path):
     assert any("forbidden source_type 'synthetic'" in error for error in errors)
 
 
-def test_production_finmind_live_auto_enabled_when_token_present(monkeypatch):
+def test_production_finmind_live_not_auto_enabled_when_token_present_without_opt_in(monkeypatch):
     monkeypatch.setenv("TDT_RM_PRODUCTION_MODE", "true")
     monkeypatch.setenv("FINMIND_TOKEN", "prod-token")
     monkeypatch.delenv("TDT_RM_ALLOW_FINMIND_LIVE", raising=False)
+
+    assert _MODULE._production_finmind_live_allowed(False) is False
+
+
+def test_production_finmind_live_enabled_by_explicit_env_opt_in(monkeypatch):
+    monkeypatch.setenv("TDT_RM_ALLOW_FINMIND_LIVE", "true")
 
     assert _MODULE._production_finmind_live_allowed(False) is True
 
@@ -114,3 +121,35 @@ def test_production_finmind_live_not_enabled_without_token_or_opt_in(monkeypatch
     monkeypatch.delenv("TDT_RM_ALLOW_FINMIND_LIVE", raising=False)
 
     assert _MODULE._production_finmind_live_allowed(False) is False
+
+def test_fetch_manifest_written_under_outputs_and_fail_closed_when_dataset_missing(tmp_path: Path):
+    staging = tmp_path / "staging"
+    production = tmp_path / "inputs" / AS_OF.isoformat()
+    reports = tmp_path / "reports" / AS_OF.isoformat()
+    artifacts = reports / "artifacts"
+    outputs_manifest = tmp_path / "outputs" / AS_OF.isoformat() / "fetch_manifest.json"
+    for filename, row in _strict_rows().items():
+        if filename != "options.csv":
+            _write_csv(staging / filename, row)
+
+    write_fetch_manifest(
+        outputs_manifest,
+        AS_OF,
+        "NOT_READY",
+        staging,
+        production,
+        reports,
+        artifacts,
+        artifacts / "production_fetch_summary.json",
+        artifacts / "provider_health.json",
+        artifacts / "validation_report.json",
+        allow_finmind_live=False,
+        blocking_error="options missing",
+    )
+
+    manifest = json.loads(outputs_manifest.read_text(encoding="utf-8"))
+    assert manifest["data_status"] == "NOT_READY"
+    assert manifest["production_ready"] is False
+    assert manifest["fail_closed"] is True
+    assert manifest["finmind_live_enabled"] is False
+    assert "options" in manifest["missing_production_csvs"]
