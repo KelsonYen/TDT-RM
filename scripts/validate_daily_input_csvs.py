@@ -68,6 +68,12 @@ SCHEMAS: tuple[CsvSchema, ...] = (
         ("count_main_7_below_ma20", "count_main_7_below_ma60", "mhs"),
         ("majority_main_7_assets_above_ma20",),
     ),
+    CsvSchema(
+        "margin.csv",
+        ("trade_date", "provider_source", "source_type", "margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "index_5d_return_pct", "margin_balance_5d_decline_pct", "margin_not_retreating"),
+        ("index_5d_return_pct", "margin_balance_5d_decline_pct"),
+        ("margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "margin_not_retreating"),
+    ),
 )
 
 SCHEMAS_BY_FILE = {schema.filename: schema for schema in SCHEMAS}
@@ -125,9 +131,9 @@ def validate_daily_input_csvs(*, trade_date: date, input_dir: str | Path) -> lis
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate the seven required local daily TDT-RM input CSV files.")
+    parser = argparse.ArgumentParser(description="Validate the eight required local daily TDT-RM input CSV files.")
     parser.add_argument("--trade-date", required=True, type=date.fromisoformat, help="Target trade date, YYYY-MM-DD.")
-    parser.add_argument("--input-dir", required=True, help="Directory containing the seven daily input CSV files.")
+    parser.add_argument("--input-dir", required=True, help="Directory containing the eight daily input CSV files.")
     args = parser.parse_args()
 
     errors = validate_daily_input_csvs(trade_date=args.trade_date, input_dir=args.input_dir)

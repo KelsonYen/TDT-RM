@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Fetch daily TDT-RM production inputs from the FinMind API.
 
-The script writes the seven strict local-ingestion CSVs consumed by
+The script writes the eight strict local-ingestion CSVs consumed by
 ``scripts/run_daily_production_pipeline.py``.  It deliberately fails closed: no
 fallback, mock, or fixture rows are emitted, and production only runs after all
 required FinMind-derived CSVs validate.

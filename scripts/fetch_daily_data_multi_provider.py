@@ -45,7 +45,7 @@ _PROVIDER_PRIORITY = ("TWSE_OFFICIAL", "TAIFEX_OFFICIAL", "CBC_OFFICIAL", "TAIWA
 def main() -> int:
     parser = argparse.ArgumentParser(description="Fetch daily TDT-RM CSVs with official-source-first fallback chains.")
     parser.add_argument("--trade-date", required=True, type=date.fromisoformat, help="Target trade date YYYY-MM-DD.")
-    parser.add_argument("--input-dir", required=True, help="Output directory for the seven strict daily CSVs.")
+    parser.add_argument("--input-dir", required=True, help="Output directory for the eight strict daily CSVs.")
     parser.add_argument("--summary-json", help="Path for multi-provider fetch summary JSON.")
     parser.add_argument("--provider-health-json", help="Optional path for provider_health.json diagnostics.")
     parser.add_argument("--source-config", help="Optional public data source config JSON/YAML.")

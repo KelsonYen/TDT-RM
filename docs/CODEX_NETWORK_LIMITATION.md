@@ -14,9 +14,9 @@ Observed behavior in the Codex container:
 
 Live provider fetchers, including the FinMind fetcher, are **external-network-required** components. They may be run in a production network or CI environment with approved egress, credentials, DNS, and proxy policy, but they must not be assumed available inside Codex runtime.
 
-Codex production validation should therefore prefer the offline/local CSV path:
+Production-readiness validation should therefore run the live fetch from the GitHub Actions runner, which has normal public internet egress. The offline/local CSV path remains a fail-closed ingestion check only and must not be counted as live-provider production readiness:
 
-1. Place the seven required strict CSV files under `inputs/daily/YYYY-MM-DD/`:
+1. Place the eight required strict CSV files under `inputs/daily/YYYY-MM-DD/`:
    - `price.csv`
    - `foreign_flow.csv`
    - `fx.csv`
@@ -24,7 +24,8 @@ Codex production validation should therefore prefer the offline/local CSV path:
    - `futures.csv`
    - `options.csv`
    - `leadership.csv`
-2. Validate all seven files before scoring:
+   - `margin.csv`
+2. Validate all eight files before scoring:
 
    ```bash
    python scripts/validate_daily_input_csvs.py --trade-date YYYY-MM-DD --input-dir inputs/daily/YYYY-MM-DD
@@ -45,7 +46,7 @@ Codex production validation should therefore prefer the offline/local CSV path:
 
 The local CSV path is intentionally fail-closed:
 
-- If any of the seven required CSV files is missing, validation fails and lists the missing file path.
+- If any of the eight required CSV files is missing, validation fails and lists the missing file path.
 - If required columns are missing, validation fails before model scoring.
 - If any row's `trade_date` does not match the requested production date, validation fails before model scoring.
 - `source_type` values that indicate fallback, mock, fixture, synthetic, neutral, sample, or test data are rejected.

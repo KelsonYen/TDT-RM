@@ -1,0 +1,2 @@
+trade_date,provider_source,source_type,margin_balance_5d_flat_or_down,hot_stock_margin_fast_increase,margin_balance_5d_increases,index_5d_return_pct,margin_balance_5d_decline_pct,margin_not_retreating
+YYYY-MM-DD,TWSE_margin_official,official,false,false,true,0.0,0.0,true

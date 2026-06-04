@@ -111,7 +111,7 @@ The production materialization layer also requires these production CSVs, none o
 
 Schema validation is fail-closed in two layers:
 
-1. Strict staged daily input validation requires seven provider CSVs: `price.csv`, `foreign_flow.csv`, `fx.csv`, `breadth.csv`, `futures.csv`, `options.csv`, and `leadership.csv`.
+1. Strict staged daily input validation requires eight provider CSVs: `price.csv`, `foreign_flow.csv`, `fx.csv`, `breadth.csv`, `futures.csv`, `options.csv`, `leadership.csv`, and `margin.csv`.
 2. Production-file validation requires the materialized production CSV set plus `manifest.json`.
 
 For this run, schema validation did not reach field-level validation because the fetch stage produced no CSV files. The validation result is therefore **failed due to missing required CSVs**, not failed due to malformed fields.

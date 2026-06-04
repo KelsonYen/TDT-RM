@@ -347,3 +347,68 @@ def test_twse_fetch_rejects_unsafe_307_redirect(monkeypatch):
             },
             PublicDataFetchContext(as_of=date(2026, 6, 3)),
         )
+
+
+def test_live_url_fetch_retries_transient_url_errors(monkeypatch):
+    import urllib.error
+    import urllib.request
+
+    from tdt_rm.public_data_fetchers import _fetch_json_payload
+
+    calls: list[str] = []
+
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"data": [{"ok": true}]}'
+
+    def fake_urlopen(request, timeout):
+        calls.append(request.full_url)
+        if len(calls) < 3:
+            raise urllib.error.URLError("temporary egress failure")
+        return Response()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr("tdt_rm.public_data_fetchers.time.sleep", lambda seconds: None)
+
+    payload = _fetch_json_payload(
+        {
+            "source_id": "retry_source",
+            "source_type": "twse_official_json",
+            "endpoint_url_template": "https://www.twse.com.tw/example?date={yyyymmdd}",
+        },
+        PublicDataFetchContext(as_of=date(2026, 6, 3)),
+    )
+
+    assert payload == {"data": [{"ok": True}]}
+    assert len(calls) == 3
+
+
+def test_finmind_sources_are_disabled_unless_explicitly_allowed(monkeypatch):
+    from tdt_rm.public_data_fetchers import PublicDataFetcherRegistry
+
+    config = {
+        "sources": [
+            {
+                "source_id": "finmind_price",
+                "source_name": "FinMind price fallback",
+                "provider_category": "price",
+                "adapter": "generic_json",
+                "endpoint_url_template": "https://api.finmindtrade.com/api/v4/data",
+                "enabled": True,
+            }
+        ]
+    }
+
+    monkeypatch.delenv("TDT_RM_ALLOW_FINMIND_LIVE", raising=False)
+    assert PublicDataFetcherRegistry.from_config(config).source_ids() == ()
+
+    monkeypatch.setenv("TDT_RM_ALLOW_FINMIND_LIVE", "true")
+    assert PublicDataFetcherRegistry.from_config(config).source_ids() == ("finmind_price",)

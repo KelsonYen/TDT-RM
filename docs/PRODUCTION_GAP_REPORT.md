@@ -1,12 +1,12 @@
 # Production Gap Report — Seven Daily Production CSVs
 
-_盤點日期：2026-06-04。範圍：`price.csv`、`foreign_flow.csv`、`fx.csv`、`breadth.csv`、`futures.csv`、`options.csv`、`leadership.csv`。_
+_盤點日期：2026-06-04。範圍：`price.csv`、`foreign_flow.csv`、`fx.csv`、`breadth.csv`、`futures.csv`、`options.csv`、`leadership.csv`、`margin.csv`。_
 
 ## Executive summary
 
-目前 repo 已有 public provider fetcher 與 parser，可在具備核准外部網路的環境中嘗試抓取七類資料；官方來源映射也已定義於 production provider 文件與 `config/public_data_sources.json`。但是，嚴格 production/local import 路徑要求七份 CSV 必須含 `trade_date`、`provider_source`、`source_type` 與 strict schema 欄位，且 Codex runtime 不應假設能直接連 TWSE/TAIFEX/FinMind。
+目前 repo 已有 public provider fetcher 與 parser，可在具備核准外部網路的環境中嘗試抓取八類資料；官方來源映射也已定義於 production provider 文件與 `config/public_data_sources.json`。但是，嚴格 production/local import 路徑要求八份 CSV 必須含 `trade_date`、`provider_source`、`source_type` 與 strict schema 欄位，且 Codex runtime 不應假設能直接連 TWSE/TAIFEX/FinMind。
 
-因此，依「能否直接產出可通過 strict production validator 的七份 CSV」判定：**目前七份都仍需要人工匯入或由外部受控環境產生後匯入**。依「repo 內是否已有自動抓取與部分標準化能力」判定：`price.csv`、`foreign_flow.csv`、`fx.csv`、`breadth.csv`、`leadership.csv` 屬於 **部分自動化 / 接近可自動化**；`futures.csv`、`options.csv` 屬於 **原始市場資料可抓，但 production decision 欄位尚未自動推導**。
+因此，依「能否直接產出可通過 strict production validator 的八份 CSV」判定：**目前八份都仍需要人工匯入或由外部受控環境產生後匯入**。依「repo 內是否已有自動抓取與部分標準化能力」判定：`price.csv`、`foreign_flow.csv`、`fx.csv`、`breadth.csv`、`leadership.csv` 屬於 **部分自動化 / 接近可自動化**；`futures.csv`、`options.csv` 屬於 **原始市場資料可抓，但 production decision 欄位尚未自動推導**。
 
 ## 判定基準
 
@@ -16,7 +16,7 @@ _盤點日期：2026-06-04。範圍：`price.csv`、`foreign_flow.csv`、`fx.csv
 
 ## Current production posture
 
-1. Strict local/import mode 固定要求七份檔案：`price.csv`、`foreign_flow.csv`、`fx.csv`、`breadth.csv`、`futures.csv`、`options.csv`、`leadership.csv`。
+1. Strict local/import mode 固定要求八份檔案：`price.csv`、`foreign_flow.csv`、`fx.csv`、`breadth.csv`、`futures.csv`、`options.csv`、`leadership.csv`、`margin.csv`。
 2. Validator 會拒絕缺檔、空檔、日期不符、缺 `provider_source`、缺 `source_type`，或 `source_type` 為 fallback/mock/fixture/synthetic/neutral/sample/test。
 3. Production provider fetcher 目前會寫 legacy provider CSV 與 manifest/health 檔，但 `write_provider_csvs()` 寫出的欄位以 `date` 與 provider-specific 欄位為主，沒有保證產出 strict local/import schema 所需的 provenance 欄位。
 4. Codex runtime 已被文件化為不可假設有可用 HTTPS egress；因此 Codex 驗證與日常 production 應採用離線/本地 CSV 路徑。
@@ -54,9 +54,9 @@ _盤點日期：2026-06-04。範圍：`price.csv`、`foreign_flow.csv`、`fx.csv
 
 ### C. 目前 strict production run 仍需人工匯入
 
-- 七份全部仍需人工或外部受控 pipeline 產出後匯入 Codex/local production path。
+- 八份全部仍需人工或外部受控 pipeline 產出後匯入 Codex/local production path。
 
-原因不是 repo 完全沒有 fetcher，而是 strict production 的 acceptance gate 要求七份可驗證 CSV，而現有 public fetcher 輸出與 strict schema/網路假設尚未完全接軌。
+原因不是 repo 完全沒有 fetcher，而是 strict production 的 acceptance gate 要求八份可驗證 CSV，而現有 public fetcher 輸出與 strict schema/網路假設尚未完全接軌。
 
 ## Recommended implementation plan
 
@@ -70,8 +70,8 @@ _盤點日期：2026-06-04。範圍：`price.csv`、`foreign_flow.csv`、`fx.csv
 
 ## Definition of done for “全自動每日更新”
 
-- 每個交易日排程在收盤後抓取七類官方資料。
-- 產出七份 strict CSV，全部含 `trade_date`、`provider_source`、`source_type` 與完整欄位。
+- 每個交易日排程在收盤後抓取八類官方資料。
+- 產出八份 strict CSV，全部含 `trade_date`、`provider_source`、`source_type` 與完整欄位。
 - `source_type` 不使用 forbidden fallback/mock/fixture labels。
 - `fetch_manifest.json` / `provider_health.json` 記錄來源、freshness、失敗嘗試與 cache 狀態。
 - `python scripts/validate_daily_input_csvs.py --trade-date YYYY-MM-DD --input-dir inputs/daily/YYYY-MM-DD` 必須通過。
