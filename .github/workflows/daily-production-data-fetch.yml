@@ -61,6 +61,19 @@ jobs:
           echo "trade_date=$trade_date" >> "$GITHUB_OUTPUT"
           echo "AS_OF=$trade_date" >> "$GITHUB_ENV"
 
+      - name: Require FinMind token when explicitly enabled
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_finmind }}
+        shell: bash
+        env:
+          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+          FINMIND_API_TOKEN: ${{ secrets.FINMIND_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${FINMIND_TOKEN:-}" && -z "${FINMIND_API_TOKEN:-}" ]]; then
+            echo "allow_finmind=true requires FINMIND_TOKEN or FINMIND_API_TOKEN GitHub Secret." >&2
+            exit 1
+          fi
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -73,6 +86,18 @@ jobs:
           set -euo pipefail
           python -m pip install --upgrade pip
           python -m pip install -e .
+
+      - name: Run provider connectivity audit
+        shell: bash
+        env:
+          FINMIND_TOKEN: ${{ (github.event_name == 'workflow_dispatch' && inputs.allow_finmind) && secrets.FINMIND_TOKEN || '' }}
+          FINMIND_API_TOKEN: ${{ (github.event_name == 'workflow_dispatch' && inputs.allow_finmind) && secrets.FINMIND_API_TOKEN || '' }}
+        run: |
+          set -euo pipefail
+          python scripts/audit_market_data_connectivity.py \
+            --as-of "$AS_OF" \
+            --output-dir "outputs/daily/$AS_OF/provider_connectivity_audit" \
+            --repeat 2
 
       - name: Run production fetch and pipeline
         shell: bash
@@ -94,67 +119,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
-          import json
-          import os
-          from pathlib import Path
-
-          as_of = os.environ["AS_OF"]
-          input_dir = Path("inputs/daily") / as_of
-          output_dir = Path("outputs/daily") / as_of
-          manifest_path = output_dir / "fetch_manifest.json"
-          summary_path = output_dir / "summary.json"
-          required = ["price", "foreign_flow", "fx", "breadth", "futures", "options", "leadership", "margin"]
-
-          manifest = {}
-          if manifest_path.exists():
-              manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-          summary = {}
-          if summary_path.exists():
-              summary = json.loads(summary_path.read_text(encoding="utf-8"))
-
-          provider_paths = manifest.get("provider_csv_paths") if isinstance(manifest.get("provider_csv_paths"), dict) else {}
-          missing = manifest.get("missing_production_csvs") if isinstance(manifest.get("missing_production_csvs"), list) else []
-          attempts = manifest.get("source_attempts") if isinstance(manifest.get("source_attempts"), list) else []
-          selected = {}
-          for attempt in attempts:
-              if not isinstance(attempt, dict) or not attempt.get("success"):
-                  continue
-              selected.setdefault(str(attempt.get("provider_category")), attempt)
-
-          pipeline = summary.get("pipeline") if isinstance(summary.get("pipeline"), dict) else None
-          if pipeline is None:
-              pipeline_status = "not run or failed before pipeline completion"
-          elif pipeline.get("validation", {}).get("has_errors"):
-              pipeline_status = "failed validation"
-          else:
-              pipeline_status = "completed"
-
-          print("## Production fetch validation")
-          print()
-          print(f"- as_of: `{as_of}`")
-          print(f"- price.csv: `{'written' if 'price' in provider_paths and (input_dir / 'price.csv').exists() else 'missing'}`")
-          print(f"- required production CSVs present: `{', '.join(cat for cat in required if cat in provider_paths) or 'none'}`")
-          print(f"- required production CSVs missing: `{', '.join(str(item) for item in (missing or [cat for cat in required if cat not in provider_paths])) or 'none'}`")
-          print(f"- data_status: `{manifest.get('data_status', 'unknown')}`")
-          print(f"- pipeline status: `{pipeline_status}`")
-          print()
-          print("### Provider source used per category")
-          print("| Category | Source | Source type | Retry attempts |")
-          print("| --- | --- | --- | --- |")
-          for category in required:
-              attempt = selected.get(category)
-              if attempt:
-                  print(f"| `{category}` | `{attempt.get('source_id')}` | `{attempt.get('source_type')}` | `{attempt.get('retry_attempts', 0)}` |")
-              else:
-                  print(f"| `{category}` | `missing` | `n/a` | `0` |")
-          print()
-          print("### Uploaded artifact paths")
-          print(f"- `{input_dir}/`")
-          print(f"- `{output_dir}/`")
-          print(f"- `{manifest_path}`")
-          print(f"- `{summary_path}`")
-          PY
+          python scripts/render_github_actions_production_fetch_summary.py \
+            --trade-date "$AS_OF" \
+            --input-dir "inputs/daily/$AS_OF" \
+            --output-dir "outputs/daily/$AS_OF" \
+            --reports-dir "reports/daily/$AS_OF" \
+            --connectivity-audit-dir "outputs/daily/$AS_OF/provider_connectivity_audit" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload production fetch artifacts
         uses: actions/upload-artifact@v4
@@ -167,5 +137,8 @@ jobs:
             reports/daily/${{ steps.as-of.outputs.as_of }}/
             outputs/daily/${{ steps.as-of.outputs.as_of }}/fetch_manifest.json
             outputs/daily/${{ steps.as-of.outputs.as_of }}/summary.json
+            outputs/daily/${{ steps.as-of.outputs.as_of }}/provider_connectivity_summary.json
+            outputs/daily/${{ steps.as-of.outputs.as_of }}/provider_connectivity_audit/
+            reports/daily/${{ steps.as-of.outputs.as_of }}/artifacts/production_fetch_summary.json
           if-no-files-found: warn
           retention-days: 90
