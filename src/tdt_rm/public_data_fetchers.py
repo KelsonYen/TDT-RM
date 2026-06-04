@@ -183,6 +183,8 @@ class PublicDataFetcherRegistry:
                 sources.append(TWSET86ForeignFlowSource(item))
             elif adapter == "taifex_daily_fx":
                 sources.append(TAIFEXDailyFXSource(item))
+            elif adapter == "cbc_daily_fx":
+                sources.append(CBCDailyFXSource(item))
             elif adapter == "twse_mi_index_breadth":
                 sources.append(TWSEMarketBreadthSource(item))
             elif adapter == "taifex_txf_futures":
@@ -725,6 +727,45 @@ class TAIFEXDailyFXSource:
             row["twd_stable"] = abs(change5) <= 0.5
             row["twd_depreciates_significantly"] = change5 >= 1.0
             return _result(self, "success", retrieved_at=retrieved_at, rows=(row,), canonical=row, metadata={"endpoint": _render_url(self.config, context), "official_source": "TAIFEX DailyForeignExchangeRates"})
+        except Exception as exc:  # noqa: BLE001
+            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"exception_class": exc.__class__.__name__, "exception_message": str(exc)})
+
+
+@dataclass(frozen=True)
+class CBCDailyFXSource:
+    """Official CBC Statistical Database parser for daily NTD/USD rates."""
+
+    config: Mapping[str, Any]
+
+    @property
+    def source_id(self) -> str:
+        return str(self.config.get("source_id") or "cbc_daily_fx")
+
+    @property
+    def source_name(self) -> str:
+        return str(self.config.get("source_name") or "CBC daily NTD/USD exchange rates")
+
+    @property
+    def provider_category(self) -> str:
+        return "fx"
+
+    def fetch(self, context: PublicDataFetchContext) -> PublicDataFetchResult:
+        retrieved_at = context.retrieved_at.isoformat()
+        try:
+            rows: list[dict[str, Any]] = []
+            for payload in _fetch_configured_payloads(self.config, context):
+                rows.extend(_parse_cbc_fx_rows(payload, context.as_of))
+            rows = sorted({row["date"]: row for row in rows if _parse_date(row.get("date")) and _parse_date(row.get("date")) <= context.as_of}.values(), key=lambda item: str(item["date"]))
+            if not rows:
+                return _result(self, "unavailable", (_issue(self, "warning", "row_missing", f"no CBC USD/TWD row on or before {context.as_of.isoformat()}"),), retrieved_at=retrieved_at)
+            row = rows[-1]
+            row["usd_twd_3d_change_pct"] = _pct_change_from_rows(rows, 3, "usd_twd")
+            row["usd_twd_5d_change_pct"] = _pct_change_from_rows(rows, 5, "usd_twd")
+            change5 = _to_float(row.get("usd_twd_5d_change_pct")) or 0.0
+            row["twd_appreciates"] = change5 < -0.5
+            row["twd_stable"] = abs(change5) <= 0.5
+            row["twd_depreciates_significantly"] = change5 >= 1.0
+            return _result(self, "success", retrieved_at=retrieved_at, rows=(row,), canonical=row, metadata={"endpoint": _render_url(self.config, context), "official_source": "CBC Statistical Database BP01D01en"})
         except Exception as exc:  # noqa: BLE001
             return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"exception_class": exc.__class__.__name__, "exception_message": str(exc)})
 
@@ -1314,6 +1355,18 @@ def _parse_taifex_fx_rows(payload: Any, as_of: date) -> list[dict[str, Any]]:
     return output
 
 
+def _parse_cbc_fx_rows(payload: Any, as_of: date) -> list[dict[str, Any]]:
+    output = []
+    for row in _payload_rows(payload):
+        observed = _parse_date(_first(row, "Date", "date", "TIME_PERIOD", "time", "日期"))
+        if observed is None or observed > as_of:
+            continue
+        value = _to_float(_first(row, "NTD/USD", "NTD-USD", "USD/TWD", "USDTWD", "NT$/US$", "VALUE", "value", "rate", "Exchange Rate"))
+        if value is not None:
+            output.append({"date": observed.isoformat(), "usd_twd": value})
+    return output
+
+
 def _parse_twse_breadth(payload: Any, as_of: date) -> dict[str, Any] | None:
     rows = _payload_rows(payload)
     adv = dec = None
@@ -1373,7 +1426,14 @@ def _parse_stock_closes(payload: Any, as_of: date) -> list[float]:
 def _payload_rows(payload: Any) -> list[Mapping[str, Any]]:
     if isinstance(payload, Mapping) and "_text" in payload:
         return _html_table_rows(str(payload.get("_text") or ""))
-    rows = _extract_rows(payload, {"rows_path": "data"}) if isinstance(payload, Mapping) else payload if isinstance(payload, list) else []
+    rows = []
+    if isinstance(payload, Mapping):
+        for rows_path in ("data", "DataSet", "dataset", "Dataset", "rows", "items"):
+            rows = _extract_rows(payload, {"rows_path": rows_path})
+            if rows:
+                break
+    elif isinstance(payload, list):
+        rows = payload
     if isinstance(rows, list):
         return [row for row in rows if isinstance(row, Mapping)]
     return []

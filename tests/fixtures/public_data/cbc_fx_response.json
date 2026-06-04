@@ -1,0 +1,10 @@
+{
+  "Header": {"ItemCode": "BP01D01en", "ItemName": "NTD-USD Exchange Rates"},
+  "DataSet": [
+    {"Date": "2026-05-29", "NTD/USD": "32.100"},
+    {"Date": "2026-06-01", "NTD/USD": "32.000"},
+    {"Date": "2026-06-02", "NTD/USD": "31.900"},
+    {"Date": "2026-06-03", "NTD/USD": "31.800"}
+  ],
+  "Structure": []
+}

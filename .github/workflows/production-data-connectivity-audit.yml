@@ -1,0 +1,43 @@
+name: Production Data Connectivity Audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 15:45 Asia/Taipei (07:45 UTC), Monday-Friday, before production fetch.
+    - cron: "45 7 * * 1-5"
+
+permissions:
+  contents: read
+
+jobs:
+  connectivity-audit:
+    name: Audit official and fallback data-source connectivity
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run connectivity audit
+        run: python scripts/audit_market_data_connectivity.py --output-dir outputs/production_data_connectivity_audit --repeat 2
+
+      - name: Publish connectivity audit summary
+        if: always()
+        run: |
+          if [ -f outputs/production_data_connectivity_audit/connectivity_audit.md ]; then
+            cat outputs/production_data_connectivity_audit/connectivity_audit.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Connectivity audit report was not generated.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload connectivity audit artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-data-connectivity-audit
+          path: outputs/production_data_connectivity_audit/

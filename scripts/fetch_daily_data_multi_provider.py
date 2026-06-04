@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from tdt_rm.data_providers import (  # noqa: E402
+    CBCProvider,
     CSV_BY_DATASET,
     DATASETS,
     DatasetFetchResult,
@@ -27,7 +28,6 @@ from tdt_rm.data_providers import (  # noqa: E402
     ProviderContext,
     ProviderError,
     ProviderHealth,
-    PublicFXProvider,
     StooqProvider,
     TAIFEXProvider,
     TWSEProvider,
@@ -39,7 +39,7 @@ from tdt_rm.public_data_fetchers import load_main7_symbols  # noqa: E402
 from validate_daily_input_csvs import validate_daily_input_csvs  # noqa: E402
 
 
-_PROVIDER_PRIORITY = ("TWSE_OFFICIAL", "TAIFEX_OFFICIAL", "PUBLIC_FX", "TAIWAN_INDEX_PLUS_OFFICIAL", "YAHOO_FINANCE", "STOOQ", "FINMIND_FALLBACK")
+_PROVIDER_PRIORITY = ("TWSE_OFFICIAL", "TAIFEX_OFFICIAL", "CBC_OFFICIAL", "TAIWAN_INDEX_PLUS_OFFICIAL", "YAHOO_FINANCE", "STOOQ", "FINMIND_FALLBACK")
 
 
 def main() -> int:
@@ -119,7 +119,7 @@ def _normalize_dash_args(argv: list[str]) -> list[str]:
 def _provider_chains(source_config: str | None) -> dict[str, tuple[object, ...]]:
     twse = TWSEProvider(source_config)
     taifex = TAIFEXProvider(source_config)
-    public_fx = PublicFXProvider(source_config)
+    cbc = CBCProvider(source_config)
     tip = TaiwanIndexPlusProvider(source_config)
     yahoo = YahooProvider()
     stooq = StooqProvider()
@@ -127,7 +127,7 @@ def _provider_chains(source_config: str | None) -> dict[str, tuple[object, ...]]
     return {
         "price": (twse, tip, yahoo, stooq, finmind),
         "foreign_flow": (twse, finmind),
-        "fx": (public_fx, taifex, yahoo, finmind),
+        "fx": (taifex, cbc, yahoo, finmind),
         "breadth": (twse, finmind),
         "futures": (taifex, finmind),
         "options": (taifex, finmind),

@@ -108,6 +108,27 @@
       "source_type": "taifex_official_json"
     },
     {
+      "source_id": "cbc_daily_fx",
+      "source_name": "CBC Statistical Database daily NTD/USD exchange rates",
+      "provider_category": "fx",
+      "adapter": "cbc_daily_fx",
+      "endpoint_url_template": "https://cpx.cbc.gov.tw/API/DataAPI/Get?FileName=BP01D01en",
+      "request_parameters": {
+        "FileName": "BP01D01en"
+      },
+      "response_type": "json",
+      "freshness_rules": {
+        "max_lag_days": 3
+      },
+      "required_fields": [
+        "usd_twd"
+      ],
+      "notes": "Official Central Bank of the Republic of China (Taiwan) Statistical Database API for daily NTD-USD exchange rates. Used as an official FX fallback after TAIFEX before vendor fallback.",
+      "enabled": true,
+      "fallback_order": 45,
+      "source_type": "cbc_official_json"
+    },
+    {
       "source_id": "twse_mi_index_breadth",
       "source_name": "TWSE MI_INDEX market breadth",
       "provider_category": "breadth",

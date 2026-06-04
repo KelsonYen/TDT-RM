@@ -52,9 +52,12 @@ def _price_row(**overrides: object) -> dict[str, object]:
 
 
 def test_provider_chain_is_official_source_first_and_finmind_last():
-    chain_names = [provider.name for provider in _provider_chains(None)["price"]]
+    chains = _provider_chains(None)
+    price_chain_names = [provider.name for provider in chains["price"]]
+    fx_chain_names = [provider.name for provider in chains["fx"]]
 
-    assert chain_names == ["TWSE_OFFICIAL", "TAIWAN_INDEX_PLUS_OFFICIAL", "YAHOO_FINANCE", "STOOQ", "FINMIND_FALLBACK"]
+    assert price_chain_names == ["TWSE_OFFICIAL", "TAIWAN_INDEX_PLUS_OFFICIAL", "YAHOO_FINANCE", "STOOQ", "FINMIND_FALLBACK"]
+    assert fx_chain_names == ["TAIFEX_OFFICIAL", "CBC_OFFICIAL", "YAHOO_FINANCE", "FINMIND_FALLBACK"]
 
 
 def test_strict_schema_and_reconciliation_checks_pass_for_complete_price_row():
