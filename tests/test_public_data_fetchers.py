@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 import subprocess
 import sys
@@ -44,7 +45,13 @@ def test_successful_price_fetch_writes_price_csv(tmp_path):
     assert results[0].success
     price_path = Path(written.provider_csv_paths["price"])
     assert price_path.name == "price.csv"
-    assert "taiex_close" in price_path.read_text(encoding="utf-8")
+    with price_path.open(newline="", encoding="utf-8") as handle:
+        row = next(csv.DictReader(handle))
+    assert row["trade_date"] == AS_OF.isoformat()
+    assert row["provider_source"] == "price_fixture"
+    assert row["source_type"]
+    assert row["close"] == "42100"
+    assert row["return_60d_pct"] == "6.5"
     assert Path(written.fetch_manifest_path).exists()
 
 
@@ -161,7 +168,7 @@ def test_cli_can_generate_provider_csvs_from_fixture_responses(tmp_path):
 
 def test_production_required_provider_csvs_are_generated_from_official_parser_fixtures(tmp_path):
     config = _config(
-        {**_source("official_price", "price", "official_price_response.json"), "adapter": "twse_fmtqik_price", "min_bars": 60},
+        {**_source("official_price", "price", "official_price_response.json"), "adapter": "twse_fmtqik_price", "min_bars": 61},
         {**_source("official_foreign", "foreign_flow", "foreign_flow_response.json"), "adapter": "twse_t86_foreign_flow"},
         {**_source("official_fx", "fx", "fx_response.json"), "adapter": "taifex_daily_fx"},
         {**_source("official_breadth", "breadth", "market_breadth_response.json"), "adapter": "twse_mi_index_breadth"},

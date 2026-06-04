@@ -1,2 +1,2 @@
-date,taiex_close,taiex_ma5,taiex_ma20,taiex_ma60,taiex_ma20_slope,one_day_return_pct,two_day_return_pct,turnover_amount,ma20_turnover
-2026-06-02,42120,42040,41780,40530,36,0.12,0.31,521000000000,500000000000
+date,taiex_close,taiex_ma5,taiex_ma20,taiex_ma60,taiex_ma20_slope,one_day_return_pct,two_day_return_pct,turnover_amount,ma20_turnover,close_below_ma20_consecutive_days,index_5d_return_pct,return_60d_pct,previous_ma60
+2026-06-02,42120,42040,41780,40530,36,0.12,0.31,521000000000,500000000000,0,1.18,6.42,40500
