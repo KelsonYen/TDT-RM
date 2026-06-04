@@ -22,7 +22,7 @@ The production runner validates local CSVs first. If any required CSV is missing
 ## Operator workflow
 
 1. Fetch TWSE, TAIFEX, FX, breadth, and leadership data outside Codex Cloud using an operator workstation, vendor terminal, browser download, or other approved network environment.
-2. Convert each source to the seven CSV files listed below. Start from the templates in `inputs/templates/daily_csv_schema/`.
+2. Convert each source to the eight CSV files listed below. Start from the templates in `inputs/templates/daily_csv_schema/`.
 3. Record the actual upstream source in `provider_source` for every row, for example `TWSE_official_manual_import` or `TAIFEX_options_manual_import`.
 4. Set `source_type` to a real non-fixture source label such as `official_manual`, `vendor_manual`, or `operator_verified`. Do **not** use `fallback`, `mock`, or `fixture`.
 5. Place the files under `inputs/daily/YYYY-MM-DD/`.
@@ -41,6 +41,7 @@ Local/import mode requires exactly these daily input files:
 - `futures.csv`
 - `options.csv`
 - `leadership.csv`
+- `margin.csv`
 
 ## CSV schema specification
 

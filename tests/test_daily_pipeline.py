@@ -12,7 +12,7 @@ from tdt_rm.daily_pipeline import render_report_task_summary, run_daily_pipeline
 AS_OF = "2026-05-29"
 LOCAL_CSV_AS_OF = "2026-06-03"
 LOCAL_CSV_DIR = Path("inputs/daily/2026-06-03")
-REQUIRED_LOCAL_CSVS = ("price.csv", "foreign_flow.csv", "fx.csv", "breadth.csv", "futures.csv", "options.csv", "leadership.csv")
+REQUIRED_LOCAL_CSVS = ("price.csv", "foreign_flow.csv", "fx.csv", "breadth.csv", "futures.csv", "options.csv", "leadership.csv", "margin.csv")
 PROVIDER_DIR = Path("examples/provider_inputs")
 SNAPSHOT_FIXTURE = Path("examples/daily_snapshots/sample_enriched_snapshot.json")
 
@@ -281,5 +281,17 @@ def test_missing_latest_report_summary_fails_with_generation_command(tmp_path: P
 def _copy_strict_local_csvs(destination: Path) -> Path:
     destination.mkdir(parents=True, exist_ok=True)
     for filename in REQUIRED_LOCAL_CSVS:
-        (destination / filename).write_text((LOCAL_CSV_DIR / filename).read_text(encoding="utf-8"), encoding="utf-8")
+        target = destination / filename
+        source = LOCAL_CSV_DIR / filename
+        if source.exists():
+            target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+            continue
+        if filename == "margin.csv":
+            target.write_text(
+                "trade_date,provider_source,source_type,margin_balance_5d_flat_or_down,hot_stock_margin_fast_increase,margin_balance_5d_increases,index_5d_return_pct,margin_balance_5d_decline_pct,margin_not_retreating\n"
+                f"{LOCAL_CSV_AS_OF},TWSE_margin_test_fixture,official_manual,true,false,false,1.25,0.4,false\n",
+                encoding="utf-8",
+            )
+            continue
+        raise FileNotFoundError(source)
     return destination

@@ -2,56 +2,58 @@
 
 ## Why production fetching moved out of Codex
 
-The 2026-06-04 production provider audit showed that the Codex runtime cannot be the production network environment for TDT-RM data acquisition: HTTPS `CONNECT` through `proxy:8080` is blocked with `403 Forbidden`, and direct no-proxy DNS resolution fails. That is an egress limitation of the Codex runtime, not a TDT-RM provider or scoring failure.
+The 2026-06-04 production provider audit showed that the Codex runtime cannot be treated as the production network environment for TDT-RM data acquisition: HTTPS `CONNECT` through the container proxy is blocked with `403 Forbidden`, and direct no-proxy DNS resolution is unavailable. That is an egress limitation of the Codex runtime, not proof that TWSE, TAIFEX, CBC, FinMind, or any other provider is down.
 
-Production data fetching therefore runs in GitHub Actions, which provides a normal CI network environment and auditable run logs/artifacts. Codex remains suitable for code changes, tests, and review, but **must not** be treated as the production data-fetch runtime.
+Production-readiness validation therefore runs in GitHub Actions on `ubuntu-latest`, which provides public internet egress, auditable logs, step summaries, and downloadable artifacts. Codex remains suitable for code changes, tests, and review, but **must not** be treated as the live production data-fetch runtime.
 
 ## Workflow
 
 The workflow is `.github/workflows/daily-production-fetch.yml`.
 
-It performs the following fail-closed sequence:
+It performs this fail-closed sequence:
 
-1. Resolve the trade date.
-2. Set up Python.
-3. Install repository requirements/package.
-4. Run official-source-first production fetchers.
-5. Validate strict provider CSV schemas.
-6. Materialize the required production input files in `inputs/daily/YYYY-MM-DD/`.
-7. Validate required production files, schemas, trade dates, and source types.
-8. Write a machine-readable validation report and fail closed if staging or production validation fails.
-9. Run the TDT-RM daily production report.
-10. Write a run summary that points to the production inputs, normalized CSVs, manifest, validation report, provider health, fetch summary, and pipeline artifacts.
-11. Upload production inputs, fetched/normalized provider files, and reports as GitHub Actions artifacts.
+1. Resolve the `as_of` date from `workflow_dispatch` input, or use the current Asia/Taipei date for scheduled runs.
+2. Set up Python and install the package.
+3. Run the live production fetch and pipeline command:
+
+   ```bash
+   python scripts/fetch_daily_provider_csvs.py \
+     --as-of "$AS_OF" \
+     --output-dir "inputs/daily/$AS_OF/" \
+     --run-pipeline \
+     --pipeline-output-dir "outputs/daily/$AS_OF/" \
+     --json-summary "outputs/daily/$AS_OF/summary.json"
+   ```
+4. Preserve fail-closed behavior: a missing `price.csv` or missing required production CSV category fails the job unless the CLI is explicitly run in a non-production partial mode (the workflow does not do that).
+5. Write a GitHub Actions step summary listing `price.csv` written/missing, required CSVs present/missing, selected provider source per category, `data_status`, pipeline status, and uploaded artifact paths.
+6. Upload the dated input/output directories plus `fetch_manifest.json` and `summary.json`.
 
 ## Data-source policy
 
-The pipeline is official-source-first:
+The pipeline is official-source-first through `config/public_data_sources.json`:
 
-- TAIEX price, foreign investor flow, market breadth, turnover/volume, margin: TWSE official public data first.
-- Futures/options and TAIFEX FX: TAIFEX official public data first.
-- CBC FX may be used if/when implemented in the provider layer.
-- FinMind is allowed only as a vendor fallback, only when explicitly enabled by the workflow, and only when `FINMIND_TOKEN` is present in GitHub Secrets.
-- Yahoo Finance is allowed only as fallback for market prices if official market-price providers are unavailable.
+- TAIEX price, foreign investor flow, market breadth, and margin: TWSE official public data.
+- Futures/options and TAIFEX FX: TAIFEX official public OpenAPI data.
+- CBC FX may be used as an official FX fallback.
+- Local/manual fallback is not enabled by the workflow and is not counted as production-ready.
+- FinMind remains disabled by default; the workflow only exposes an explicit `allow_finmind` input/environment flag for configurations that intentionally opt in.
 
-The pipeline never silently uses demo, mock, synthetic, stale local fallback, fixture, test, or sample data as production-valid input.
+The pipeline never silently uses demo, mock, synthetic, stale local fallback, fixture, test, sample, manual import, or local fallback data as production-valid live-provider success.
 
-## Required production files
+## Required production provider CSV categories
 
-For trade date `YYYY-MM-DD`, a production-valid run must create:
+A full production fetch requires these eight provider CSV categories to agree with the implementation:
 
-```text
-inputs/daily/YYYY-MM-DD/taiex_price.csv
-inputs/daily/YYYY-MM-DD/twse_foreign_investor.csv
-inputs/daily/YYYY-MM-DD/twse_margin.csv
-inputs/daily/YYYY-MM-DD/twse_market_breadth.csv
-inputs/daily/YYYY-MM-DD/twse_turnover_or_volume.csv
-inputs/daily/YYYY-MM-DD/taifex_futures_options.csv
-inputs/daily/YYYY-MM-DD/fx_usdtwd.csv
-inputs/daily/YYYY-MM-DD/manifest.json
-```
+- `price.csv`
+- `foreign_flow.csv`
+- `fx.csv`
+- `breadth.csv`
+- `futures.csv`
+- `options.csv`
+- `leadership.csv`
+- `margin.csv`
 
-If any file is missing, has a schema error, has a trade-date mismatch, contains stale data, or uses a forbidden source type, the run fails closed.
+If any required category is missing, stale, malformed, or uses a forbidden source type, the run fails closed. `price.csv` remains the hard blocker for running the production pipeline.
 
 ## Manual run
 
@@ -59,11 +61,11 @@ The workflow includes `workflow_dispatch`, so it can be manually triggered from 
 
 1. Open the repository on GitHub.
 2. Select **Actions** in the repository navigation.
-3. Select **Daily Production Data Fetch** in the workflow list.
+3. Select **Daily Production Data Fetch**.
 4. Click **Run workflow**.
-5. Optionally provide `trade_date` in `YYYY-MM-DD` format.
-6. If `trade_date` is blank, the workflow uses the current date in `Asia/Taipei`.
-7. Wait for the job to finish; a green job means every required provider CSV and production input passed the fail-closed validation gates.
+5. Enter `as_of`, for example `2026-06-04`.
+6. Leave `allow_finmind` disabled unless intentionally validating a FinMind-enabled configuration.
+7. Wait for the job to finish; a green job means every required provider CSV and the daily pipeline passed the fail-closed gates on the GitHub-hosted runner.
 
 ## Scheduled run
 
@@ -73,63 +75,32 @@ The workflow schedule is:
 cron: "30 10 * * 1-5"
 ```
 
-That is 10:30 UTC / 18:30 Asia/Taipei, Monday through Friday. The job starts after the official same-day publication window for TWSE foreign-flow data and final TWSE end-of-day reports. The default `trade_date` for scheduled runs is resolved with `TZ=Asia/Taipei date +%F`.
-
-The fetch/report step retries the whole fail-closed command up to six total attempts with a 30-minute delay between attempts, and the job timeout allows the full release-window retry span plus command runtime. The retry loop only waits for official same-day rows to appear; it does not accept stale, synthetic, demo, or otherwise validation-weakened data.
-
-## FINMIND_TOKEN setup
-
-FinMind is a last-resort vendor fallback and is disabled unless the workflow has a token.
-
-To configure it:
-
-1. Open the repository on GitHub.
-2. Go to **Settings → Secrets and variables → Actions**.
-3. Add a repository secret named `FINMIND_TOKEN`.
-4. Paste the FinMind API token as the secret value.
-
-Do not commit tokens to the repository. The workflow reads the token from `${{ secrets.FINMIND_TOKEN }}`.
+That is 10:30 UTC / 18:30 Asia/Taipei, Monday through Friday. Scheduled runs resolve the date with `TZ=Asia/Taipei date +%F`.
 
 ## Artifacts
 
-Every run uploads artifacts with 90-day retention:
-
-- `tdt-rm-production-inputs-YYYY-MM-DD`: the `inputs/daily/YYYY-MM-DD/` production input directory, including required production CSVs and `manifest.json` when validation reaches materialization.
-- `tdt-rm-provider-fetch-files-YYYY-MM-DD`: the strict provider staging directory, provider-attempt raw JSON records under `inputs/daily/YYYY-MM-DD/_strict_provider_csvs/_raw/`, and mirrored normalized CSVs/provider diagnostics under `reports/daily/YYYY-MM-DD/artifacts/raw/` and `reports/daily/YYYY-MM-DD/artifacts/normalized/`.
-- `tdt-rm-production-reports-YYYY-MM-DD`: the dated report directory under `reports/daily/YYYY-MM-DD/`.
-
-Inspect these artifact paths first:
+Every run uploads `tdt-rm-production-fetch-YYYY-MM-DD` with 90-day retention. Inspect these paths first:
 
 ```text
-inputs/daily/YYYY-MM-DD/_strict_provider_csvs/
-inputs/daily/YYYY-MM-DD/_strict_provider_csvs/_raw/
-inputs/daily/YYYY-MM-DD/manifest.json
-reports/daily/YYYY-MM-DD/artifacts/production_fetch_summary.json
-reports/daily/YYYY-MM-DD/artifacts/provider_health.json
-reports/daily/YYYY-MM-DD/artifacts/validation_report.json
-reports/daily/YYYY-MM-DD/artifacts/run_summary.json
-reports/daily/YYYY-MM-DD/artifacts/pipeline_summary.json
-reports/daily/YYYY-MM-DD/artifacts/
+inputs/daily/YYYY-MM-DD/
+inputs/daily/YYYY-MM-DD/fetch_manifest.json
+outputs/daily/YYYY-MM-DD/
+outputs/daily/YYYY-MM-DD/summary.json
 ```
 
-The report artifact includes provider fetch summaries, provider health diagnostics, validation reports, pipeline summaries, run summaries, production snapshots/pipeline outputs, and TDT-RM daily production report outputs when the run reaches the report step.
+`fetch_manifest.json` records provider CSV paths, required-category gaps, provider health, source attempts, selected source type, cache status, and URL retry diagnostics. `summary.json` combines the fetch result and pipeline result when the pipeline is reached.
 
 ## How to verify a production-valid run
 
 A run is production-valid only if all of the following are true:
 
 1. The GitHub Actions job is green.
-2. `inputs/daily/YYYY-MM-DD/manifest.json` exists and has the same `trade_date` as the run.
-3. All required production files listed above exist.
-4. CSV validation passed for every required file.
-5. Every row has the requested trade date and a non-empty `provider_source` and `source_type`.
-6. No row uses forbidden source types such as `demo`, `mock`, `synthetic`, `fixture`, `test`, `sample`, `stale`, `local_csv_fallback`, or `local_json_fallback`.
-7. Provider health and fetch summaries identify any failed provider attempts and the reason for each failure.
-8. The TDT-RM daily production report and pipeline summary artifacts exist.
+2. `inputs/daily/YYYY-MM-DD/fetch_manifest.json` exists and has the same `as_of` date as the run.
+3. `outputs/daily/YYYY-MM-DD/summary.json` exists.
+4. `price.csv` exists under `inputs/daily/YYYY-MM-DD/`.
+5. All eight required provider CSV categories are present.
+6. Provider source attempts identify the live source selected per category.
+7. No row/source uses forbidden fallback, mock, synthetic, fixture, test, sample, manual/local fallback, or stale data as production success.
+8. The pipeline status in the step summary is completed.
 
-If any condition fails, the run is not production-valid and must be treated as blocked until the provider failure or schema issue is resolved.
-
-
-## Current production-readiness status
-
-As of the 2026-06-04 inspection, the workflow is correctly GitHub-Actions-targeted and manually triggerable, but daily automated production execution remains blocked until every required production dataset is produced by the provider layer. In particular, `twse_margin.csv` is listed as a required production input and validation fail-closes when it is absent; the current multi-provider dataset list does not yet include a live TWSE margin provider. Treat a failed run for a missing required dataset as a correct fail-closed result, not as a production-ready TDT-RM input set.
+If any condition fails, the run is not production-valid and must be treated as blocked until the provider, schema, or pipeline issue is resolved.

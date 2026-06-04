@@ -11,6 +11,7 @@ import csv
 import html
 import json
 import math
+import os
 import re
 import time
 import urllib.error
@@ -173,6 +174,8 @@ class PublicDataFetcherRegistry:
         for item in payload.get("sources", []) if isinstance(payload.get("sources", []), list) else []:
             if not isinstance(item, Mapping) or item.get("enabled", True) is False:
                 continue
+            if _is_finmind_source_config(item) and not _finmind_live_allowed():
+                continue
             adapter = str(item.get("adapter") or item.get("provider_category") or "generic_json")
             source_type = str(item.get("source_type") or "").lower()
             if source_type in {"local_csv_fallback", "local_json_fallback"}:
@@ -248,6 +251,19 @@ class PublicDataFetcherRegistry:
     def source_ids(self) -> tuple[str, ...]:
         return tuple(source.source_id for source in self.sources)
 
+
+
+def _is_finmind_source_config(config: Mapping[str, Any]) -> bool:
+    haystack = " ".join(
+        str(config.get(key) or "")
+        for key in ("source_id", "source_name", "adapter", "source_type", "endpoint_url_template", "url")
+    ).lower()
+    return "finmind" in haystack
+
+
+def _finmind_live_allowed() -> bool:
+    value = os.environ.get("TDT_RM_ALLOW_FINMIND_LIVE") or os.environ.get("ALLOW_FINMIND_LIVE") or ""
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 def _normalized_cache_mode(context: PublicDataFetchContext) -> str:
@@ -1251,6 +1267,7 @@ def _source_attempt_manifest(result: PublicDataFetchResult) -> dict[str, Any]:
     if not source_type:
         source_type = "local_fallback" if result.raw_metadata.get("local_fallback") else "unknown"
     cache = result.raw_metadata.get("cache") if isinstance(result.raw_metadata.get("cache"), Mapping) else None
+    url_fetch = result.raw_metadata.get("url_fetch") if isinstance(result.raw_metadata.get("url_fetch"), Mapping) else None
     return {
         "source_id": result.source_id,
         "source_name": result.source_name,
@@ -1258,6 +1275,8 @@ def _source_attempt_manifest(result: PublicDataFetchResult) -> dict[str, Any]:
         "source_type": source_type,
         "local_fallback": bool(result.raw_metadata.get("local_fallback")),
         "cache": dict(cache) if isinstance(cache, Mapping) else {"hit": False},
+        "url_fetch": dict(url_fetch) if isinstance(url_fetch, Mapping) else {},
+        "retry_attempts": int(url_fetch.get("attempts") or 0) if isinstance(url_fetch, Mapping) else 0,
         "attempted": True,
         "success": result.success,
         "status": result.status,
@@ -1297,6 +1316,9 @@ def _result(source: PublicDataSource, status: str, issues: Sequence[PublicDataFe
         raw_metadata.setdefault("source_type", config.get("source_type") or config.get("adapter") or source.provider_category)
         if str(raw_metadata.get("source_type")) in {"local_csv_fallback", "local_json_fallback"}:
             raw_metadata.setdefault("local_fallback", True)
+    fetch_diagnostics = _URL_FETCH_DIAGNOSTICS_BY_SOURCE.get(source.source_id)
+    if fetch_diagnostics:
+        raw_metadata.setdefault("url_fetch", dict(fetch_diagnostics))
     return PublicDataFetchResult(source.source_id, source.source_name, source.provider_category, status, tuple(rows), dict(canonical or {}), raw_metadata, tuple(issues), retrieved_at)
 
 
@@ -1358,35 +1380,78 @@ def _fetch_any_payload(config: Mapping[str, Any], context: PublicDataFetchContex
 
 _REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
 _DEFAULT_MAX_REDIRECTS = 5
+_DEFAULT_URL_FETCH_ATTEMPTS = 3
+_DEFAULT_URL_FETCH_BACKOFF_SECONDS = 0.25
+_URL_FETCH_DIAGNOSTICS_BY_SOURCE: dict[str, dict[str, Any]] = {}
 _TWSE_OFFICIAL_REDIRECT_HOSTS = {"www.twse.com.tw", "wwwc.twse.com.tw", "openapi.twse.com.tw"}
 
 
 def _fetch_url_text(config: Mapping[str, Any], context: PublicDataFetchContext, url: str, *, accept: str) -> str:
-    """Fetch a configured public URL with bounded, official-host redirects.
+    """Fetch a configured public URL with bounded retries and redirects.
 
     urllib normally follows many redirects, but production TWSE runs can surface
-    explicit HTTP 307 responses from official report endpoints.  Handling them
+    explicit HTTP 307 responses from official report endpoints. Handling them
     here keeps provider ordering fail-closed while allowing the same safe GET to
-    continue only to trusted HTTPS/http official destinations.
+    continue only to trusted HTTPS/http official destinations. Live URL attempts
+    are retried at most three times with short exponential backoff so transient
+    CI egress/provider blips are observable without treating fallback data as
+    production success.
     """
 
     current_url = url
     max_redirects = int(config.get("max_redirects", _DEFAULT_MAX_REDIRECTS) or 0)
+    max_attempts = max(1, min(int(config.get("max_fetch_attempts", _DEFAULT_URL_FETCH_ATTEMPTS) or 1), _DEFAULT_URL_FETCH_ATTEMPTS))
+    backoff_seconds = max(0.0, float(config.get("fetch_backoff_seconds", _DEFAULT_URL_FETCH_BACKOFF_SECONDS) or 0.0))
     headers = {"User-Agent": context.user_agent, "Accept": accept}
+    source_id = str(config.get("source_id") or "unknown_source")
+    diagnostics: dict[str, Any] = {
+        "initial_url": url,
+        "final_url": current_url,
+        "max_attempts": max_attempts,
+        "attempts": 0,
+        "redirects": [],
+        "errors": [],
+    }
+    _URL_FETCH_DIAGNOSTICS_BY_SOURCE[source_id] = diagnostics
+
     for redirect_count in range(max_redirects + 1):
-        request = urllib.request.Request(current_url, headers=headers)
-        try:
-            with urllib.request.urlopen(request, timeout=context.timeout_seconds) as response:  # noqa: S310 - configured public endpoints only.
-                return response.read().decode("utf-8-sig")
-        except urllib.error.HTTPError as exc:
-            if exc.code not in _REDIRECT_STATUS_CODES:
-                raise ValueError(f"HTTP {exc.code} from {current_url}") from exc
-            if redirect_count >= max_redirects:
-                raise ValueError(f"HTTP redirect limit exceeded after {max_redirects} redirects from {url}") from exc
-            location = exc.headers.get("Location") if exc.headers else None
-            if not location:
-                raise ValueError(f"HTTP {exc.code} from {current_url} without Location header") from exc
-            current_url = _validated_redirect_url(config, current_url, str(location))
+        for attempt in range(1, max_attempts + 1):
+            diagnostics["attempts"] = int(diagnostics.get("attempts") or 0) + 1
+            diagnostics["final_url"] = current_url
+            request = urllib.request.Request(current_url, headers=headers)
+            try:
+                with urllib.request.urlopen(request, timeout=context.timeout_seconds) as response:  # noqa: S310 - configured public endpoints only.
+                    diagnostics["success"] = True
+                    diagnostics["status"] = getattr(response, "status", 200)
+                    return response.read().decode("utf-8-sig")
+            except urllib.error.HTTPError as exc:
+                if exc.code in _REDIRECT_STATUS_CODES:
+                    if redirect_count >= max_redirects:
+                        diagnostics.setdefault("errors", []).append({"url": current_url, "attempt": attempt, "error": f"HTTP redirect limit exceeded after {max_redirects} redirects"})
+                        raise ValueError(f"HTTP redirect limit exceeded after {max_redirects} redirects from {url}") from exc
+                    location = exc.headers.get("Location") if exc.headers else None
+                    if not location:
+                        diagnostics.setdefault("errors", []).append({"url": current_url, "attempt": attempt, "error": f"HTTP {exc.code} without Location header"})
+                        raise ValueError(f"HTTP {exc.code} from {current_url} without Location header") from exc
+                    target = _validated_redirect_url(config, current_url, str(location))
+                    diagnostics.setdefault("redirects", []).append({"from": current_url, "to": target, "status": exc.code})
+                    current_url = target
+                    break
+                diagnostics.setdefault("errors", []).append({"url": current_url, "attempt": attempt, "error": f"HTTP {exc.code}"})
+                if attempt >= max_attempts:
+                    diagnostics["success"] = False
+                    raise ValueError(f"HTTP {exc.code} from {current_url} after {attempt} attempts") from exc
+                time.sleep(backoff_seconds * (2 ** (attempt - 1)))
+            except urllib.error.URLError as exc:
+                diagnostics.setdefault("errors", []).append({"url": current_url, "attempt": attempt, "error": str(exc)})
+                if attempt >= max_attempts:
+                    diagnostics["success"] = False
+                    raise ValueError(f"URL fetch failed from {current_url} after {attempt} attempts: {exc}") from exc
+                time.sleep(backoff_seconds * (2 ** (attempt - 1)))
+        else:
+            continue
+        continue
+    diagnostics["success"] = False
     raise ValueError(f"HTTP redirect limit exceeded after {max_redirects} redirects from {url}")
 
 

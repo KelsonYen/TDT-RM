@@ -4,7 +4,7 @@ _Audit date: 2026-06-04. Scope: production CSV generation only. This plan does n
 
 ## Audit summary from PR #56 gap report
 
-The production CSV gap report is `docs/PRODUCTION_GAP_REPORT.md`. It confirms that all seven strict daily CSVs have schemas and some public-provider parsing coverage, but none were fully production-ready because strict local/import CSV output, provenance fields, lookback-derived fields, and network assumptions were incomplete.
+The production CSV gap report is `docs/PRODUCTION_GAP_REPORT.md`. It confirms that all eight strict daily CSVs have schemas and some public-provider parsing coverage, but none were fully production-ready because strict local/import CSV output, provenance fields, lookback-derived fields, and network assumptions were incomplete.
 
 | Priority | CSV | Schema exists | Local ingestion exists | Fetcher/provider exists | Auto-output status after this PR | Manual/imported input still needed | Primary blocker |
 | --- | --- | --- | --- | --- | --- | --- | --- |

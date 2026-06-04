@@ -13,6 +13,7 @@ A full production fetch validates and writes these generated inputs:
 - `futures.csv` — TAIFEX TX/TXF futures close, settlement, volume, and open interest.
 - `options.csv` — TAIFEX TXO put/call ratio and TAIFEX VIX.
 - `leadership.csv` — Main-7 constituents below MA20/MA60.
+- `margin.csv` — TWSE margin balance behavior and 5-day margin retreat/increase signals.
 
 ## Official source mapping
 
@@ -25,6 +26,7 @@ A full production fetch validates and writes these generated inputs:
 | TAIEX futures | TAIFEX `DailyMarketReportFut` OpenAPI | `taifex_txf_futures` |
 | TAIEX options PCR and VIX | TAIFEX `PutCallRatio` and `TAIFEXVIX` OpenAPI endpoints | `taifex_txo_options` |
 | Main-7 leadership | TWSE `STOCK_DAY` per-constituent daily history | `twse_main7_leadership` |
+| Margin balance | TWSE `MI_MARGN` margin trading balance report | `twse_margin` |
 | TAIEX official index fallback | Taiwan Index Plus configured official endpoint/cache | `taiwan_index_plus_price` |
 
 The `cli_price_fallback_csv` runtime source remains available only as an operator break-glass path. It is not enabled in the production configuration and is not required for normal production runs.
@@ -41,4 +43,4 @@ The `cli_price_fallback_csv` runtime source remains available only as an operato
 
 FinMind remains available as a fallback fetcher for environments with approved external HTTPS egress, but it is an `external-network-required` provider and the hardened multi-provider CLI will not call it unless `--allow-finmind-live` or `TDT_RM_ALLOW_FINMIND_LIVE=true` is set. Codex runtime should not assume FinMind, TWSE, TAIFEX, or any other live HTTPS provider is reachable because the Codex proxy can reject outbound CONNECT tunnels before provider traffic leaves the container.
 
-For Codex-validated production runs, use the strict local CSV ingestion path documented in `docs/CODEX_NETWORK_LIMITATION.md`: all seven required CSVs must already exist under `inputs/daily/YYYY-MM-DD/`, must validate for schema and date consistency, and must pass before the model is scored. Missing local CSVs are blocking errors; the pipeline must not substitute mock, fallback, or neutral data.
+For Codex-validated production runs, use the strict local CSV ingestion path documented in `docs/CODEX_NETWORK_LIMITATION.md`: all eight required CSVs must already exist under `inputs/daily/YYYY-MM-DD/`, must validate for schema and date consistency, and must pass before the model is scored. Missing local CSVs are blocking errors; the pipeline must not substitute mock, fallback, or neutral data.
