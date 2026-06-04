@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-FORBIDDEN_SOURCE_TYPES = {"fallback", "mock", "fixture"}
+FORBIDDEN_SOURCE_TYPES = {"fallback", "mock", "fixture", "synthetic", "neutral", "sample", "test"}
 COMMON_COLUMNS = {
     "trade_date": "date",
     "provider_source": "string",

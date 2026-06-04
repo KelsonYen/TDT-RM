@@ -1,4 +1,8 @@
-"""FinMind fallback provider for the multi-provider daily layer."""
+"""FinMind fallback provider for the multi-provider daily layer.
+
+This provider is tagged as external-network-required: it performs live HTTPS
+requests and must not be assumed available in Codex/runtime environments.
+"""
 
 from __future__ import annotations
 
@@ -30,7 +34,9 @@ from fetch_daily_data_finmind import (  # type: ignore  # noqa: E402
 
 @dataclass(frozen=True)
 class FinMindProvider(DailyDataProvider):
-    """FinMind fallback. It is intentionally last in each provider chain."""
+    """FinMind fallback. It is intentionally last and external-network-required."""
+
+    network_requirement: str = "external-network-required"
 
     token: str | None = None
     name: str = "FINMIND_FALLBACK"
@@ -55,4 +61,13 @@ class FinMindProvider(DailyDataProvider):
         row, raw_source = builders[dataset]()
         provider_source = f"{self.name}:{raw_source}"
         row = {**row, "provider_source": provider_source}
-        return ProviderResult(dataset, provider_source, raw_source, row, {"finmind_token_present": bool(token)})
+        return ProviderResult(
+            dataset,
+            provider_source,
+            raw_source,
+            row,
+            {
+                "finmind_token_present": bool(token),
+                "network_requirement": self.network_requirement,
+            },
+        )

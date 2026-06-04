@@ -34,3 +34,9 @@ The `cli_price_fallback_csv` runtime source remains available only as an operato
 - The TWSE price parser checks configured freshness before writing `price.csv`.
 - Optional-but-required-for-full-production source failures prevent a no-`--allow-partial` production run from silently succeeding.
 - `fetch_manifest.json` and `provider_health.json` record selected sources, failed attempts, freshness status, extracted fields, source type, and cache status for audit.
+
+## Codex runtime and external-network-required providers
+
+FinMind remains available as a fallback fetcher for environments with approved external HTTPS egress, but it is an `external-network-required` provider. Codex runtime should not assume FinMind, TWSE, TAIFEX, or any other live HTTPS provider is reachable because the Codex proxy can reject outbound CONNECT tunnels before provider traffic leaves the container.
+
+For Codex-validated production runs, use the strict local CSV ingestion path documented in `docs/CODEX_NETWORK_LIMITATION.md`: all seven required CSVs must already exist under `inputs/daily/YYYY-MM-DD/`, must validate for schema and date consistency, and must pass before the model is scored. Missing local CSVs are blocking errors; the pipeline must not substitute mock, fallback, or neutral data.
