@@ -1622,7 +1622,18 @@ def _parse_t86_foreign_flow(payload: Any, as_of: date) -> dict[str, Any] | None:
     rows = _payload_rows(payload)
     net_values = []
     for row in rows:
-        net = _to_float(_first(row, "外資及陸資買賣超股數(不含外資自營商)", "外資及陸資買賣超股數", "Foreign_Investor_Buy_Sell_Difference", "Foreign Investor Buy/Sell Difference", "foreign_spot_net_buy"))
+        net = _to_float(
+            _first(
+                row,
+                "外陸資買賣超股數(不含自營商)",
+                "外資及陸資買賣超股數(不含外資自營商)",
+                "外資及陸資買賣超股數",
+                "外陸資買賣超股數",
+                "Foreign_Investor_Buy_Sell_Difference",
+                "Foreign Investor Buy/Sell Difference",
+                "foreign_spot_net_buy",
+            )
+        )
         if net is not None:
             net_values.append(net)
     if not net_values:
@@ -1660,10 +1671,11 @@ def _parse_twse_breadth(payload: Any, as_of: date) -> dict[str, Any] | None:
     adv = dec = None
     for row in rows:
         label = str(_first(row, "類型", "Type", "name", "Name", "指數", "證券名稱") or "")
-        if "上漲" in label or label.lower() in {"up", "advance", "advancing issues"}:
-            adv = _to_float(_first(row, "家數", "Count", "count", "advancing_issues"))
-        if "下跌" in label or label.lower() in {"down", "decline", "declining issues"}:
-            dec = _to_float(_first(row, "家數", "Count", "count", "declining_issues"))
+        label_lower = label.lower()
+        if "上漲" in label or label_lower in {"up", "advance", "advancing issues"}:
+            adv = _to_float(_first(row, "家數", "Count", "count", "advancing_issues", "上漲家數", "整體市場", "股票"))
+        if "下跌" in label or label_lower in {"down", "decline", "declining issues"}:
+            dec = _to_float(_first(row, "家數", "Count", "count", "declining_issues", "下跌家數", "整體市場", "股票"))
         adv = adv if adv is not None else _to_float(_first(row, "上漲家數", "advancing_issues"))
         dec = dec if dec is not None else _to_float(_first(row, "下跌家數", "declining_issues"))
     if adv is None or dec is None:
@@ -1677,9 +1689,9 @@ def _parse_taifex_futures(payload: Any, as_of: date) -> dict[str, Any] | None:
         if contract and not contract.startswith("TX"):
             continue
         close = _to_float(_first(row, "收盤價", "Close", "close", "txf_close"))
-        settle = _to_float(_first(row, "結算價", "Settlement Price", "settlement", "txf_settlement"))
+        settle = _to_float(_first(row, "結算價", "Settlement Price", "SettlementPrice", "settlement", "txf_settlement"))
         volume = _to_float(_first(row, "成交量", "Volume", "volume", "txf_volume"))
-        oi = _to_float(_first(row, "未沖銷契約數", "Open Interest", "open_interest", "txf_open_interest"))
+        oi = _to_float(_first(row, "未沖銷契約數", "Open Interest", "OpenInterest", "open_interest", "txf_open_interest"))
         if close is not None or settle is not None:
             return {"date": as_of.isoformat(), "txf_close": close or settle, "txf_settlement": settle or close, "txf_volume": volume, "txf_open_interest": oi, "futures_source_contract": contract or "TX"}
     return None
@@ -1688,11 +1700,11 @@ def _parse_taifex_futures(payload: Any, as_of: date) -> dict[str, Any] | None:
 def _parse_taifex_options(payload: Any, as_of: date) -> dict[str, Any]:
     row_out: dict[str, Any] = {"date": as_of.isoformat()}
     for row in _payload_rows(payload):
-        pcr = _to_float(_first(row, "賣權/買權比", "Put/Call Ratio", "put_call_ratio", "txo_put_call_ratio"))
+        pcr = _to_float(_first(row, "賣權/買權比", "Put/Call Ratio", "PutCallVolumeRatio", "put_call_ratio", "txo_put_call_ratio"))
         if pcr is not None:
             row_out["txo_put_call_ratio"] = pcr
-            row_out["txo_put_volume"] = _to_float(_first(row, "賣權成交量", "Put Volume", "put_volume", "txo_put_volume"))
-            row_out["txo_call_volume"] = _to_float(_first(row, "買權成交量", "Call Volume", "call_volume", "txo_call_volume"))
+            row_out["txo_put_volume"] = _to_float(_first(row, "賣權成交量", "Put Volume", "PutVolume", "put_volume", "txo_put_volume"))
+            row_out["txo_call_volume"] = _to_float(_first(row, "買權成交量", "Call Volume", "CallVolume", "call_volume", "txo_call_volume"))
         vix = _to_float(_first(row, "臺指選擇權波動率指數", "TAIFEX VIX", "VIX", "vix", "taifex_vix"))
         if vix is not None:
             row_out["taifex_vix"] = vix
@@ -1714,9 +1726,9 @@ def _parse_stock_closes(payload: Any, as_of: date) -> list[float]:
 def _payload_rows(payload: Any) -> list[Mapping[str, Any]]:
     if isinstance(payload, Mapping) and "_text" in payload:
         return _html_table_rows(str(payload.get("_text") or ""))
-    rows = []
+    rows: list[Any] = []
     if isinstance(payload, Mapping):
-        rows = _table_rows(payload)
+        rows = list(_table_rows(payload))
         if not rows:
             for rows_path in ("data", "DataSet", "dataset", "Dataset", "rows", "items"):
                 rows = _extract_rows(payload, {"rows_path": rows_path})
@@ -1724,9 +1736,17 @@ def _payload_rows(payload: Any) -> list[Mapping[str, Any]]:
                     break
     elif isinstance(payload, list):
         rows = payload
-    if isinstance(rows, list):
-        return [row for row in rows if isinstance(row, Mapping)]
-    return []
+    return _flatten_mapping_rows(rows)
+
+
+def _flatten_mapping_rows(rows: Any) -> list[Mapping[str, Any]]:
+    output: list[Mapping[str, Any]] = []
+    if isinstance(rows, Mapping):
+        output.append(rows)
+    elif isinstance(rows, list):
+        for item in rows:
+            output.extend(_flatten_mapping_rows(item))
+    return output
 
 
 def _html_table_rows(text: str) -> list[Mapping[str, Any]]:
