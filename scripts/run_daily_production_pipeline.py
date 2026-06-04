@@ -69,6 +69,7 @@ def main() -> int:
             futures_csv=provider_paths.get("futures"),
             options_csv=provider_paths.get("options"),
             leadership_csv=provider_paths.get("leadership"),
+            margin_csv=provider_paths.get("margin"),
             field_map=provider_paths.get("field_map"),
             snapshot_path=args.snapshot_path,
             command="scripts/run_daily_production_pipeline.py",
@@ -98,8 +99,9 @@ def _local_input_paths(inputs_dir: Path) -> dict[str, str]:
         "futures.csv": "futures",
         "options.csv": "options",
         "leadership.csv": "leadership",
+        "margin.csv": "margin",
     }
-    paths = {key_by_file[name]: str(inputs_dir / name) for name in SCHEMAS_BY_FILE}
+    paths = {key: str(inputs_dir / name) for name, key in key_by_file.items() if (inputs_dir / name).exists() or name in SCHEMAS_BY_FILE}
     field_map = inputs_dir / "provider_field_map.json"
     if field_map.exists():
         paths["field_map"] = str(field_map)
@@ -130,6 +132,8 @@ def _legacy_provider_paths(inputs_dir: Path, manifest: Mapping[str, Any]) -> dic
         "leadership": "leadership.csv",
         "margin": "margin.csv",
         "scores": "scores.csv",
+        "futures": "futures.csv",
+        "options": "options.csv",
     }
     for key, filename in defaults.items():
         paths.setdefault(key, str(inputs_dir / filename))

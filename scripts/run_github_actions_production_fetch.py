@@ -78,25 +78,38 @@ def main() -> int:
     artifacts_dir = reports_dir / "artifacts"
     fetch_summary = artifacts_dir / "production_fetch_summary.json"
     provider_health = artifacts_dir / "provider_health.json"
+    raw_dir = artifacts_dir / "raw"
+    normalized_dir = artifacts_dir / "normalized"
+    validation_report = artifacts_dir / "validation_report.json"
+    run_summary = artifacts_dir / "run_summary.json"
 
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     staging_dir.mkdir(parents=True, exist_ok=True)
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    normalized_dir.mkdir(parents=True, exist_ok=True)
 
     try:
         if not args.skip_fetch:
             _run_fetchers(trade_date, staging_dir, fetch_summary, provider_health, args.source_config, args.allow_finmind_live)
+        _copy_if_exists(fetch_summary, raw_dir / fetch_summary.name)
+        _copy_if_exists(provider_health, raw_dir / provider_health.name)
 
         legacy_errors = validate_daily_input_csvs(trade_date=trade_date, input_dir=staging_dir)
+        _mirror_directory(staging_dir, normalized_dir)
+        _write_validation_report(validation_report, trade_date, staging_errors=legacy_errors, production_errors=[])
         if legacy_errors:
             raise RuntimeError("strict provider CSV validation failed: " + "; ".join(legacy_errors))
 
         build_production_input_directory(trade_date=trade_date, staging_dir=staging_dir, production_dir=production_dir, fetch_summary_path=fetch_summary, provider_health_path=provider_health)
         production_errors = validate_required_production_files(trade_date=trade_date, input_dir=production_dir)
+        _write_validation_report(validation_report, trade_date, staging_errors=legacy_errors, production_errors=production_errors)
         if production_errors:
             raise RuntimeError("production CSV validation failed: " + "; ".join(production_errors))
 
         _run_daily_report(trade_date, staging_dir, reports_dir, artifacts_dir)
+        _write_run_summary(run_summary, trade_date, "READY", production_dir, reports_dir, artifacts_dir, validation_report, fetch_summary, provider_health)
     except Exception as exc:  # noqa: BLE001 - CLI must fail closed with exact blocking reason.
+        _write_run_summary(run_summary, trade_date, "NOT_READY", production_dir, reports_dir, artifacts_dir, validation_report, fetch_summary, provider_health, blocking_error=str(exc))
         print(f"ERROR GitHub Actions production fetch failed closed: {exc}", file=sys.stderr)
         return 1
 
@@ -254,6 +267,56 @@ def _write_taifex_combined_file(trade_date: date, futures_path: Path, options_pa
     row = {"trade_date": trade_date.isoformat(), "provider_source": provider_source, "source_type": source_type, **{key: futures.get(key) for key in ("futures_hedging_increases", "futures_hedging_significant", "futures_net_short_increases", "futures_net_short_decreases")}, **{key: options.get(key) for key in ("pcr_stable", "pcr_rises", "vix_stable", "vix_rises", "tail_risk", "bcd")}}
     _write_csv(dest, CSV_SPECS["taifex_futures_options.csv"].required_columns + ("futures_net_short_increases", "futures_net_short_decreases"), row)
 
+
+
+def _copy_if_exists(source: Path, dest: Path) -> None:
+    if source.exists():
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, dest)
+
+
+def _mirror_directory(source: Path, dest: Path) -> None:
+    if dest.exists():
+        shutil.rmtree(dest)
+    if source.exists():
+        shutil.copytree(source, dest)
+
+
+def _write_validation_report(path: Path, trade_date: date, *, staging_errors: Sequence[str], production_errors: Sequence[str]) -> None:
+    payload = {
+        "trade_date": trade_date.isoformat(),
+        "generated_at": datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "staging_validation": {"status": "passed" if not staging_errors else "failed", "errors": list(staging_errors)},
+        "production_validation": {"status": "passed" if not production_errors else "failed", "errors": list(production_errors)},
+        "overall_status": "passed" if not staging_errors and not production_errors else "failed",
+        "fail_closed": bool(staging_errors or production_errors),
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _write_run_summary(path: Path, trade_date: date, status: str, production_dir: Path, reports_dir: Path, artifacts_dir: Path, validation_report: Path, fetch_summary: Path, provider_health: Path, *, blocking_error: str | None = None) -> None:
+    payload = {
+        "trade_date": trade_date.isoformat(),
+        "generated_at": datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "status": status,
+        "blocking_error": blocking_error,
+        "artifact_paths": {
+            "production_inputs": str(production_dir),
+            "reports": str(reports_dir),
+            "artifacts": str(artifacts_dir),
+            "raw_provider_diagnostics": str(artifacts_dir / "raw"),
+            "normalized_csvs": str(artifacts_dir / "normalized"),
+            "production_snapshot_or_pipeline_outputs": str(artifacts_dir),
+            "manifest": str(production_dir / "manifest.json"),
+            "validation_report": str(validation_report),
+            "fetch_summary": str(fetch_summary),
+            "provider_health": str(provider_health),
+            "run_summary": str(path),
+        },
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 def _run_daily_report(trade_date: date, staging_dir: Path, reports_dir: Path, artifacts_dir: Path) -> None:
     cmd = [

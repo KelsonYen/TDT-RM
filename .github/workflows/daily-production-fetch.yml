@@ -93,12 +93,49 @@ jobs:
             git push
           fi
 
+      - name: Write GitHub step summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          summary_path="reports/daily/${TRADE_DATE}/artifacts/run_summary.json"
+          {
+            echo "## Daily Production Data Fetch"
+            echo
+            echo "Trade date: ${TRADE_DATE}"
+            echo
+            if [[ -f "$summary_path" ]]; then
+              echo "Run summary artifact: \`$summary_path\`"
+            else
+              echo "Run summary artifact was not written before job termination."
+            fi
+            echo
+            echo "Expected artifact roots:"
+            echo "- \`inputs/daily/${TRADE_DATE}/\`"
+            echo "- \`inputs/daily/${TRADE_DATE}/_strict_provider_csvs/\`"
+            echo "- \`reports/daily/${TRADE_DATE}/artifacts/\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload production inputs
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: tdt-rm-production-inputs-${{ steps.trade-date.outputs.trade_date }}
-          path: inputs/daily/${{ steps.trade-date.outputs.trade_date }}/
+          path: |
+            inputs/daily/${{ steps.trade-date.outputs.trade_date }}/
+            !inputs/daily/${{ steps.trade-date.outputs.trade_date }}/_strict_provider_csvs/**
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Upload fetched raw and normalized provider files
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tdt-rm-provider-fetch-files-${{ steps.trade-date.outputs.trade_date }}
+          path: |
+            inputs/daily/${{ steps.trade-date.outputs.trade_date }}/_strict_provider_csvs/
+            reports/daily/${{ steps.trade-date.outputs.trade_date }}/artifacts/raw/
+            reports/daily/${{ steps.trade-date.outputs.trade_date }}/artifacts/normalized/
           if-no-files-found: warn
           retention-days: 90
 
