@@ -4,13 +4,14 @@ import csv
 import json
 import subprocess
 import sys
+import urllib.error
 from datetime import date
 from pathlib import Path
 
 import pytest
 
 from tdt_rm.daily_pipeline import run_daily_pipeline
-from tdt_rm.public_data_fetchers import CBCDailyFXSource, PublicDataFetchContext, PublicDataFetcherRegistry, write_provider_csvs
+from tdt_rm.public_data_fetchers import CBCDailyFXSource, PublicDataFetchContext, PublicDataFetcherRegistry, TWSEMarginSource, write_provider_csvs
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "public_data"
 AS_OF = date(2026, 6, 2)
@@ -37,6 +38,70 @@ def _fetch_write(tmp_path, config):
     registry = PublicDataFetcherRegistry.from_config(config)
     results = registry.fetch_all(PublicDataFetchContext(as_of=AS_OF, main7_symbols=("2330", "0050")))
     return results, write_provider_csvs(results, tmp_path, AS_OF)
+
+
+def test_twse_official_redirect_following_handles_307(monkeypatch):
+    from tdt_rm import public_data_fetchers as fetchers
+
+    calls = []
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return b'{"data": []}'
+
+    def fake_urlopen(request, timeout):
+        calls.append(request.full_url)
+        if len(calls) == 1:
+            headers = {"Location": "https://wwwc.twse.com.tw/rwd/en/exchangeReport/FMTQIK?date=20260602&response=json"}
+            raise urllib.error.HTTPError(request.full_url, 307, "Temporary Redirect", headers, None)
+        return Response()
+
+    monkeypatch.setattr(fetchers.urllib.request, "urlopen", fake_urlopen)
+    context = PublicDataFetchContext(as_of=AS_OF)
+    payload = fetchers._fetch_json_payload({"endpoint_url_template": "https://www.twse.com.tw/rwd/en/exchangeReport/FMTQIK?date={yyyymmdd}&response=json"}, context)
+
+    assert payload == {"data": []}
+    assert calls == [
+        "https://www.twse.com.tw/rwd/en/exchangeReport/FMTQIK?date=20260602&response=json",
+        "https://wwwc.twse.com.tw/rwd/en/exchangeReport/FMTQIK?date=20260602&response=json",
+    ]
+
+
+def test_twse_margin_source_generates_required_margin_fields(monkeypatch):
+    from tdt_rm import public_data_fetchers as fetchers
+
+    balances = {
+        date(2026, 5, 28): 1000.0,
+        date(2026, 5, 29): 990.0,
+        date(2026, 5, 30): 980.0,
+        date(2026, 5, 31): 970.0,
+        date(2026, 6, 1): 960.0,
+        date(2026, 6, 2): 950.0,
+    }
+
+    def fake_fetch_any_payload(config, context):
+        balance = balances.get(context.as_of)
+        if balance is None:
+            return {"tables": []}
+        return {"tables": [{"fields": ["股票代號", "今日餘額"], "data": [["合計", f"{balance:,.0f}"]]}]}
+
+    monkeypatch.setattr(fetchers, "_fetch_any_payload", fake_fetch_any_payload)
+    source = TWSEMarginSource({"source_id": "twse_margin", "endpoint_url_template": "https://www.twse.com.tw/exchangeReport/MI_MARGN?date={yyyymmdd}&selectType=MS&response=json", "lookback_days": 5})
+
+    result = source.fetch(PublicDataFetchContext(as_of=AS_OF))
+
+    assert result.success
+    row = result.rows[0]
+    assert row["margin_balance_5d_flat_or_down"] is True
+    assert row["margin_balance_5d_increases"] is False
+    assert row["margin_balance_5d_decline_pct"] == 5.0
+    assert row["margin_not_retreating"] is False
 
 
 def test_successful_price_fetch_writes_price_csv(tmp_path):

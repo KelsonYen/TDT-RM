@@ -17,6 +17,7 @@ STRICT_COLUMNS: dict[str, tuple[str, ...]] = {
     "futures": ("trade_date", "provider_source", "source_type", "futures_hedging_increases", "futures_hedging_significant", "futures_net_short_increases", "futures_net_short_decreases"),
     "options": ("trade_date", "provider_source", "source_type", "pcr_stable", "pcr_rises", "vix_stable", "vix_rises", "tail_risk", "bcd"),
     "leadership": ("trade_date", "provider_source", "source_type", "count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols", "mhs"),
+    "margin": ("trade_date", "provider_source", "source_type", "margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "index_5d_return_pct", "margin_balance_5d_decline_pct", "margin_not_retreating"),
 }
 
 _NUMERIC_COLUMNS: dict[str, tuple[str, ...]] = {
@@ -26,6 +27,7 @@ _NUMERIC_COLUMNS: dict[str, tuple[str, ...]] = {
     "breadth": ("advancing_issues", "declining_issues", "declining_gt_advancing_consecutive_days"),
     "options": ("tail_risk", "bcd"),
     "leadership": ("count_main_7_below_ma20", "count_main_7_below_ma60", "mhs"),
+    "margin": ("index_5d_return_pct", "margin_balance_5d_decline_pct"),
 }
 _BOOL_COLUMNS: dict[str, tuple[str, ...]] = {
     "foreign_flow": ("foreign_spot_large_sell", "foreign_large_sell"),
@@ -34,6 +36,7 @@ _BOOL_COLUMNS: dict[str, tuple[str, ...]] = {
     "futures": ("futures_hedging_increases", "futures_hedging_significant", "futures_net_short_increases", "futures_net_short_decreases"),
     "options": ("pcr_stable", "pcr_rises", "vix_stable", "vix_rises"),
     "leadership": ("majority_main_7_assets_above_ma20",),
+    "margin": ("margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "margin_not_retreating"),
 }
 
 
@@ -106,6 +109,17 @@ def normalize_public_row(dataset: str, row: Mapping[str, Any], *, trade_date: da
             "vix_rises": _first(row, "vix_rises", default=vix >= 25 if vix else False),
             "tail_risk": _first(row, "tail_risk", default=min(100.0, max(0.0, 50.0 + (pcr - 1.0) * 100.0 + max(0.0, vix - 20.0)))),
             "bcd": _first(row, "bcd", default=min(100.0, max(0.0, 50.0 + max(0.0, pcr - 1.0) * 100.0))),
+        }
+    elif dataset == "margin":
+        decline = _first(row, "margin_balance_5d_decline_pct", default=0)
+        increases = _first(row, "margin_balance_5d_increases", default=False)
+        out = {
+            "margin_balance_5d_flat_or_down": _first(row, "margin_balance_5d_flat_or_down", default=not bool(increases)),
+            "hot_stock_margin_fast_increase": _first(row, "hot_stock_margin_fast_increase", default=False),
+            "margin_balance_5d_increases": increases,
+            "index_5d_return_pct": _first(row, "index_5d_return_pct", default=0),
+            "margin_balance_5d_decline_pct": decline,
+            "margin_not_retreating": _first(row, "margin_not_retreating", default=_float(decline) <= 0),
         }
     elif dataset == "leadership":
         below20 = int(_float(_first(row, "count_main_7_below_ma20", default=0)))

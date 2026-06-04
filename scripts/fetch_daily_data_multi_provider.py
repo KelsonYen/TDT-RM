@@ -132,6 +132,7 @@ def _provider_chains(source_config: str | None) -> dict[str, tuple[object, ...]]
         "futures": (taifex, finmind),
         "options": (taifex, finmind),
         "leadership": (twse, yahoo, finmind),
+        "margin": (twse, finmind),
     }
 
 

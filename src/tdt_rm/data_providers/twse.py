@@ -11,6 +11,7 @@ from tdt_rm.public_data_fetchers import (
     TWSEFMTQIKPriceSource,
     TWSEMarketBreadthSource,
     TWSEMain7LeadershipSource,
+    TWSEMarginSource,
     TWSET86ForeignFlowSource,
     load_source_config,
 )
@@ -23,6 +24,7 @@ _SOURCE_BY_DATASET = {
     "foreign_flow": ("twse_t86_foreign_flow", TWSET86ForeignFlowSource),
     "breadth": ("twse_mi_index_breadth", TWSEMarketBreadthSource),
     "leadership": ("twse_main7_leadership", TWSEMain7LeadershipSource),
+    "margin": ("twse_margin", TWSEMarginSource),
 }
 
 
@@ -32,7 +34,7 @@ class TWSEProvider(DailyDataProvider):
 
     source_config: str | None = None
     name: str = "TWSE_OFFICIAL"
-    datasets: tuple[str, ...] = ("price", "foreign_flow", "breadth", "leadership")
+    datasets: tuple[str, ...] = ("price", "foreign_flow", "breadth", "leadership", "margin")
 
     def fetch(self, dataset: str, context: ProviderContext) -> ProviderResult:
         if dataset not in _SOURCE_BY_DATASET:

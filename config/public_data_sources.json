@@ -153,6 +153,33 @@
       "source_type": "twse_official_json"
     },
     {
+      "source_id": "twse_margin",
+      "source_name": "TWSE margin trading balance (MI_MARGN)",
+      "provider_category": "margin",
+      "adapter": "twse_margin",
+      "endpoint_url_template": "https://www.twse.com.tw/exchangeReport/MI_MARGN?date={yyyymmdd}&selectType=MS&response=json",
+      "request_parameters": {
+        "date": "{yyyymmdd}",
+        "selectType": "MS",
+        "response": "json"
+      },
+      "response_type": "json",
+      "freshness_rules": {
+        "max_lag_days": 0
+      },
+      "lookback_days": 14,
+      "required_fields": [
+        "margin_balance_5d_decline_pct",
+        "margin_balance_5d_flat_or_down",
+        "margin_balance_5d_increases",
+        "margin_not_retreating"
+      ],
+      "notes": "Official TWSE MI_MARGN margin balance endpoint. The provider follows safe official TWSE redirects, fetches the as-of row plus prior observations, and fails closed if the current row or 5-day lookback is unavailable.",
+      "enabled": true,
+      "fallback_order": 55,
+      "source_type": "twse_official_json"
+    },
+    {
       "source_id": "taifex_txf_futures",
       "source_name": "TAIFEX TAIEX futures daily report",
       "provider_category": "futures",

@@ -25,7 +25,7 @@ from typing import Any, Mapping, Protocol, Sequence
 from .market_data import MarketPriceBar, derive_price_features
 
 _REQUIRED_PROVIDER_CATEGORIES = {"price"}
-_PRODUCTION_REQUIRED_PROVIDER_CATEGORIES = ("price", "foreign_flow", "fx", "breadth", "futures", "options", "leadership")
+_PRODUCTION_REQUIRED_PROVIDER_CATEGORIES = ("price", "foreign_flow", "fx", "breadth", "futures", "options", "leadership", "margin")
 _DEFAULT_OPTIONAL_CATEGORIES = ("foreign_flow", "fx", "breadth", "futures", "options", "leadership", "margin", "scores")
 _PROVIDER_CSV_NAMES = {
     "price": "price.csv",
@@ -187,6 +187,8 @@ class PublicDataFetcherRegistry:
                 sources.append(CBCDailyFXSource(item))
             elif adapter == "twse_mi_index_breadth":
                 sources.append(TWSEMarketBreadthSource(item))
+            elif adapter == "twse_margin":
+                sources.append(TWSEMarginSource(item))
             elif adapter == "taifex_txf_futures":
                 sources.append(TAIFEXTXFFuturesSource(item))
             elif adapter == "taifex_txo_options":
@@ -802,6 +804,59 @@ class TWSEMarketBreadthSource:
 
 
 @dataclass(frozen=True)
+class TWSEMarginSource:
+    """Official TWSE MI_MARGN margin-balance parser."""
+
+    config: Mapping[str, Any]
+
+    @property
+    def source_id(self) -> str:
+        return str(self.config.get("source_id") or "twse_margin")
+
+    @property
+    def source_name(self) -> str:
+        return str(self.config.get("source_name") or "TWSE MI_MARGN margin balance")
+
+    @property
+    def provider_category(self) -> str:
+        return "margin"
+
+    def fetch(self, context: PublicDataFetchContext) -> PublicDataFetchResult:
+        retrieved_at = context.retrieved_at.isoformat()
+        try:
+            lookback_days = int(self.config.get("lookback_days", 14) or 14)
+            points_by_day: dict[date, float] = {}
+            for offset in range(lookback_days + 1):
+                observed = context.as_of - timedelta(days=offset)
+                payload = _fetch_any_payload(self.config, replace(context, as_of=observed))
+                balance = _parse_twse_margin_balance(payload)
+                if balance is not None:
+                    points_by_day[observed] = balance
+            points = sorted(points_by_day.items())
+            points = [(day, balance) for day, balance in points if day <= context.as_of]
+            if len(points) < 6 or points[-1][0] != context.as_of:
+                latest = points[-1][0].isoformat() if points else "none"
+                return _result(self, "unavailable", (_issue(self, "warning", "row_missing", f"TWSE MI_MARGN has {len(points)} usable observations through {latest}; need current as-of row plus 5 prior trading observations for {context.as_of.isoformat()}"),), retrieved_at=retrieved_at, metadata={"endpoint": _render_url(self.config, context), "observations": len(points), "latest_observation": latest})
+            current = points[-1][1]
+            previous = points[-2][1]
+            prior5 = points[-6][1]
+            decline_pct = ((prior5 - current) / prior5 * 100.0) if prior5 else 0.0
+            row = {
+                "date": context.as_of.isoformat(),
+                "margin_balance_5d_flat_or_down": current <= previous,
+                "hot_stock_margin_fast_increase": False,
+                "margin_balance_5d_increases": current > previous,
+                "index_5d_return_pct": 0.0,
+                "margin_balance_5d_decline_pct": max(0.0, decline_pct),
+                "margin_not_retreating": current >= prior5,
+            }
+            normalized = _normalize_provider_row("margin", row, context.as_of)
+            return _result(self, "success", retrieved_at=retrieved_at, rows=(normalized,), canonical=normalized, metadata={"endpoint": _render_url(self.config, context), "observations": len(points), "latest_margin_balance": current, "prior_5_observation_date": points[-6][0].isoformat(), "official_source": "TWSE MI_MARGN"})
+        except Exception as exc:  # noqa: BLE001
+            return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"exception_class": exc.__class__.__name__, "exception_message": str(exc), "endpoint": _render_url(self.config, context)})
+
+
+@dataclass(frozen=True)
 class TAIFEXTXFFuturesSource:
     """Official TAIFEX daily market report parser for TAIEX futures."""
 
@@ -1295,15 +1350,59 @@ def _fetch_any_payload(config: Mapping[str, Any], context: PublicDataFetchContex
         text = Path(urllib.parse.urlparse(url).path).read_text(encoding="utf-8-sig")
     else:
         request = urllib.request.Request(url, headers={"User-Agent": context.user_agent, "Accept": "application/json,text/csv,text/html;q=0.9,*/*;q=0.5"})
-        try:
-            with urllib.request.urlopen(request, timeout=context.timeout_seconds) as response:  # noqa: S310 - configured public endpoints only.
-                text = response.read().decode("utf-8-sig")
-        except urllib.error.HTTPError as exc:
-            raise ValueError(f"HTTP {exc.code} from {url}") from exc
+        text = _read_public_url(request, context, url)
     stripped = text.lstrip()
     if stripped.startswith("{") or stripped.startswith("["):
         return json.loads(text)
     return {"_text": text, "_url": url}
+
+
+_REDIRECT_STATUSES = {301, 302, 303, 307, 308}
+
+
+def _read_public_url(request: urllib.request.Request, context: PublicDataFetchContext, original_url: str) -> str:
+    with _open_public_url(request, context.timeout_seconds) as response:  # noqa: S310 - configured public endpoints only.
+        return response.read().decode("utf-8-sig")
+
+
+def _open_public_url(request: urllib.request.Request, timeout: float, *, max_redirects: int = 5):  # type: ignore[no-untyped-def]
+    """Open a configured public URL and manually follow safe official redirects.
+
+    urllib normally follows redirects, but TWSE official report endpoints have
+    emitted HTTP 307 responses in CI.  This fallback preserves fail-closed
+    behavior for non-redirect HTTP errors and follows only HTTPS redirects within
+    the same official TWSE domain family.
+    """
+
+    current = request
+    visited: list[str] = []
+    for _ in range(max_redirects + 1):
+        url = current.full_url
+        visited.append(url)
+        try:
+            return urllib.request.urlopen(current, timeout=timeout)  # noqa: S310 - configured public endpoints only.
+        except urllib.error.HTTPError as exc:
+            if exc.code not in _REDIRECT_STATUSES:
+                raise ValueError(f"HTTP {exc.code} from {url}") from exc
+            location = exc.headers.get("Location")
+            if not location:
+                raise ValueError(f"HTTP {exc.code} redirect from {url} missing Location header") from exc
+            redirected_url = urllib.parse.urljoin(url, location)
+            if not _is_safe_public_redirect(url, redirected_url):
+                raise ValueError(f"unsafe redirect from {url} to {redirected_url}") from exc
+            headers = dict(current.header_items())
+            current = urllib.request.Request(redirected_url, headers=headers)
+    raise ValueError("too many redirects while fetching public data: " + " -> ".join(visited))
+
+
+def _is_safe_public_redirect(source_url: str, redirected_url: str) -> bool:
+    source = urllib.parse.urlparse(source_url)
+    target = urllib.parse.urlparse(redirected_url)
+    if target.scheme != "https":
+        return False
+    if source.hostname and source.hostname.endswith("twse.com.tw"):
+        return bool(target.hostname and target.hostname.endswith("twse.com.tw"))
+    return source.scheme == target.scheme and source.netloc == target.netloc
 
 
 def _previous_month(value: date) -> date:
@@ -1328,6 +1427,59 @@ def _parse_fmtqik_price_bars(payload: Any, as_of: date) -> list[MarketPriceBar]:
         if close is not None:
             bars.append(MarketPriceBar(observed_at=observed, close=close, turnover_amount=turnover or 0.0))
     return bars
+
+
+def _parse_twse_margin_balance(payload: Any) -> float | None:
+    rows = _payload_rows(payload)
+    if not rows:
+        return None
+    total_values: list[float] = []
+    row_values: list[float] = []
+    for row in rows:
+        value = _to_float(_first(row, "MarginPurchaseTodayBalance", "Margin Purchase Today Balance", "融資今日餘額", "融資餘額", "今日餘額", "TodayBalance"))
+        if value is None:
+            continue
+        label = str(_first(row, "股票代號", "證券代號", "項目", "Name", "name") or "")
+        if any(token in label for token in ("合計", "總計", "Total", "total")):
+            total_values.append(value)
+        else:
+            row_values.append(value)
+    values = total_values or row_values
+    return sum(values) if values else None
+
+
+def _table_rows(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    output: list[Mapping[str, Any]] = []
+    tables = payload.get("tables")
+    if not isinstance(tables, list):
+        return output
+    for table in tables:
+        if not isinstance(table, Mapping):
+            continue
+        fields = table.get("fields")
+        data = table.get("data")
+        if not isinstance(fields, list) or not isinstance(data, list):
+            continue
+        field_names = [str(field) for field in fields]
+        for raw_row in data:
+            if isinstance(raw_row, Mapping):
+                output.append(raw_row)
+            elif isinstance(raw_row, list):
+                output.append(_row_from_fields(field_names, raw_row))
+    return output
+
+
+def _row_from_fields(fields: Sequence[str], values: Sequence[Any]) -> dict[str, Any]:
+    counts: dict[str, int] = {}
+    row: dict[str, Any] = {}
+    for index, field in enumerate(fields):
+        if index >= len(values):
+            break
+        count = counts.get(field, 0) + 1
+        counts[field] = count
+        key = field if count == 1 else f"{field}_{count}"
+        row[key] = values[index]
+    return row
 
 
 def _parse_t86_foreign_flow(payload: Any, as_of: date) -> dict[str, Any] | None:
@@ -1428,10 +1580,12 @@ def _payload_rows(payload: Any) -> list[Mapping[str, Any]]:
         return _html_table_rows(str(payload.get("_text") or ""))
     rows = []
     if isinstance(payload, Mapping):
-        for rows_path in ("data", "DataSet", "dataset", "Dataset", "rows", "items"):
-            rows = _extract_rows(payload, {"rows_path": rows_path})
-            if rows:
-                break
+        rows = _table_rows(payload)
+        if not rows:
+            for rows_path in ("data", "DataSet", "dataset", "Dataset", "rows", "items"):
+                rows = _extract_rows(payload, {"rows_path": rows_path})
+                if rows:
+                    break
     elif isinstance(payload, list):
         rows = payload
     if isinstance(rows, list):
@@ -1485,11 +1639,7 @@ def _fetch_json_payload(config: Mapping[str, Any], context: PublicDataFetchConte
     if url.startswith("file://"):
         return json.loads(Path(urllib.parse.urlparse(url).path).read_text(encoding="utf-8"))
     request = urllib.request.Request(url, headers={"User-Agent": context.user_agent, "Accept": "application/json,text/csv;q=0.8,*/*;q=0.5"})
-    try:
-        with urllib.request.urlopen(request, timeout=context.timeout_seconds) as response:  # noqa: S310 - configured public endpoints only.
-            body = response.read().decode("utf-8-sig")
-    except urllib.error.HTTPError as exc:
-        raise ValueError(f"HTTP {exc.code} from {url}") from exc
+    body = _read_public_url(request, context, url)
     return json.loads(body)
 
 
