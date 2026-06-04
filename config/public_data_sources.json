@@ -11,8 +11,8 @@
       "response_type": "json",
       "freshness_rules": {"max_lag_days": 3},
       "lookback_months": 4,
-      "min_bars": 60,
-      "notes": "Official TWSE report for daily total-market trading value, TAIEX close, and daily change. Four monthly pulls provide enough history to derive MA5/MA20/MA60 and turnover MA20.",
+      "min_bars": 61,
+      "notes": "Official TWSE report for daily total-market trading value, TAIEX close, and daily change. Four monthly pulls provide enough history to derive MA5/MA20/MA60, turnover MA20, 5D/60D returns, previous MA60, and below-MA20 streak.",
       "enabled": true,
       "fallback_order": 10,
       "source_type": "twse_official_json"
@@ -27,8 +27,8 @@
       "response_type": "json",
       "rows_path": "data",
       "freshness_rules": {"max_lag_days": 3},
-      "min_bars": 60,
-      "notes": "Official TWSE index OHLC endpoint retained as a lower-priority live fallback when full history is available.",
+      "min_bars": 61,
+      "notes": "Official TWSE index OHLC endpoint retained as a lower-priority live fallback when 61+ bars are available for strict production price features.",
       "enabled": true,
       "fallback_order": 20,
       "source_type": "twse_json"

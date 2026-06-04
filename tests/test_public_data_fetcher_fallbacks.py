@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 import subprocess
 import sys
@@ -99,6 +100,7 @@ def test_allow_partial_allows_manifest_generation_but_does_not_fabricate_price_c
     assert not (output_dir / "price.csv").exists()
     manifest = json.loads((output_dir / "fetch_manifest.json").read_text(encoding="utf-8"))
     assert manifest["data_status"] == "price_unavailable"
+    assert manifest["provider_csv_validation"]["price"]["status"] == "not_written"
 
 
 def test_fetch_manifest_records_all_attempted_fallback_sources(tmp_path: Path):
@@ -111,6 +113,48 @@ def test_fetch_manifest_records_all_attempted_fallback_sources(tmp_path: Path):
     assert attempts[0]["failure_reason"]
     assert attempts[1]["local_fallback"] is True
     assert "taiex_close" in attempts[1]["fields_extracted"]
+
+
+def test_price_csv_fallback_writes_strict_provenance_and_validates(tmp_path: Path):
+    _, written, manifest = _write(tmp_path / "inputs", {"sources": [_live_price(), _local_csv(SAMPLE_FALLBACK)]})
+
+    price_path = Path(written.provider_csv_paths["price"])
+    with price_path.open(newline="", encoding="utf-8") as handle:
+        row = next(csv.DictReader(handle))
+
+    assert row["trade_date"] == AS_OF.isoformat()
+    assert row["provider_source"] == "local_price_csv"
+    assert row["source_type"] == "local_csv_fallback"
+    assert row["return_60d_pct"] == "6.42"
+    assert manifest["source_attempts"][1]["local_fallback"] is True
+    assert manifest["provider_csv_validation"]["price"]["status"] == "passed"
+
+
+def test_price_fallback_missing_strict_fields_fails_closed(tmp_path: Path):
+    incomplete = tmp_path / "incomplete_price.csv"
+    incomplete.write_text(
+        "date,taiex_close,taiex_ma5,taiex_ma20,taiex_ma60,taiex_ma20_slope,one_day_return_pct,two_day_return_pct,turnover_amount\n"
+        "2026-06-02,42120,42040,41780,40530,36,0.12,0.31,521000000000\n",
+        encoding="utf-8",
+    )
+
+    results, written, manifest = _write(tmp_path / "inputs", {"sources": [_local_csv(incomplete)]})
+
+    assert results[0].status == "missing_fields"
+    assert "price" not in written.provider_csv_paths
+    assert not (tmp_path / "inputs" / "price.csv").exists()
+    assert any(item["field"] == "return_60d_pct" for item in manifest["missing_fields"])
+
+
+def test_price_fallback_missing_file_fails_closed(tmp_path: Path):
+    missing = tmp_path / "missing_price.csv"
+
+    results, written, manifest = _write(tmp_path / "inputs", {"sources": [_local_csv(missing)]})
+
+    assert results[0].status == "failed"
+    assert "price" not in written.provider_csv_paths
+    assert not (tmp_path / "inputs" / "price.csv").exists()
+    assert manifest["data_status"] == "price_unavailable"
 
 
 def test_stale_fallback_price_data_fails_freshness_validation(tmp_path: Path):

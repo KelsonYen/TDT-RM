@@ -38,8 +38,10 @@ _PROVIDER_CSV_NAMES = {
     "futures": "futures.csv",
     "options": "options.csv",
 }
+_PRODUCTION_PRICE_FIELDS = ("trade_date", "provider_source", "source_type", "close", "ma5", "ma20", "ma60", "ma20_slope", "one_day_return_pct", "two_day_return_pct", "close_below_ma20_consecutive_days", "index_5d_return_pct", "return_60d_pct", "previous_ma60", "turnover_amount")
+_REQUIRED_PRODUCTION_PRICE_VALUES = tuple(field for field in _PRODUCTION_PRICE_FIELDS if field not in {"trade_date", "provider_source", "source_type"})
 _PROVIDER_FIELDS = {
-    "price": ("date", "taiex_close", "taiex_ma5", "taiex_ma20", "taiex_ma60", "taiex_ma20_slope", "one_day_return_pct", "two_day_return_pct", "turnover_amount", "ma20_turnover"),
+    "price": _PRODUCTION_PRICE_FIELDS,
     "foreign_flow": ("date", "foreign_spot_net_buy", "foreign_spot_net_sell", "foreign_spot_net_sell_consecutive_days", "foreign_large_sell", "foreign_spot_large_sell", "futures_hedging_increases", "futures_hedging_significant"),
     "fx": ("date", "usd_twd", "usd_twd_3d_change_pct", "usd_twd_5d_change_pct", "twd_appreciates", "twd_stable", "twd_depreciates_significantly"),
     "breadth": ("date", "advancing_issues", "declining_issues", "index_down", "declining_issues_significantly_expand", "declining_issues_significantly_gt_advancing", "declining_gt_advancing_consecutive_days", "breadth_weakens_for_2_days"),
@@ -415,7 +417,7 @@ class TWSETAIEXPriceSource:
         try:
             payload = _fetch_json_payload(self.config, context)
             bars = _parse_price_bars(payload, context.as_of)
-            if len(bars) < max(60, int(self.config.get("min_bars", 1))):
+            if len(bars) < max(61, int(self.config.get("min_bars", 1))):
                 # Some fixtures/configs provide a direct canonical row instead of history.
                 row = _extract_row(payload, self.config, context.as_of)
                 if isinstance(row, Mapping):
@@ -425,12 +427,43 @@ class TWSETAIEXPriceSource:
                         return _result(self, "success", retrieved_at=retrieved_at, rows=(normalized,), canonical=normalized, metadata={"endpoint": _render_url(self.config, context), "mode": "canonical_row"})
                 return _result(self, "failed", (_issue(self, "error", "insufficient_price_history", f"price source returned {len(bars)} bars; cannot derive required price fields"),), retrieved_at=retrieved_at)
             bars = tuple(sorted(bars, key=lambda item: item.observed_at))
-            features = derive_price_features(bars)
+            features = _augment_price_features(derive_price_features(bars), bars)
             normalized = _normalize_provider_row("price", features, context.as_of)
             normalized["date"] = context.as_of.isoformat()
             return _result(self, "success", retrieved_at=retrieved_at, rows=(normalized,), canonical=normalized, metadata={"endpoint": _render_url(self.config, context), "bar_count": len(bars), "mode": "price_history"})
         except Exception as exc:  # noqa: BLE001
             return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"exception_class": exc.__class__.__name__, "exception_message": str(exc)})
+
+
+def _augment_price_features(features: Mapping[str, Any], bars: Sequence[MarketPriceBar]) -> dict[str, Any]:
+    """Add strict production price fields derived only from observed bars."""
+
+    ordered = tuple(sorted(bars, key=lambda item: item.observed_at))
+    if len(ordered) < 61:
+        raise ValueError("strict price production fields require at least 61 trading-day bars")
+    output = dict(features)
+    closes = [float(bar.close) for bar in ordered]
+    output["close_below_ma20_consecutive_days"] = _close_below_ma20_consecutive_days(ordered)
+    output["index_5d_return_pct"] = _pct_change(closes[-6], closes[-1])
+    output["return_60d_pct"] = _pct_change(closes[-61], closes[-1])
+    output["previous_ma60"] = sum(closes[-61:-1]) / 60
+    return output
+
+
+def _close_below_ma20_consecutive_days(bars: Sequence[MarketPriceBar]) -> int:
+    closes = [float(bar.close) for bar in bars]
+    count = 0
+    for index in range(len(closes), 19, -1):
+        ma20 = sum(closes[index - 20:index]) / 20
+        if closes[index - 1] < ma20:
+            count += 1
+        else:
+            break
+    return count
+
+
+def _pct_change(previous: float, current: float) -> float:
+    return 0.0 if previous == 0 else (current / previous - 1.0) * 100.0
 
 
 @dataclass(frozen=True)
@@ -499,7 +532,7 @@ class LocalPriceFallbackSource:
                     canonical=normalized,
                     metadata={"source_type": source_type, "local_fallback": True, "path": str(fallback_path)},
                 )
-            missing = tuple(field for field in ("taiex_close", "taiex_ma5", "taiex_ma20", "taiex_ma60", "taiex_ma20_slope") if _missing(normalized.get(field)))
+            missing = _missing_production_price_fields(normalized)
             if missing:
                 return _result(
                     self,
@@ -605,12 +638,12 @@ class TWSEFMTQIKPriceSource:
             for payload in payloads:
                 bars.extend(_parse_fmtqik_price_bars(payload, context.as_of))
             bars = sorted({bar.observed_at: bar for bar in bars if bar.observed_at <= context.as_of}.values(), key=lambda item: item.observed_at)
-            if len(bars) < max(60, int(self.config.get("min_bars", 60))):
-                return _result(self, "failed", (_issue(self, "error", "insufficient_price_history", f"TWSE FMTQIK returned {len(bars)} usable bars; cannot derive MA60"),), retrieved_at=retrieved_at, metadata={"endpoint": _render_url(self.config, context), "bar_count": len(bars)})
+            if len(bars) < max(61, int(self.config.get("min_bars", 61))):
+                return _result(self, "failed", (_issue(self, "error", "insufficient_price_history", f"TWSE FMTQIK returned {len(bars)} usable bars; cannot derive strict price fields requiring 61+ trading days"),), retrieved_at=retrieved_at, metadata={"endpoint": _render_url(self.config, context), "bar_count": len(bars)})
             latest_date = bars[-1].observed_at
             if _date_lag_failed(latest_date, self.config, context.as_of):
                 return _result(self, "stale", (_issue(self, "error", "stale_data", f"latest TWSE FMTQIK row is {latest_date.isoformat()} for as-of {context.as_of.isoformat()}"),), retrieved_at=retrieved_at, metadata={"endpoint": _render_url(self.config, context), "bar_count": len(bars)})
-            features = derive_price_features(tuple(bars))
+            features = _augment_price_features(derive_price_features(tuple(bars)), tuple(bars))
             normalized = _normalize_provider_row("price", features, context.as_of)
             normalized["date"] = context.as_of.isoformat()
             return _result(self, "success", retrieved_at=retrieved_at, rows=(normalized,), canonical=normalized, metadata={"endpoint": _render_url(self.config, context), "bar_count": len(bars), "official_source": "TWSE FMTQIK"})
@@ -856,8 +889,15 @@ def write_provider_csvs(fetch_results: Sequence[PublicDataFetchResult], output_d
         path = destination / _PROVIDER_CSV_NAMES[result.provider_category]
         row = dict(result.rows[0] if result.rows else result.canonical_fields)
         row.setdefault("date", as_of.isoformat())
-        fields = tuple(field for field in _PROVIDER_FIELDS[result.provider_category] if field in row or field == "date")
-        _write_csv(path, fields, row)
+        if result.provider_category == "price":
+            production_row, validation_issues = _build_production_price_row(row, result, as_of)
+            if validation_issues:
+                issues.extend(validation_issues)
+                continue
+            _write_csv(path, _PRODUCTION_PRICE_FIELDS, production_row)
+        else:
+            fields = tuple(field for field in _PROVIDER_FIELDS[result.provider_category] if field in row or field == "date")
+            _write_csv(path, fields, row)
         provider_paths[result.provider_category] = str(path)
 
     field_map_path = destination / "provider_field_map.json"
@@ -872,6 +912,56 @@ def write_provider_csvs(fetch_results: Sequence[PublicDataFetchResult], output_d
     manifest_path = destination / "fetch_manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return ProviderCsvWriteResult(str(destination), provider_paths, str(field_map_path), str(manifest_path), str(health_path), data_status, tuple(issues), manifest)
+
+
+def _build_production_price_row(row: Mapping[str, Any], result: PublicDataFetchResult, as_of: date) -> tuple[dict[str, Any], tuple[PublicDataFetchIssue, ...]]:
+    output = {
+        "trade_date": as_of.isoformat(),
+        "provider_source": result.source_id,
+        "source_type": str(result.raw_metadata.get("source_type") or ("local_csv_fallback" if result.raw_metadata.get("local_fallback") else "unknown")),
+        "close": row.get("close", row.get("taiex_close")),
+        "ma5": row.get("ma5", row.get("taiex_ma5")),
+        "ma20": row.get("ma20", row.get("taiex_ma20")),
+        "ma60": row.get("ma60", row.get("taiex_ma60")),
+        "ma20_slope": row.get("ma20_slope", row.get("taiex_ma20_slope")),
+        "one_day_return_pct": row.get("one_day_return_pct"),
+        "two_day_return_pct": row.get("two_day_return_pct"),
+        "close_below_ma20_consecutive_days": row.get("close_below_ma20_consecutive_days"),
+        "index_5d_return_pct": row.get("index_5d_return_pct"),
+        "return_60d_pct": row.get("return_60d_pct"),
+        "previous_ma60": row.get("previous_ma60"),
+        "turnover_amount": row.get("turnover_amount", row.get("taiex_turnover", row.get("turnover"))),
+    }
+    missing = _missing_production_price_fields(output)
+    if missing:
+        return output, tuple(
+            PublicDataFetchIssue(
+                "error",
+                "missing_field",
+                f"price production CSV missing required field {field}",
+                result.source_id,
+                "price",
+                field,
+            )
+            for field in missing
+        )
+    return output, ()
+
+
+def _missing_production_price_fields(row: Mapping[str, Any]) -> tuple[str, ...]:
+    missing: list[str] = []
+    for field in _REQUIRED_PRODUCTION_PRICE_VALUES:
+        aliases = {
+            "close": ("close", "taiex_close"),
+            "ma5": ("ma5", "taiex_ma5"),
+            "ma20": ("ma20", "taiex_ma20"),
+            "ma60": ("ma60", "taiex_ma60"),
+            "ma20_slope": ("ma20_slope", "taiex_ma20_slope"),
+            "turnover_amount": ("turnover_amount", "taiex_turnover", "turnover"),
+        }.get(field, (field,))
+        if all(_missing(row.get(alias)) for alias in aliases):
+            missing.append(field)
+    return tuple(missing)
 
 
 def build_fetch_manifest(fetch_results: Sequence[PublicDataFetchResult], provider_paths: Mapping[str, str], as_of: date, *, provider_health: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -908,11 +998,51 @@ def build_fetch_manifest(fetch_results: Sequence[PublicDataFetchResult], provide
         "production_required_categories": list(_PRODUCTION_REQUIRED_PROVIDER_CATEGORIES),
         "missing_production_csvs": missing_production_csvs,
         "production_required_csvs_present": not missing_production_csvs,
+        "provider_csv_validation": _validate_written_provider_csvs(provider_paths, as_of),
         "data_status": data_status,
         "limitations": limitations,
         "optional_categories_unavailable": optional_categories,
         "sources": [result.as_dict() for result in fetch_results],
     }
+
+
+def _validate_written_provider_csvs(provider_paths: Mapping[str, str], as_of: date) -> dict[str, Any]:
+    validations: dict[str, Any] = {}
+    price_path = provider_paths.get("price")
+    if price_path:
+        errors: list[str] = []
+        path = Path(price_path)
+        try:
+            with path.open(newline="", encoding="utf-8-sig") as handle:
+                reader = csv.DictReader(handle)
+                fieldnames = tuple(reader.fieldnames or ())
+                rows = list(reader)
+        except OSError as exc:
+            errors.append(f"cannot read CSV: {exc}")
+            rows = []
+            fieldnames = ()
+        missing_columns = [field for field in _PRODUCTION_PRICE_FIELDS if field not in fieldnames]
+        if missing_columns:
+            errors.append("missing required columns: " + ", ".join(missing_columns))
+        if len(rows) != 1:
+            errors.append(f"expected exactly 1 row; got {len(rows)}")
+        for row in rows:
+            if row.get("trade_date") != as_of.isoformat():
+                errors.append(f"trade_date {row.get('trade_date')!r} does not match {as_of.isoformat()}")
+            for field in _REQUIRED_PRODUCTION_PRICE_VALUES:
+                if _missing(row.get(field)):
+                    errors.append(f"required field {field} is blank")
+                    continue
+                if _to_float(row.get(field)) is None:
+                    errors.append(f"numeric field {field} is not parseable: {row.get(field)!r}")
+            if _missing(row.get("provider_source")):
+                errors.append("provider_source is required")
+            if _missing(row.get("source_type")):
+                errors.append("source_type is required")
+        validations["price"] = {"path": str(path), "status": "passed" if not errors else "failed", "errors": errors}
+    else:
+        validations["price"] = {"status": "not_written", "errors": ["price.csv was not written"]}
+    return validations
 
 
 def build_provider_health(fetch_results: Sequence[PublicDataFetchResult], as_of: date) -> dict[str, Any]:

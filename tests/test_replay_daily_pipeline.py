@@ -26,7 +26,7 @@ def write_price_csv(path: Path, dates: list[str]) -> None:
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(
             handle,
-            fieldnames=["date", "taiex_close", "taiex_ma5", "taiex_ma20", "taiex_ma60", "taiex_ma20_slope", "turnover_amount"],
+            fieldnames=["date", "taiex_close", "taiex_ma5", "taiex_ma20", "taiex_ma60", "taiex_ma20_slope", "one_day_return_pct", "two_day_return_pct", "turnover_amount", "close_below_ma20_consecutive_days", "index_5d_return_pct", "return_60d_pct", "previous_ma60"],
         )
         writer.writeheader()
         for index, day in enumerate(dates):
@@ -39,7 +39,13 @@ def write_price_csv(path: Path, dates: list[str]) -> None:
                     "taiex_ma20": close - 20,
                     "taiex_ma60": close - 60,
                     "taiex_ma20_slope": 35,
+                    "one_day_return_pct": 0.1,
+                    "two_day_return_pct": 0.2,
                     "turnover_amount": 520000000000,
+                    "close_below_ma20_consecutive_days": 0,
+                    "index_5d_return_pct": 1.0,
+                    "return_60d_pct": 6.0,
+                    "previous_ma60": close - 61,
                 }
             )
 
