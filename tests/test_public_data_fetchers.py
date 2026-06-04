@@ -211,3 +211,73 @@ def test_cbc_daily_fx_parser_generates_official_fx_fields():
     assert result.canonical_fields["usd_twd"] == 31.8
     assert result.canonical_fields["usd_twd_3d_change_pct"] < 0
     assert result.raw_metadata["official_source"] == "CBC Statistical Database BP01D01en"
+
+
+def test_twse_fetch_follows_safe_307_redirect(monkeypatch):
+    from email.message import Message
+    import urllib.error
+    import urllib.request
+
+    from tdt_rm.public_data_fetchers import _fetch_json_payload
+
+    calls: list[str] = []
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"data": []}'
+
+    def fake_urlopen(request, timeout):
+        url = request.full_url
+        calls.append(url)
+        if len(calls) == 1:
+            headers = Message()
+            headers["Location"] = "https://www.twse.com.tw/exchangeReport/FMTQIK?date=20260603&response=json"
+            raise urllib.error.HTTPError(url, 307, "Temporary Redirect", headers, None)
+        return Response()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    payload = _fetch_json_payload(
+        {
+            "source_id": "twse_fmtqik_price",
+            "source_type": "twse_official_json",
+            "endpoint_url_template": "https://www.twse.com.tw/rwd/en/exchangeReport/FMTQIK?date={yyyymmdd}&response=json",
+        },
+        PublicDataFetchContext(as_of=date(2026, 6, 3)),
+    )
+
+    assert payload == {"data": []}
+    assert calls == [
+        "https://www.twse.com.tw/rwd/en/exchangeReport/FMTQIK?date=20260603&response=json",
+        "https://www.twse.com.tw/exchangeReport/FMTQIK?date=20260603&response=json",
+    ]
+
+
+def test_twse_fetch_rejects_unsafe_307_redirect(monkeypatch):
+    from email.message import Message
+    import urllib.error
+    import urllib.request
+
+    from tdt_rm.public_data_fetchers import _fetch_json_payload
+
+    def fake_urlopen(request, timeout):
+        headers = Message()
+        headers["Location"] = "https://evil.example/FMTQIK"
+        raise urllib.error.HTTPError(request.full_url, 307, "Temporary Redirect", headers, None)
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+
+    with pytest.raises(ValueError, match="unapproved host"):
+        _fetch_json_payload(
+            {
+                "source_id": "twse_fmtqik_price",
+                "source_type": "twse_official_json",
+                "endpoint_url_template": "https://www.twse.com.tw/rwd/en/exchangeReport/FMTQIK?date={yyyymmdd}&response=json",
+            },
+            PublicDataFetchContext(as_of=date(2026, 6, 3)),
+        )

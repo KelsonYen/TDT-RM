@@ -6,7 +6,7 @@
       "source_name": "TWSE monthly market summary (FMTQIK)",
       "provider_category": "price",
       "adapter": "twse_fmtqik_price",
-      "endpoint_url_template": "https://www.twse.com.tw/rwd/en/exchangeReport/FMTQIK?date={yyyymmdd}&response=json",
+      "endpoint_url_template": "https://www.twse.com.tw/exchangeReport/FMTQIK?date={yyyymmdd}&response=json",
       "request_parameters": {
         "date": "{yyyymmdd}",
         "response": "json"
@@ -27,7 +27,7 @@
       "source_name": "TWSE TAIEX monthly OHLC (MI_5MINS_HIST)",
       "provider_category": "price",
       "adapter": "twse_taiex_price",
-      "endpoint_url_template": "https://www.twse.com.tw/rwd/en/TAIEX/MI_5MINS_HIST?date={yyyymmdd}&response=json",
+      "endpoint_url_template": "https://www.twse.com.tw/indicesReport/MI_5MINS_HIST?date={yyyymmdd}&response=json",
       "request_parameters": {
         "date": "{yyyymmdd}",
         "response": "json"
@@ -69,7 +69,7 @@
       "source_name": "TWSE foreign investor flow (T86)",
       "provider_category": "foreign_flow",
       "adapter": "twse_t86_foreign_flow",
-      "endpoint_url_template": "https://www.twse.com.tw/rwd/en/fund/T86?date={yyyymmdd}&selectType=ALL&response=json",
+      "endpoint_url_template": "https://www.twse.com.tw/fund/T86?date={yyyymmdd}&selectType=ALL&response=json",
       "request_parameters": {
         "date": "{yyyymmdd}",
         "selectType": "ALL",
@@ -133,7 +133,7 @@
       "source_name": "TWSE MI_INDEX market breadth",
       "provider_category": "breadth",
       "adapter": "twse_mi_index_breadth",
-      "endpoint_url_template": "https://www.twse.com.tw/rwd/en/afterTrading/MI_INDEX?date={yyyymmdd}&type=ALLBUT0999&response=json",
+      "endpoint_url_template": "https://www.twse.com.tw/exchangeReport/MI_INDEX?date={yyyymmdd}&type=ALLBUT0999&response=json",
       "request_parameters": {
         "date": "{yyyymmdd}",
         "type": "ALLBUT0999",
@@ -199,7 +199,7 @@
       "source_name": "TWSE Main-7 constituent leadership",
       "provider_category": "leadership",
       "adapter": "twse_main7_leadership",
-      "symbol_endpoint_url_template": "https://www.twse.com.tw/rwd/en/afterTrading/STOCK_DAY?date={yyyymmdd}&stockNo={symbol}&response=json",
+      "symbol_endpoint_url_template": "https://www.twse.com.tw/exchangeReport/STOCK_DAY?date={yyyymmdd}&stockNo={symbol}&response=json",
       "request_parameters": {
         "date": "{yyyymmdd}",
         "stockNo": "{symbol}",
