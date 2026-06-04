@@ -3,10 +3,15 @@ name: Daily Production Data Fetch
 on:
   workflow_dispatch:
     inputs:
-      as_of:
-        description: "Taiwan market trade date to fetch (YYYY-MM-DD). Use 2026-06-04 to validate the blocked Codex run."
+      trade_date:
+        description: "Taiwan market trade date to fetch (YYYY-MM-DD). Use 2026-06-03 for the completed trading day rerun."
         required: true
-        default: "2026-06-04"
+        default: "2026-06-03"
+        type: string
+      as_of:
+        description: "Deprecated alias for trade_date (YYYY-MM-DD). Leave blank unless using older dispatch clients."
+        required: false
+        default: ""
         type: string
       allow_finmind:
         description: "Explicitly allow FinMind if the configured providers and environment opt in. Disabled by default."
@@ -36,23 +41,24 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Resolve as_of date
+      - name: Resolve trade_date
         id: as-of
         shell: bash
         run: |
           set -euo pipefail
-          requested="${{ github.event.inputs.as_of || '' }}"
+          requested="${{ github.event.inputs.trade_date || github.event.inputs.as_of || '' }}"
           if [[ -n "$requested" ]]; then
-            as_of="$requested"
+            trade_date="$requested"
           else
-            as_of="$(TZ=Asia/Taipei date +%F)"
+            trade_date="$(TZ=Asia/Taipei date +%F)"
           fi
-          if [[ ! "$as_of" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
-            echo "as_of must use YYYY-MM-DD, got: $as_of" >&2
+          if [[ ! "$trade_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            echo "trade_date must use YYYY-MM-DD, got: $trade_date" >&2
             exit 1
           fi
-          echo "as_of=$as_of" >> "$GITHUB_OUTPUT"
-          echo "AS_OF=$as_of" >> "$GITHUB_ENV"
+          echo "as_of=$trade_date" >> "$GITHUB_OUTPUT"
+          echo "trade_date=$trade_date" >> "$GITHUB_OUTPUT"
+          echo "AS_OF=$trade_date" >> "$GITHUB_ENV"
 
       - name: Set up Python
         uses: actions/setup-python@v5
