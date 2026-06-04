@@ -1,0 +1,95 @@
+name: Daily Production Data Fetch
+
+on:
+  workflow_dispatch:
+    inputs:
+      trade_date:
+        description: "Taiwan market trade date to fetch (YYYY-MM-DD). Leave blank to use today's date in Asia/Taipei."
+        required: false
+        type: string
+  schedule:
+    # 16:30 Asia/Taipei (08:30 UTC), Monday-Friday, after Taiwan market close.
+    - cron: "30 8 * * 1-5"
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.11"
+  FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+  TDT_RM_PRODUCTION_MODE: "true"
+
+jobs:
+  production-fetch:
+    name: Fetch and validate production data
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Resolve trade date
+        id: trade-date
+        shell: bash
+        run: |
+          set -euo pipefail
+          requested="${{ github.event.inputs.trade_date || '' }}"
+          if [[ -n "$requested" ]]; then
+            trade_date="$requested"
+          else
+            trade_date="$(TZ=Asia/Taipei date +%F)"
+          fi
+          if [[ ! "$trade_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            echo "trade_date must use YYYY-MM-DD, got: $trade_date" >&2
+            exit 1
+          fi
+          echo "trade_date=$trade_date" >> "$GITHUB_OUTPUT"
+          echo "TRADE_DATE=$trade_date" >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install requirements
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          if [[ -f requirements.txt ]]; then
+            python -m pip install -r requirements.txt
+          fi
+          python -m pip install -e .
+
+      - name: Run official-source-first production fetch and report
+        shell: bash
+        run: |
+          set -euo pipefail
+          extra_args=()
+          if [[ -n "${FINMIND_TOKEN:-}" ]]; then
+            extra_args+=(--allow-finmind-live)
+          fi
+          python scripts/run_github_actions_production_fetch.py \
+            --trade-date "$TRADE_DATE" \
+            --source-config config/public_data_sources.json \
+            "${extra_args[@]}"
+
+      - name: Upload production inputs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tdt-rm-production-inputs-${{ steps.trade-date.outputs.trade_date }}
+          path: inputs/daily/${{ steps.trade-date.outputs.trade_date }}/
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Upload production reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tdt-rm-production-reports-${{ steps.trade-date.outputs.trade_date }}
+          path: reports/daily/${{ steps.trade-date.outputs.trade_date }}/
+          if-no-files-found: warn
+          retention-days: 90
