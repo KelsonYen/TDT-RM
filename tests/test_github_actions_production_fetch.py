@@ -153,3 +153,71 @@ def test_fetch_manifest_written_under_outputs_and_fail_closed_when_dataset_missi
     assert manifest["fail_closed"] is True
     assert manifest["finmind_live_enabled"] is False
     assert "options" in manifest["missing_production_csvs"]
+
+
+def test_fetch_manifest_attempt_diagnostics_classifies_http_auth_failure(tmp_path: Path):
+    staging = tmp_path / "staging"
+    reports = tmp_path / "reports" / AS_OF.isoformat()
+    artifacts = reports / "artifacts"
+    outputs_manifest = tmp_path / "outputs" / AS_OF.isoformat() / "fetch_manifest.json"
+    artifacts.mkdir(parents=True)
+    (artifacts / "production_fetch_summary.json").write_text(
+        json.dumps(
+            {
+                "datasets": {
+                    "price": {
+                        "status": "failed",
+                        "failed_providers": [{"provider": "TWSE_OFFICIAL", "message": "HTTP 403 from https://example.invalid after 1 attempts"}],
+                    }
+                },
+                "missing_datasets": ["price.csv"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifacts / "provider_health.json").write_text(
+        json.dumps(
+            {
+                "providers": {
+                    "price_provider": {
+                        "dataset": "price",
+                        "attempts": [
+                            {
+                                "provider": "TWSE_OFFICIAL",
+                                "status": "failed",
+                                "failure_reason": "HTTP 403 from https://example.invalid after 1 attempts",
+                                "metadata": {
+                                    "endpoint": "https://example.invalid",
+                                    "url_fetch": {"status": 403, "attempts": 1, "final_url": "https://example.invalid"},
+                                },
+                            }
+                        ],
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    write_fetch_manifest(
+        outputs_manifest,
+        AS_OF,
+        "NOT_READY",
+        staging,
+        tmp_path / "inputs" / AS_OF.isoformat(),
+        reports,
+        artifacts,
+        artifacts / "production_fetch_summary.json",
+        artifacts / "provider_health.json",
+        artifacts / "validation_report.json",
+        allow_finmind_live=False,
+        blocking_error="price missing",
+    )
+
+    attempt = json.loads(outputs_manifest.read_text(encoding="utf-8"))["source_attempts"][0]
+    assert attempt["endpoint_attempted"] == "https://example.invalid"
+    assert attempt["http_status"] == 403
+    assert attempt["rows_fetched"] == 0
+    assert attempt["parser_status"] == "not_reached"
+    assert attempt["validation_status"] == "not_reached"
+    assert attempt["failure_class"] == "auth/token"

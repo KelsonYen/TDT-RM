@@ -2,6 +2,17 @@ name: Production Data Connectivity Audit
 
 on:
   workflow_dispatch:
+    inputs:
+      trade_date:
+        description: "Taiwan market trade date to probe (YYYY-MM-DD)."
+        required: true
+        default: "2026-06-03"
+        type: string
+      allow_finmind:
+        description: "Probe FinMind with FINMIND_TOKEN/FINMIND_API_TOKEN secret. Disabled by default."
+        required: false
+        default: false
+        type: boolean
   schedule:
     # 15:45 Asia/Taipei (07:45 UTC), Monday-Friday, before production fetch.
     - cron: "45 7 * * 1-5"
@@ -23,11 +34,37 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Run connectivity audit
+      - name: Resolve audit inputs
+        id: audit-inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          trade_date="${{ github.event.inputs.trade_date || '2026-06-03' }}"
+          if [[ ! "$trade_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            echo "trade_date must use YYYY-MM-DD, got: $trade_date" >&2
+            exit 1
+          fi
+          echo "trade_date=$trade_date" >> "$GITHUB_OUTPUT"
+          echo "TRADE_DATE=$trade_date" >> "$GITHUB_ENV"
+
+      - name: Require FinMind token when explicitly enabled
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_finmind }}
+        shell: bash
         env:
           FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
           FINMIND_API_TOKEN: ${{ secrets.FINMIND_API_TOKEN }}
-        run: python scripts/audit_market_data_connectivity.py --output-dir outputs/production_data_connectivity_audit --repeat 2
+        run: |
+          set -euo pipefail
+          if [[ -z "${FINMIND_TOKEN:-}" && -z "${FINMIND_API_TOKEN:-}" ]]; then
+            echo "allow_finmind=true requires FINMIND_TOKEN or FINMIND_API_TOKEN GitHub Secret." >&2
+            exit 1
+          fi
+
+      - name: Run connectivity audit
+        env:
+          FINMIND_TOKEN: ${{ (github.event_name == 'workflow_dispatch' && inputs.allow_finmind) && secrets.FINMIND_TOKEN || '' }}
+          FINMIND_API_TOKEN: ${{ (github.event_name == 'workflow_dispatch' && inputs.allow_finmind) && secrets.FINMIND_API_TOKEN || '' }}
+        run: python scripts/audit_market_data_connectivity.py --as-of "$TRADE_DATE" --output-dir outputs/production_data_connectivity_audit --repeat 2
 
       - name: Publish connectivity audit summary
         if: always()

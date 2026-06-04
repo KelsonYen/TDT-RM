@@ -328,7 +328,7 @@ def _write_fetch_manifest(
         "missing_production_csvs": missing_datasets,
         "failed_sources": failed_sources,
         "stale_sources": [],
-        "source_attempts": _source_attempts(fetch_summary, provider_health),
+        "source_attempts": _source_attempts(fetch_summary, provider_health, staging_dir),
         "artifact_paths": {
             "production_inputs": str(production_dir),
             "reports": str(reports_dir),
@@ -350,29 +350,126 @@ def _missing_datasets(fetch_summary: Mapping[str, Any], provider_csv_paths: Mapp
     return [dataset for dataset in REQUIRED_DATASETS if dataset not in provider_csv_paths]
 
 
-def _source_attempts(fetch_summary: Mapping[str, Any], provider_health: Mapping[str, Any]) -> list[dict[str, Any]]:
+def _source_attempts(fetch_summary: Mapping[str, Any], provider_health: Mapping[str, Any], staging_dir: Path | None = None) -> list[dict[str, Any]]:
     attempts: list[dict[str, Any]] = []
     datasets = fetch_summary.get("datasets")
+    health_by_dataset = _provider_health_attempts_by_dataset(provider_health)
     if isinstance(datasets, dict):
         for dataset, result in datasets.items():
             if not isinstance(result, dict):
                 continue
+            for health_attempt in health_by_dataset.get(str(dataset), []):
+                attempts.append(_attempt_manifest_row(str(dataset), health_attempt, staging_dir))
+            if health_by_dataset.get(str(dataset)):
+                continue
             provider_used = result.get("provider_used")
             if provider_used:
-                attempts.append({"provider_category": dataset, "source_id": provider_used, "source_type": "provider", "success": True, "retry_attempts": len(result.get("failed_providers", [])) if isinstance(result.get("failed_providers"), list) else 0})
+                attempts.append(_attempt_manifest_row(str(dataset), {"provider": provider_used, "status": "healthy", "selected": True, "output_path": result.get("output_path")}, staging_dir))
             for failed in result.get("failed_providers", []) if isinstance(result.get("failed_providers"), list) else []:
                 if isinstance(failed, dict):
-                    attempts.append({"provider_category": dataset, "source_id": failed.get("provider"), "source_type": "provider", "success": False, "error": failed.get("message")})
+                    attempts.append(_attempt_manifest_row(str(dataset), {"provider": failed.get("provider"), "status": "failed", "failure_reason": failed.get("message")}, staging_dir))
     providers = provider_health.get("providers")
     if not attempts and isinstance(providers, dict):
         for entry in providers.values():
             if not isinstance(entry, dict):
                 continue
-            dataset = entry.get("dataset")
+            dataset = str(entry.get("dataset") or "")
             for attempt in entry.get("attempts", []) if isinstance(entry.get("attempts"), list) else []:
                 if isinstance(attempt, dict):
-                    attempts.append({"provider_category": dataset, "source_id": attempt.get("provider"), "source_type": "provider", "success": attempt.get("status") == "healthy"})
+                    attempts.append(_attempt_manifest_row(dataset, attempt, staging_dir))
     return attempts
+
+
+def _provider_health_attempts_by_dataset(provider_health: Mapping[str, Any]) -> dict[str, list[Mapping[str, Any]]]:
+    grouped: dict[str, list[Mapping[str, Any]]] = {}
+    providers = provider_health.get("providers")
+    if not isinstance(providers, dict):
+        return grouped
+    for entry in providers.values():
+        if not isinstance(entry, dict):
+            continue
+        dataset = str(entry.get("dataset") or "")
+        grouped.setdefault(dataset, [])
+        for attempt in entry.get("attempts", []) if isinstance(entry.get("attempts"), list) else []:
+            if isinstance(attempt, Mapping):
+                grouped[dataset].append(attempt)
+    return grouped
+
+
+def _attempt_manifest_row(dataset: str, attempt: Mapping[str, Any], staging_dir: Path | None) -> dict[str, Any]:
+    metadata = attempt.get("metadata") if isinstance(attempt.get("metadata"), Mapping) else {}
+    url_fetch = metadata.get("url_fetch") if isinstance(metadata.get("url_fetch"), Mapping) else {}
+    errors = url_fetch.get("errors") if isinstance(url_fetch.get("errors"), list) else []
+    last_error = errors[-1] if errors and isinstance(errors[-1], Mapping) else {}
+    status = str(attempt.get("status") or "")
+    success = status == "healthy"
+    output_path = attempt.get("output_path") if attempt.get("output_path") else (str(staging_dir / f"{dataset}.csv") if staging_dir and success else None)
+    validation_errors = [str(check.get("message") or check.get("name")) for check in attempt.get("checks", []) if isinstance(check, Mapping) and check.get("status") not in {"passed", "success", True}]
+    failure_reason = str(attempt.get("failure_reason") or last_error.get("error") or "")
+    http_status = url_fetch.get("status") or _http_status_from_message(failure_reason)
+    endpoint = metadata.get("endpoint") or url_fetch.get("final_url") or url_fetch.get("initial_url") or last_error.get("url") or "not captured by provider adapter"
+    rows_fetched = _csv_row_count(Path(str(output_path))) if output_path and success else int(metadata.get("bar_count") or 0)
+    parser_status = "passed" if success else ("not_reached" if _classify_failure(failure_reason, http_status, rows_fetched, validation_errors) in {"network/proxy", "auth/token"} else "failed")
+    validation_status = "passed" if success and not validation_errors else ("failed" if validation_errors else "not_reached")
+    return {
+        "provider_category": dataset,
+        "source_id": attempt.get("provider"),
+        "source_type": str(metadata.get("source_type") or "provider"),
+        "success": success,
+        "selected": bool(attempt.get("selected")),
+        "endpoint_attempted": endpoint,
+        "http_status": http_status,
+        "network_exception": _network_exception(failure_reason, http_status),
+        "rows_fetched": rows_fetched,
+        "parser_status": parser_status,
+        "validation_status": validation_status,
+        "validation_errors": validation_errors,
+        "failure_class": "none" if success else _classify_failure(failure_reason, http_status, rows_fetched, validation_errors),
+        "error": failure_reason,
+        "retry_attempts": int(url_fetch.get("attempts") or 0),
+        "output_path": output_path,
+    }
+
+
+def _http_status_from_message(message: str) -> int | None:
+    import re
+
+    match = re.search(r"\bHTTP\s+(\d{3})\b|status=(\d{3})", message)
+    if not match:
+        return None
+    return int(match.group(1) or match.group(2))
+
+
+def _network_exception(message: str, http_status: int | None) -> str:
+    if http_status is not None:
+        return ""
+    lowered = message.lower()
+    if any(token in lowered for token in ("tunnel connection failed", "url fetch failed", "timed out", "name or service", "connection", "network", "proxy")):
+        return message
+    return ""
+
+
+def _classify_failure(message: str, http_status: int | None, rows_fetched: int, validation_errors: Sequence[str]) -> str:
+    lowered = message.lower()
+    if http_status in {401, 403} or "token" in lowered or "auth" in lowered or "unauthorized" in lowered or "forbidden" in lowered:
+        return "auth/token"
+    if any(token in lowered for token in ("tunnel connection failed", "proxy", "url fetch failed", "timed out", "dns", "connection", "network")):
+        return "network/proxy"
+    if validation_errors or "strict validation" in lowered or "schema" in lowered or "parse" in lowered:
+        return "parser/schema"
+    if rows_fetched == 0 or "no row" in lowered or "returned 0" in lowered or "insufficient" in lowered or "stale" in lowered:
+        return "no-row"
+    if "validation" in lowered or "reconciliation" in lowered:
+        return "validator"
+    return "unknown"
+
+
+def _csv_row_count(path: Path) -> int:
+    try:
+        with path.open(newline="", encoding="utf-8-sig") as handle:
+            return sum(1 for _ in csv.DictReader(handle))
+    except OSError:
+        return 0
 
 
 def _failed_source_names(provider_health: Mapping[str, Any]) -> list[str]:
