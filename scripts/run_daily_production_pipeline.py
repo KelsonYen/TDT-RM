@@ -44,7 +44,12 @@ def main() -> int:
     summary_path = Path(args.pipeline_summary) if args.pipeline_summary else outputs_dir / "pipeline_summary.json"
 
     try:
-        strict_local_import = any(arg == "--input-dir" or arg.startswith("--input-dir=") for arg in sys.argv)
+        strict_local_import = any(
+            arg in {"--input-dir", "--inputs-dir"}
+            or arg.startswith("--input-dir=")
+            or arg.startswith("--inputs-dir=")
+            for arg in sys.argv
+        )
         if args.snapshot_path is None and strict_local_import:
             validation_errors = validate_daily_input_csvs(trade_date=args.as_of, input_dir=inputs_dir)
             if validation_errors:

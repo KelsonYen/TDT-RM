@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from datetime import date
@@ -9,6 +10,9 @@ import pytest
 from tdt_rm.daily_pipeline import render_report_task_summary, run_daily_pipeline
 
 AS_OF = "2026-05-29"
+LOCAL_CSV_AS_OF = "2026-06-03"
+LOCAL_CSV_DIR = Path("inputs/daily/2026-06-03")
+REQUIRED_LOCAL_CSVS = ("price.csv", "foreign_flow.csv", "fx.csv", "breadth.csv", "futures.csv", "options.csv", "leadership.csv")
 PROVIDER_DIR = Path("examples/provider_inputs")
 SNAPSHOT_FIXTURE = Path("examples/daily_snapshots/sample_enriched_snapshot.json")
 
@@ -151,16 +155,7 @@ def test_json_summary_writes_machine_readable_summary(tmp_path: Path):
 
 
 def test_production_pipeline_writes_latest_report_and_prints_full_task_summary(tmp_path: Path):
-    inputs_dir = tmp_path / "inputs"
-    inputs_dir.mkdir()
-    (inputs_dir / "price.csv").write_text((PROVIDER_DIR / "sample_price.csv").read_text(encoding="utf-8"), encoding="utf-8")
-    (inputs_dir / "foreign_flow.csv").write_text((PROVIDER_DIR / "sample_foreign_flow.csv").read_text(encoding="utf-8"), encoding="utf-8")
-    (inputs_dir / "fx.csv").write_text((PROVIDER_DIR / "sample_fx.csv").read_text(encoding="utf-8"), encoding="utf-8")
-    (inputs_dir / "breadth.csv").write_text((PROVIDER_DIR / "sample_breadth.csv").read_text(encoding="utf-8"), encoding="utf-8")
-    (inputs_dir / "leadership.csv").write_text((PROVIDER_DIR / "sample_leadership.csv").read_text(encoding="utf-8"), encoding="utf-8")
-    (inputs_dir / "margin.csv").write_text((PROVIDER_DIR / "sample_margin.csv").read_text(encoding="utf-8"), encoding="utf-8")
-    (inputs_dir / "scores.csv").write_text((PROVIDER_DIR / "sample_scores.csv").read_text(encoding="utf-8"), encoding="utf-8")
-    (inputs_dir / "provider_field_map.json").write_text((PROVIDER_DIR / "sample_provider_field_map.json").read_text(encoding="utf-8"), encoding="utf-8")
+    inputs_dir = _copy_strict_local_csvs(tmp_path / "inputs")
     output_dir = tmp_path / "daily"
     reports_dir = tmp_path / "reports"
     summary_path = output_dir / "pipeline_summary.json"
@@ -169,7 +164,7 @@ def test_production_pipeline_writes_latest_report_and_prints_full_task_summary(t
             sys.executable,
             "scripts/run_daily_production_pipeline.py",
             "--trade-date",
-            AS_OF,
+            LOCAL_CSV_AS_OF,
             "--inputs-dir",
             str(inputs_dir),
             "--outputs-dir",
@@ -186,12 +181,12 @@ def test_production_pipeline_writes_latest_report_and_prints_full_task_summary(t
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
     latest_report = reports_dir / "latest_report.md"
-    dated_report = reports_dir / f"{AS_OF}_tdt_rm_daily_report.md"
+    dated_report = reports_dir / f"{LOCAL_CSV_AS_OF}_tdt_rm_daily_report.md"
     assert latest_report.exists()
     assert dated_report.exists()
     report_text = latest_report.read_text(encoding="utf-8")
-    assert completed.stdout.index("TODAY’S TDT-RM MARKET RESULT") < completed.stdout.index("# TDT-RM Final Operator Report")
-    assert f"Data Date: {AS_OF}" in completed.stdout
+    assert completed.stdout.index("TODAY'S TDT-RM MARKET RESULT") < completed.stdout.index("# TDT-RM Final Operator Report")
+    assert f"Data Date: {LOCAL_CSV_AS_OF}" in completed.stdout
     assert "Signal:" in completed.stdout
     assert "Regime State:" in completed.stdout
     assert "TCWRS:" in completed.stdout
@@ -203,6 +198,69 @@ def test_production_pipeline_writes_latest_report_and_prints_full_task_summary(t
     assert "Exposure Limit:" in completed.stdout
     assert "Recommended Action:" in completed.stdout
     assert report_text in completed.stdout
+
+
+def test_production_pipeline_fails_closed_when_required_local_csv_is_missing(tmp_path: Path):
+    inputs_dir = _copy_strict_local_csvs(tmp_path / "inputs")
+    (inputs_dir / "options.csv").unlink()
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/run_daily_production_pipeline.py",
+            "--trade-date",
+            LOCAL_CSV_AS_OF,
+            "--inputs-dir",
+            str(inputs_dir),
+            "--outputs-dir",
+            str(tmp_path / "daily"),
+            "--reports-dir",
+            str(tmp_path / "reports"),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert "daily input CSV validation failed" in completed.stderr
+    assert f"missing required CSV: {inputs_dir / 'options.csv'}" in completed.stderr
+    assert not (tmp_path / "daily" / f"tdt_rm_daily_{LOCAL_CSV_AS_OF}.json").exists()
+
+
+def test_production_pipeline_runs_from_local_csvs_with_blocked_network_env(tmp_path: Path):
+    inputs_dir = _copy_strict_local_csvs(tmp_path / "inputs")
+    env = {
+        **os.environ,
+        "HTTPS_PROXY": "http://127.0.0.1:9",
+        "HTTP_PROXY": "http://127.0.0.1:9",
+        "ALL_PROXY": "http://127.0.0.1:9",
+    }
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "scripts/run_daily_production_pipeline.py",
+            "--trade-date",
+            LOCAL_CSV_AS_OF,
+            "--inputs-dir",
+            str(inputs_dir),
+            "--outputs-dir",
+            str(tmp_path / "daily"),
+            "--pipeline-summary",
+            str(tmp_path / "daily" / "pipeline_summary.json"),
+            "--reports-dir",
+            str(tmp_path / "reports"),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "validation_status: passed" in completed.stdout
+    assert (tmp_path / "daily" / f"tdt_rm_daily_{LOCAL_CSV_AS_OF}.json").exists()
 
 
 def test_missing_latest_report_summary_fails_with_generation_command(tmp_path: Path):
@@ -218,3 +276,10 @@ def test_missing_latest_report_summary_fails_with_generation_command(tmp_path: P
         "--inputs-dir inputs/daily/2026-05-29 --outputs-dir outputs/daily "
         "--pipeline-summary outputs/daily/tdt_rm_daily_2026-05-29_summary.json"
     ) in message
+
+
+def _copy_strict_local_csvs(destination: Path) -> Path:
+    destination.mkdir(parents=True, exist_ok=True)
+    for filename in REQUIRED_LOCAL_CSVS:
+        (destination / filename).write_text((LOCAL_CSV_DIR / filename).read_text(encoding="utf-8"), encoding="utf-8")
+    return destination
