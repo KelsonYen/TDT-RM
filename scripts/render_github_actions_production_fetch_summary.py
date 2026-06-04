@@ -138,7 +138,12 @@ def _attempt_rows(manifest: Mapping[str, Any], provider_health: Mapping[str, Any
                 dataset = str(entry.get("dataset") or "")
                 for attempt in entry.get("attempts", []) if isinstance(entry.get("attempts"), list) else []:
                     if isinstance(attempt, Mapping):
-                        rows.append({"provider_category": dataset, "source_id": attempt.get("provider"), "success": attempt.get("status") == "healthy"})
+                        row = dict(attempt)
+                        row["provider_category"] = attempt.get("provider_category") or dataset
+                        row["source_id"] = attempt.get("source_id") or attempt.get("provider") or attempt.get("provider_id")
+                        if "success" not in row:
+                            row["success"] = attempt.get("status") == "healthy"
+                        rows.append(row)
     return rows
 
 
