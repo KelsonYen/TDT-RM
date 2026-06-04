@@ -7,9 +7,14 @@
       "provider_category": "price",
       "adapter": "twse_fmtqik_price",
       "endpoint_url_template": "https://www.twse.com.tw/rwd/en/exchangeReport/FMTQIK?date={yyyymmdd}&response=json",
-      "request_parameters": {"date": "{yyyymmdd}", "response": "json"},
+      "request_parameters": {
+        "date": "{yyyymmdd}",
+        "response": "json"
+      },
       "response_type": "json",
-      "freshness_rules": {"max_lag_days": 3},
+      "freshness_rules": {
+        "max_lag_days": 3
+      },
       "lookback_months": 4,
       "min_bars": 61,
       "notes": "Official TWSE report for daily total-market trading value, TAIEX close, and daily change. Four monthly pulls provide enough history to derive MA5/MA20/MA60, turnover MA20, 5D/60D returns, previous MA60, and below-MA20 streak.",
@@ -23,10 +28,15 @@
       "provider_category": "price",
       "adapter": "twse_taiex_price",
       "endpoint_url_template": "https://www.twse.com.tw/rwd/en/TAIEX/MI_5MINS_HIST?date={yyyymmdd}&response=json",
-      "request_parameters": {"date": "{yyyymmdd}", "response": "json"},
+      "request_parameters": {
+        "date": "{yyyymmdd}",
+        "response": "json"
+      },
       "response_type": "json",
       "rows_path": "data",
-      "freshness_rules": {"max_lag_days": 3},
+      "freshness_rules": {
+        "max_lag_days": 3
+      },
       "min_bars": 61,
       "notes": "Official TWSE index OHLC endpoint retained as a lower-priority live fallback when 61+ bars are available for strict production price features.",
       "enabled": true,
@@ -34,15 +44,45 @@
       "source_type": "twse_json"
     },
     {
+      "source_id": "taiwan_index_plus_price",
+      "source_name": "Taiwan Index Plus official index data",
+      "provider_category": "price",
+      "adapter": "taiwan_index_plus",
+      "endpoint_url_template": "",
+      "request_parameters": {
+        "start": "{start_yyyymmdd}",
+        "end": "{end_yyyymmdd}"
+      },
+      "response_type": "json",
+      "rows_path": "data",
+      "freshness_rules": {
+        "max_lag_days": 3
+      },
+      "min_bars": 61,
+      "notes": "Disabled template for approved Taiwan Index Plus official index-data access. Enable with a concrete endpoint or fixture/cache in controlled production environments; provider fails closed when this source is not configured.",
+      "enabled": false,
+      "fallback_order": 25,
+      "source_type": "taiwan_index_plus"
+    },
+    {
       "source_id": "twse_t86_foreign_flow",
       "source_name": "TWSE foreign investor flow (T86)",
       "provider_category": "foreign_flow",
       "adapter": "twse_t86_foreign_flow",
       "endpoint_url_template": "https://www.twse.com.tw/rwd/en/fund/T86?date={yyyymmdd}&selectType=ALL&response=json",
-      "request_parameters": {"date": "{yyyymmdd}", "selectType": "ALL", "response": "json"},
+      "request_parameters": {
+        "date": "{yyyymmdd}",
+        "selectType": "ALL",
+        "response": "json"
+      },
       "response_type": "json",
-      "freshness_rules": {"max_lag_days": 3},
-      "required_fields": ["foreign_spot_net_buy", "foreign_spot_net_sell"],
+      "freshness_rules": {
+        "max_lag_days": 3
+      },
+      "required_fields": [
+        "foreign_spot_net_buy",
+        "foreign_spot_net_sell"
+      ],
       "notes": "Official TWSE T86 security-level institutional flow; parser aggregates foreign-investor buy/sell difference across listed securities.",
       "enabled": true,
       "fallback_order": 30,
@@ -56,8 +96,12 @@
       "endpoint_url_template": "https://openapi.taifex.com.tw/v1/DailyForeignExchangeRates",
       "request_parameters": {},
       "response_type": "json",
-      "freshness_rules": {"max_lag_days": 3},
-      "required_fields": ["usd_twd"],
+      "freshness_rules": {
+        "max_lag_days": 3
+      },
+      "required_fields": [
+        "usd_twd"
+      ],
       "notes": "Official TAIFEX public OpenAPI daily foreign exchange rates; parser extracts USD/TWD and derives 3-day/5-day changes.",
       "enabled": true,
       "fallback_order": 40,
@@ -69,10 +113,19 @@
       "provider_category": "breadth",
       "adapter": "twse_mi_index_breadth",
       "endpoint_url_template": "https://www.twse.com.tw/rwd/en/afterTrading/MI_INDEX?date={yyyymmdd}&type=ALLBUT0999&response=json",
-      "request_parameters": {"date": "{yyyymmdd}", "type": "ALLBUT0999", "response": "json"},
+      "request_parameters": {
+        "date": "{yyyymmdd}",
+        "type": "ALLBUT0999",
+        "response": "json"
+      },
       "response_type": "json",
-      "freshness_rules": {"max_lag_days": 3},
-      "required_fields": ["advancing_issues", "declining_issues"],
+      "freshness_rules": {
+        "max_lag_days": 3
+      },
+      "required_fields": [
+        "advancing_issues",
+        "declining_issues"
+      ],
       "notes": "Official TWSE MI_INDEX daily report; parser extracts advancing and declining issue counts from the market-statistics tables.",
       "enabled": true,
       "fallback_order": 50,
@@ -86,8 +139,12 @@
       "endpoint_url_template": "https://openapi.taifex.com.tw/v1/DailyMarketReportFut",
       "request_parameters": {},
       "response_type": "json",
-      "freshness_rules": {"max_lag_days": 3},
-      "required_fields": ["txf_close"],
+      "freshness_rules": {
+        "max_lag_days": 3
+      },
+      "required_fields": [
+        "txf_close"
+      ],
       "notes": "Official TAIFEX public OpenAPI daily futures market report; parser selects TX-family TAIEX futures rows.",
       "enabled": true,
       "fallback_order": 60,
@@ -104,8 +161,13 @@
       ],
       "request_parameters": {},
       "response_type": "json",
-      "freshness_rules": {"max_lag_days": 3},
-      "required_fields": ["txo_put_call_ratio", "taifex_vix"],
+      "freshness_rules": {
+        "max_lag_days": 3
+      },
+      "required_fields": [
+        "txo_put_call_ratio",
+        "taifex_vix"
+      ],
       "notes": "Official TAIFEX public OpenAPI endpoints for TAIEX options put/call ratio and TAIFEX VIX.",
       "enabled": true,
       "fallback_order": 70,
@@ -117,9 +179,15 @@
       "provider_category": "leadership",
       "adapter": "twse_main7_leadership",
       "symbol_endpoint_url_template": "https://www.twse.com.tw/rwd/en/afterTrading/STOCK_DAY?date={yyyymmdd}&stockNo={symbol}&response=json",
-      "request_parameters": {"date": "{yyyymmdd}", "stockNo": "{symbol}", "response": "json"},
+      "request_parameters": {
+        "date": "{yyyymmdd}",
+        "stockNo": "{symbol}",
+        "response": "json"
+      },
       "response_type": "json",
-      "freshness_rules": {"max_lag_days": 3},
+      "freshness_rules": {
+        "max_lag_days": 3
+      },
       "lookback_months": 4,
       "notes": "Official TWSE per-security daily history; parser computes each Main-7 constituent MA20/MA60 and counts below-MA leadership deterioration.",
       "enabled": true,
@@ -135,7 +203,9 @@
       "enabled": false,
       "fallback_order": 10000,
       "path": "",
-      "freshness_rules": {"max_lag_days": 0},
+      "freshness_rules": {
+        "max_lag_days": 0
+      },
       "field_extraction_mapping": {},
       "notes": "Disabled template. Do not use for production acceptance runs; only for operator break-glass recovery with externally downloaded canonical data."
     },
@@ -148,7 +218,9 @@
       "enabled": false,
       "fallback_order": 10010,
       "path": "",
-      "freshness_rules": {"max_lag_days": 0},
+      "freshness_rules": {
+        "max_lag_days": 0
+      },
       "field_extraction_mapping": {},
       "notes": "Disabled template. Do not use for production acceptance runs; only for operator break-glass recovery with externally downloaded canonical data."
     }
