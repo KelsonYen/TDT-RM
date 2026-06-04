@@ -1294,17 +1294,77 @@ def _fetch_any_payload(config: Mapping[str, Any], context: PublicDataFetchContex
     if url.startswith("file://"):
         text = Path(urllib.parse.urlparse(url).path).read_text(encoding="utf-8-sig")
     else:
-        request = urllib.request.Request(url, headers={"User-Agent": context.user_agent, "Accept": "application/json,text/csv,text/html;q=0.9,*/*;q=0.5"})
-        try:
-            with urllib.request.urlopen(request, timeout=context.timeout_seconds) as response:  # noqa: S310 - configured public endpoints only.
-                text = response.read().decode("utf-8-sig")
-        except urllib.error.HTTPError as exc:
-            raise ValueError(f"HTTP {exc.code} from {url}") from exc
+        text = _fetch_url_text(config, context, url, accept="application/json,text/csv,text/html;q=0.9,*/*;q=0.5")
     stripped = text.lstrip()
     if stripped.startswith("{") or stripped.startswith("["):
         return json.loads(text)
     return {"_text": text, "_url": url}
 
+
+
+_REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
+_DEFAULT_MAX_REDIRECTS = 5
+_TWSE_OFFICIAL_REDIRECT_HOSTS = {"www.twse.com.tw", "openapi.twse.com.tw"}
+
+
+def _fetch_url_text(config: Mapping[str, Any], context: PublicDataFetchContext, url: str, *, accept: str) -> str:
+    """Fetch a configured public URL with bounded, official-host redirects.
+
+    urllib normally follows many redirects, but production TWSE runs can surface
+    explicit HTTP 307 responses from official report endpoints.  Handling them
+    here keeps provider ordering fail-closed while allowing the same safe GET to
+    continue only to trusted HTTPS/http official destinations.
+    """
+
+    current_url = url
+    max_redirects = int(config.get("max_redirects", _DEFAULT_MAX_REDIRECTS) or 0)
+    headers = {"User-Agent": context.user_agent, "Accept": accept}
+    for redirect_count in range(max_redirects + 1):
+        request = urllib.request.Request(current_url, headers=headers)
+        try:
+            with urllib.request.urlopen(request, timeout=context.timeout_seconds) as response:  # noqa: S310 - configured public endpoints only.
+                return response.read().decode("utf-8-sig")
+        except urllib.error.HTTPError as exc:
+            if exc.code not in _REDIRECT_STATUS_CODES:
+                raise ValueError(f"HTTP {exc.code} from {current_url}") from exc
+            if redirect_count >= max_redirects:
+                raise ValueError(f"HTTP redirect limit exceeded after {max_redirects} redirects from {url}") from exc
+            location = exc.headers.get("Location") if exc.headers else None
+            if not location:
+                raise ValueError(f"HTTP {exc.code} from {current_url} without Location header") from exc
+            current_url = _validated_redirect_url(config, current_url, str(location))
+    raise ValueError(f"HTTP redirect limit exceeded after {max_redirects} redirects from {url}")
+
+
+def _validated_redirect_url(config: Mapping[str, Any], current_url: str, location: str) -> str:
+    target = urllib.parse.urljoin(current_url, location.strip())
+    current_parts = urllib.parse.urlparse(current_url)
+    target_parts = urllib.parse.urlparse(target)
+    if target_parts.scheme not in {"http", "https"}:
+        raise ValueError(f"refusing redirect from {current_url} to unsupported scheme: {target}")
+    if current_parts.scheme == "https" and target_parts.scheme != "https":
+        raise ValueError(f"refusing HTTPS downgrade redirect from {current_url} to {target}")
+    target_host = (target_parts.hostname or "").lower()
+    allowed_hosts = _allowed_redirect_hosts(config, current_url)
+    if target_host not in allowed_hosts:
+        allowed = ", ".join(sorted(allowed_hosts))
+        raise ValueError(f"refusing redirect from {current_url} to unapproved host {target_host!r}; allowed hosts: {allowed}")
+    return target
+
+
+def _allowed_redirect_hosts(config: Mapping[str, Any], current_url: str) -> set[str]:
+    current_host = (urllib.parse.urlparse(current_url).hostname or "").lower()
+    hosts = {current_host} if current_host else set()
+    configured = config.get("allowed_redirect_hosts") or ()
+    if isinstance(configured, str):
+        configured = (configured,)
+    if isinstance(configured, Sequence):
+        hosts.update(str(host).lower() for host in configured if str(host).strip())
+    source_type = str(config.get("source_type") or config.get("adapter") or "").lower()
+    endpoint = str(config.get("endpoint_url_template") or config.get("symbol_endpoint_url_template") or config.get("url") or "").lower()
+    if source_type.startswith("twse") or "twse.com.tw" in endpoint or "openapi.twse.com.tw" in endpoint:
+        hosts.update(_TWSE_OFFICIAL_REDIRECT_HOSTS)
+    return hosts
 
 def _previous_month(value: date) -> date:
     return date(value.year - (1 if value.month == 1 else 0), 12 if value.month == 1 else value.month - 1, 1)
@@ -1484,12 +1544,7 @@ def _fetch_json_payload(config: Mapping[str, Any], context: PublicDataFetchConte
         raise ValueError("source config missing endpoint_url_template/url or fixture_path")
     if url.startswith("file://"):
         return json.loads(Path(urllib.parse.urlparse(url).path).read_text(encoding="utf-8"))
-    request = urllib.request.Request(url, headers={"User-Agent": context.user_agent, "Accept": "application/json,text/csv;q=0.8,*/*;q=0.5"})
-    try:
-        with urllib.request.urlopen(request, timeout=context.timeout_seconds) as response:  # noqa: S310 - configured public endpoints only.
-            body = response.read().decode("utf-8-sig")
-    except urllib.error.HTTPError as exc:
-        raise ValueError(f"HTTP {exc.code} from {url}") from exc
+    body = _fetch_url_text(config, context, url, accept="application/json,text/csv;q=0.8,*/*;q=0.5")
     return json.loads(body)
 
 
