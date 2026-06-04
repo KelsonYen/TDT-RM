@@ -497,6 +497,19 @@ def test_twse_t86_compact_foreign_flow_alias_parses_non_null():
     assert row["foreign_spot_net_sell"] is False
 
 
+def test_twse_t86_current_foreign_flow_field_parses_non_null():
+    from tdt_rm.public_data_fetchers import _parse_t86_foreign_flow
+
+    row = _parse_t86_foreign_flow(
+        {"fields": ["證券代號", "證券名稱", "外陸資買進股數(不含外資自營商)", "外陸資賣出股數(不含外資自營商)", "外陸資買賣超股數(不含外資自營商)"], "data": [["2330", "台積電", "10,000", "11,250", "-1,250"]]},
+        AS_OF,
+    )
+
+    assert row is not None
+    assert row["foreign_spot_net_buy"] == -1250.0
+    assert row["foreign_spot_net_sell"] is True
+
+
 def test_twse_mi_index_breadth_type_rows_parse_market_and_stock_counts():
     from tdt_rm.public_data_fetchers import _parse_twse_breadth
 
@@ -513,6 +526,26 @@ def test_twse_mi_index_breadth_type_rows_parse_market_and_stock_counts():
     assert row is not None
     assert row["advancing_issues"] == 634
     assert row["declining_issues"] == 311
+
+
+def test_twse_mi_index_current_breadth_counts_strip_limit_parentheses():
+    from tdt_rm.public_data_fetchers import _parse_twse_breadth
+
+    row = _parse_twse_breadth(
+        {
+            "tables": [
+                {
+                    "fields": ["類型", "整體市場", "股票"],
+                    "data": [["上漲(漲停)", "10,514(897)", "625(61)"], ["下跌(跌停)", "3,073(49)", "364(2)"]],
+                }
+            ]
+        },
+        AS_OF,
+    )
+
+    assert row is not None
+    assert row["advancing_issues"] == 10514
+    assert row["declining_issues"] == 3073
 
 
 def test_taifex_nested_daily_market_report_fut_parses_txf_row():

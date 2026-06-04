@@ -1626,6 +1626,8 @@ def _parse_t86_foreign_flow(payload: Any, as_of: date) -> dict[str, Any] | None:
             _first(
                 row,
                 "外陸資買賣超股數(不含自營商)",
+                "外陸資買賣超股數(不含外資自營商)",
+                "外資及陸資買賣超股數(不含自營商)",
                 "外資及陸資買賣超股數(不含外資自營商)",
                 "外資及陸資買賣超股數",
                 "外陸資買賣超股數",
@@ -1673,14 +1675,20 @@ def _parse_twse_breadth(payload: Any, as_of: date) -> dict[str, Any] | None:
         label = str(_first(row, "類型", "Type", "name", "Name", "指數", "證券名稱") or "")
         label_lower = label.lower()
         if "上漲" in label or label_lower in {"up", "advance", "advancing issues"}:
-            adv = _to_float(_first(row, "家數", "Count", "count", "advancing_issues", "上漲家數", "整體市場", "股票"))
+            adv = _to_twse_count(_first(row, "家數", "Count", "count", "advancing_issues", "上漲家數", "整體市場", "股票"))
         if "下跌" in label or label_lower in {"down", "decline", "declining issues"}:
-            dec = _to_float(_first(row, "家數", "Count", "count", "declining_issues", "下跌家數", "整體市場", "股票"))
-        adv = adv if adv is not None else _to_float(_first(row, "上漲家數", "advancing_issues"))
-        dec = dec if dec is not None else _to_float(_first(row, "下跌家數", "declining_issues"))
+            dec = _to_twse_count(_first(row, "家數", "Count", "count", "declining_issues", "下跌家數", "整體市場", "股票"))
+        adv = adv if adv is not None else _to_twse_count(_first(row, "上漲家數", "advancing_issues"))
+        dec = dec if dec is not None else _to_twse_count(_first(row, "下跌家數", "declining_issues"))
     if adv is None or dec is None:
         return None
     return {"date": as_of.isoformat(), "advancing_issues": int(adv), "declining_issues": int(dec), "index_down": dec > adv, "declining_gt_advancing_consecutive_days": 1 if dec > adv else 0, "breadth_weakens_for_2_days": False}
+
+
+def _to_twse_count(value: Any) -> float | None:
+    if isinstance(value, str):
+        value = value.split("(", 1)[0].strip()
+    return _to_float(value)
 
 
 def _parse_taifex_futures(payload: Any, as_of: date) -> dict[str, Any] | None:
