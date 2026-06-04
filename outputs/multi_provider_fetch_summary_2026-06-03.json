@@ -1,0 +1,142 @@
+{
+  "datasets": {
+    "breadth": {
+      "failed_providers": [
+        {
+          "message": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "TWSE_OFFICIAL"
+        },
+        {
+          "message": "FinMind request failed for TaiwanStockPrice: <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "FINMIND_FALLBACK"
+        }
+      ],
+      "output_path": null,
+      "provider_used": null,
+      "status": "failed"
+    },
+    "foreign_flow": {
+      "failed_providers": [
+        {
+          "message": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "TWSE_OFFICIAL"
+        },
+        {
+          "message": "FinMind request failed for TaiwanStockTotalInstitutionalInvestors: <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "FINMIND_FALLBACK"
+        }
+      ],
+      "output_path": null,
+      "provider_used": null,
+      "status": "failed"
+    },
+    "futures": {
+      "failed_providers": [
+        {
+          "message": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "TAIFEX_OFFICIAL"
+        },
+        {
+          "message": "FinMind request failed for TaiwanFuturesDaily: <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "FINMIND_FALLBACK"
+        }
+      ],
+      "output_path": null,
+      "provider_used": null,
+      "status": "failed"
+    },
+    "fx": {
+      "failed_providers": [
+        {
+          "message": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "PUBLIC_FX"
+        },
+        {
+          "message": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "TAIFEX_OFFICIAL"
+        },
+        {
+          "message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "YAHOO_FINANCE"
+        },
+        {
+          "message": "FinMind request failed for TaiwanExchangeRate: <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "FINMIND_FALLBACK"
+        }
+      ],
+      "output_path": null,
+      "provider_used": null,
+      "status": "failed"
+    },
+    "leadership": {
+      "failed_providers": [
+        {
+          "message": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "TWSE_OFFICIAL"
+        },
+        {
+          "message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "YAHOO_FINANCE"
+        },
+        {
+          "message": "FinMind request failed for TaiwanStockPrice: <urlopen error Tunnel connection failed: 403 Forbidden>; FinMind request failed for TaiwanStockPriceAdj: <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "FINMIND_FALLBACK"
+        }
+      ],
+      "output_path": null,
+      "provider_used": null,
+      "status": "failed"
+    },
+    "options": {
+      "failed_providers": [
+        {
+          "message": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "TAIFEX_OFFICIAL"
+        },
+        {
+          "message": "FinMind request failed for TaiwanOptionDaily: <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "FINMIND_FALLBACK"
+        }
+      ],
+      "output_path": null,
+      "provider_used": null,
+      "status": "failed"
+    },
+    "price": {
+      "failed_providers": [
+        {
+          "message": "status=failed; <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "TWSE_OFFICIAL"
+        },
+        {
+          "message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "YAHOO_FINANCE"
+        },
+        {
+          "message": "<urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "STOOQ"
+        },
+        {
+          "message": "FinMind request failed for TaiwanStockTotalReturnIndex: <urlopen error Tunnel connection failed: 403 Forbidden>; FinMind request failed for TaiwanVariousIndicators5Seconds: <urlopen error Tunnel connection failed: 403 Forbidden>; FinMind request failed for TaiwanStockPrice: <urlopen error Tunnel connection failed: 403 Forbidden>; FinMind request failed for TaiwanStockPriceAdj: <urlopen error Tunnel connection failed: 403 Forbidden>",
+          "provider": "FINMIND_FALLBACK"
+        }
+      ],
+      "output_path": null,
+      "provider_used": null,
+      "status": "failed"
+    }
+  },
+  "fetched_at": "2026-06-04T00:08:21Z",
+  "input_dir": "inputs/daily/2026-06-03-multiprovider-test",
+  "missing_datasets": [
+    "price.csv",
+    "foreign_flow.csv",
+    "fx.csv",
+    "breadth.csv",
+    "futures.csv",
+    "options.csv",
+    "leadership.csv"
+  ],
+  "overall_status": "NOT_READY",
+  "trade_date": "2026-06-03"
+}
