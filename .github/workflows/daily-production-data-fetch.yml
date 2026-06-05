@@ -28,7 +28,7 @@ permissions:
 env:
   PYTHON_VERSION: "3.11"
   TDT_RM_PRODUCTION_MODE: "true"
-  TDT_RM_ALLOW_FINMIND_LIVE: ${{ (github.event_name == 'workflow_dispatch' && inputs.allow_finmind) && 'true' || 'false' }}
+  TDT_RM_ALLOW_FINMIND_LIVE: ${{ (github.event_name == 'workflow_dispatch' && (inputs.allow_finmind || github.event.inputs.allow_finmind == 'true')) && 'true' || 'false' }}
   FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
   FINMIND_API_TOKEN: ${{ secrets.FINMIND_API_TOKEN }}
 
@@ -62,7 +62,7 @@ jobs:
           echo "AS_OF=$trade_date" >> "$GITHUB_ENV"
 
       - name: Require FinMind token when explicitly enabled
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_finmind }}
+        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.allow_finmind || github.event.inputs.allow_finmind == 'true') }}
         shell: bash
         env:
           FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
@@ -97,8 +97,8 @@ jobs:
       - name: Run provider connectivity audit
         shell: bash
         env:
-          FINMIND_TOKEN: ${{ (github.event_name == 'workflow_dispatch' && inputs.allow_finmind) && secrets.FINMIND_TOKEN || '' }}
-          FINMIND_API_TOKEN: ${{ (github.event_name == 'workflow_dispatch' && inputs.allow_finmind) && secrets.FINMIND_API_TOKEN || '' }}
+          FINMIND_TOKEN: ${{ (github.event_name == 'workflow_dispatch' && (inputs.allow_finmind || github.event.inputs.allow_finmind == 'true')) && secrets.FINMIND_TOKEN || '' }}
+          FINMIND_API_TOKEN: ${{ (github.event_name == 'workflow_dispatch' && (inputs.allow_finmind || github.event.inputs.allow_finmind == 'true')) && secrets.FINMIND_API_TOKEN || '' }}
         run: |
           set -euo pipefail
           python scripts/audit_market_data_connectivity.py \
@@ -110,20 +110,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "${TDT_RM_ALLOW_FINMIND_LIVE:-false}" == "true" ]]; then
+          echo "inputs.allow_finmind=${{ inputs.allow_finmind }}"
+          echo "github.event.inputs.allow_finmind=${{ github.event.inputs.allow_finmind }}"
+          echo "TDT_RM_ALLOW_FINMIND_LIVE=${TDT_RM_ALLOW_FINMIND_LIVE:-false}"
+
+          args=(--trade-date "$AS_OF")
+          if [[ "${TDT_RM_ALLOW_FINMIND_LIVE:-false}" == "true" || "${{ inputs.allow_finmind }}" == "true" || "${{ github.event.inputs.allow_finmind }}" == "true" ]]; then
             if [[ -z "${FINMIND_TOKEN:-}" && -z "${FINMIND_API_TOKEN:-}" ]]; then
               echo "allow_finmind=true requires FINMIND_TOKEN or FINMIND_API_TOKEN GitHub Secret." >&2
               exit 1
             fi
             echo "FinMind fallback enabled for production because allow_finmind=true and a token secret is present."
+            args+=(--allow-finmind-live)
           else
             echo "FinMind fallback disabled; official-source-first provider chain must complete without live FinMind fallback."
           fi
-          echo "Resolved FinMind live enabled: ${TDT_RM_ALLOW_FINMIND_LIVE:-false}"
-          args=(--trade-date "$AS_OF")
-          if [[ "${TDT_RM_ALLOW_FINMIND_LIVE:-false}" == "true" ]]; then
-            args+=(--allow-finmind-live)
-          fi
+
+          printf 'Production fetch args:'
+          printf ' %q' "${args[@]}"
+          printf '\n'
+
           python scripts/run_github_actions_production_fetch.py "${args[@]}"
 
       - name: Verify fetch artifact contract

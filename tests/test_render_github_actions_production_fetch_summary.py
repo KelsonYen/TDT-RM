@@ -275,3 +275,47 @@ def test_renderer_writes_dataset_matrix_to_fetch_summary_from_partial_provider_h
     assert matrix["price"]["validation_executed"] == "NO"
     assert matrix["price"]["output_csv_written"] == "NO"
     assert matrix["price"]["root_cause_classification"] == "auth/token"
+
+
+def test_finmind_live_status_is_missing_when_manifest_did_not_render() -> None:
+    markdown = _MODULE._render_markdown(
+        "2026-06-04",
+        Path("/tmp/input"),
+        Path("/tmp/output"),
+        Path("/tmp/reports"),
+        {},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    assert "- FinMind live enabled: `missing`" in markdown
+
+
+def test_finmind_live_status_preserves_manifest_boolean() -> None:
+    enabled_markdown = _MODULE._render_markdown(
+        "2026-06-04",
+        Path("/tmp/input"),
+        Path("/tmp/output"),
+        Path("/tmp/reports"),
+        {"finmind_live_enabled": True},
+        {},
+        {},
+        {},
+        {},
+    )
+    disabled_markdown = _MODULE._render_markdown(
+        "2026-06-04",
+        Path("/tmp/input"),
+        Path("/tmp/output"),
+        Path("/tmp/reports"),
+        {"finmind_live_enabled": False},
+        {},
+        {},
+        {},
+        {},
+    )
+
+    assert "- FinMind live enabled: `True`" in enabled_markdown
+    assert "- FinMind live enabled: `False`" in disabled_markdown
