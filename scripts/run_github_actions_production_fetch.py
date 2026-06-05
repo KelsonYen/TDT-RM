@@ -30,6 +30,7 @@ from validate_daily_input_csvs import validate_daily_input_csvs  # noqa: E402
 
 FORBIDDEN_SOURCE_TYPES = {"demo", "mock", "synthetic", "fixture", "test", "sample", "stale", "local_csv_fallback", "local_json_fallback"}
 REQUIRED_DATASETS = ("price", "foreign_flow", "fx", "breadth", "futures", "options", "leadership", "margin")
+REQUIRED_STAGED_CSVS = tuple(f"{dataset}.csv" for dataset in REQUIRED_DATASETS)
 
 REQUIRED_PRODUCTION_FILES = (
     "taiex_price.csv",
@@ -117,10 +118,16 @@ def main() -> int:
         _run_daily_report(trade_date, staging_dir, reports_dir, artifacts_dir)
         _write_run_summary(run_summary, trade_date, "READY", production_dir, reports_dir, artifacts_dir, validation_report, fetch_summary, provider_health)
         _write_fetch_manifest(fetch_manifest, trade_date, "READY", staging_dir, production_dir, reports_dir, artifacts_dir, fetch_summary, provider_health, validation_report, allow_finmind_live=allow_finmind_live)
+        validate_fetch_artifact_contract(trade_date=trade_date, outputs_dir=outputs_dir, reports_dir=reports_dir, staging_dir=staging_dir)
         _copy_if_exists(run_summary, outputs_summary)
     except Exception as exc:  # noqa: BLE001 - CLI must fail closed with exact blocking reason.
         _write_run_summary(run_summary, trade_date, "NOT_READY", production_dir, reports_dir, artifacts_dir, validation_report, fetch_summary, provider_health, blocking_error=str(exc))
+        _ensure_fail_closed_diagnostic_artifacts(trade_date, fetch_summary, provider_health, blocking_error=str(exc), allow_finmind_live=_production_finmind_live_allowed(args.allow_finmind_live))
         _write_fetch_manifest(fetch_manifest, trade_date, "NOT_READY", staging_dir, production_dir, reports_dir, artifacts_dir, fetch_summary, provider_health, validation_report, allow_finmind_live=_production_finmind_live_allowed(args.allow_finmind_live), blocking_error=str(exc))
+        try:
+            validate_fetch_artifact_contract(trade_date=trade_date, outputs_dir=outputs_dir, reports_dir=reports_dir, staging_dir=staging_dir)
+        except Exception as contract_exc:  # noqa: BLE001 - report artifact-contract failures as fail-closed diagnostics.
+            print(f"ERROR GitHub Actions production fetch artifact contract failed: {contract_exc}", file=sys.stderr)
         _copy_if_exists(run_summary, outputs_summary)
         print(f"ERROR GitHub Actions production fetch failed closed: {exc}", file=sys.stderr)
         return 1
@@ -344,6 +351,109 @@ def _write_fetch_manifest(
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def validate_fetch_artifact_contract(*, trade_date: date, outputs_dir: Path, reports_dir: Path, staging_dir: Path | None = None) -> list[str]:
+    """Validate the GitHub Actions production-fetch artifact contract.
+
+    READY runs must expose all staged provider CSVs plus machine-readable
+    diagnostics. NOT_READY runs intentionally do not require CSVs, but still
+    require diagnostics so fail-closed runs remain auditable.
+    """
+
+    artifacts_dir = reports_dir / "artifacts"
+    manifest_path = outputs_dir / "fetch_manifest.json"
+    fetch_summary_path = artifacts_dir / "production_fetch_summary.json"
+    provider_health_path = artifacts_dir / "provider_health.json"
+    errors: list[str] = []
+    for path in (manifest_path, fetch_summary_path, provider_health_path):
+        if not path.exists():
+            errors.append(f"missing required diagnostic artifact: {path}")
+    manifest = _load_json_if_exists(manifest_path)
+    fetch_summary = _load_json_if_exists(fetch_summary_path)
+    provider_health = _load_json_if_exists(provider_health_path)
+    if manifest_path.exists() and not manifest:
+        errors.append(f"required diagnostic artifact is not valid JSON object: {manifest_path}")
+    if fetch_summary_path.exists() and not fetch_summary:
+        errors.append(f"required diagnostic artifact is not valid JSON object: {fetch_summary_path}")
+    if provider_health_path.exists() and not provider_health:
+        errors.append(f"required diagnostic artifact is not valid JSON object: {provider_health_path}")
+    if manifest:
+        if manifest.get("as_of") != trade_date.isoformat() or manifest.get("trade_date") != trade_date.isoformat():
+            errors.append(f"fetch_manifest.json trade_date/as_of must equal {trade_date.isoformat()}")
+        data_status = str(manifest.get("data_status") or "")
+        if data_status not in {"READY", "NOT_READY"}:
+            errors.append("fetch_manifest.json data_status must be READY or NOT_READY")
+        if data_status == "READY":
+            provider_csv_paths = manifest.get("provider_csv_paths") if isinstance(manifest.get("provider_csv_paths"), Mapping) else {}
+            for filename in REQUIRED_STAGED_CSVS:
+                dataset = filename.removesuffix(".csv")
+                candidates = []
+                if staging_dir is not None:
+                    candidates.append(staging_dir / filename)
+                if provider_csv_paths.get(dataset):
+                    candidates.append(Path(str(provider_csv_paths[dataset])))
+                if not candidates or not any(path.exists() for path in candidates):
+                    errors.append(f"READY artifact contract missing required staged CSV: {filename}")
+        elif data_status == "NOT_READY":
+            # Diagnostic JSON existence/parseability is checked above; CSVs are intentionally optional.
+            pass
+    if errors:
+        raise RuntimeError("; ".join(errors))
+    return []
+
+
+def _ensure_fail_closed_diagnostic_artifacts(trade_date: date, fetch_summary_path: Path, provider_health_path: Path, *, blocking_error: str, allow_finmind_live: bool) -> None:
+    generated_at = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    if not provider_health_path.exists():
+        provider_health_path.parent.mkdir(parents=True, exist_ok=True)
+        provider_health_path.write_text(
+            json.dumps(
+                {
+                    "as_of": trade_date.isoformat(),
+                    "generated_at": generated_at,
+                    "providers": {},
+                    "summary": {
+                        "total_providers": 0,
+                        "healthy_providers": [],
+                        "failed_providers": [],
+                        "validation_failed": False,
+                        "fail_closed": True,
+                    },
+                    "validation_errors": [],
+                    "blocking_error": blocking_error,
+                },
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    if not fetch_summary_path.exists():
+        fetch_summary_path.parent.mkdir(parents=True, exist_ok=True)
+        fetch_summary_path.write_text(
+            json.dumps(
+                {
+                    "trade_date": trade_date.isoformat(),
+                    "fetched_at": generated_at,
+                    "overall_status": "NOT_READY",
+                    "missing_datasets": [f"{dataset}.csv" for dataset in REQUIRED_DATASETS],
+                    "validation_errors": [],
+                    "provider_health_path": str(provider_health_path),
+                    "provider_health_summary": _load_json_if_exists(provider_health_path).get("summary", {}),
+                    "finmind_live_enabled": bool(allow_finmind_live),
+                    "finmind_fallback": _finmind_fallback_status(allow_finmind_live),
+                    "blocking_error": blocking_error,
+                    "datasets": {},
+                },
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+
 def _finmind_fallback_status(allow_finmind_live: bool) -> dict[str, Any]:
     token_present = bool(os.environ.get("FINMIND_TOKEN"))
     api_token_present = bool(os.environ.get("FINMIND_API_TOKEN"))
@@ -424,8 +534,8 @@ def _attempt_manifest_row(dataset: str, attempt: Mapping[str, Any], staging_dir:
     output_path = attempt.get("output_path") if attempt.get("output_path") else (str(staging_dir / f"{dataset}.csv") if staging_dir and success else None)
     validation_errors = [str(check.get("message") or check.get("name")) for check in attempt.get("checks", []) if isinstance(check, Mapping) and check.get("status") not in {"passed", "success", True}]
     failure_reason = str(attempt.get("failure_reason") or last_error.get("error") or "")
-    http_status = url_fetch.get("status") or _http_status_from_message(failure_reason)
-    endpoint = metadata.get("endpoint") or url_fetch.get("final_url") or url_fetch.get("initial_url") or last_error.get("url") or "not captured by provider adapter"
+    http_status = url_fetch.get("status") or last_error.get("status") or _http_status_from_message(failure_reason)
+    endpoint = metadata.get("endpoint") or attempt.get("endpoint_attempted") or url_fetch.get("final_url") or url_fetch.get("initial_url") or last_error.get("url") or "not captured by provider adapter"
     rows_fetched = _csv_row_count(Path(str(output_path))) if output_path and success else int(metadata.get("bar_count") or 0)
     parser_status = "passed" if success else ("not_reached" if _classify_failure(failure_reason, http_status, rows_fetched, validation_errors) in {"network/proxy", "auth/token"} else "failed")
     validation_status = "passed" if success and not validation_errors else ("failed" if validation_errors else "not_reached")
@@ -437,14 +547,15 @@ def _attempt_manifest_row(dataset: str, attempt: Mapping[str, Any], staging_dir:
         "selected": bool(attempt.get("selected")),
         "endpoint_attempted": endpoint,
         "http_status": http_status,
-        "network_exception": _network_exception(failure_reason, http_status),
+        "network_exception": str(url_fetch.get("network_exception") or last_error.get("network_exception") or _network_exception(failure_reason, http_status)),
         "rows_fetched": rows_fetched,
         "parser_status": parser_status,
         "validation_status": validation_status,
         "validation_errors": validation_errors,
         "failure_class": "none" if success else _classify_failure(failure_reason, http_status, rows_fetched, validation_errors),
         "error": failure_reason,
-        "retry_attempts": int(url_fetch.get("attempts") or 0),
+        "attempts": int(url_fetch.get("attempts") or attempt.get("attempts") or 0),
+        "retry_attempts": int(url_fetch.get("attempts") or attempt.get("attempts") or 0),
         "output_path": output_path,
     }
 

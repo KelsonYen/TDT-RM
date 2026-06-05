@@ -16,7 +16,7 @@ from tdt_rm.public_data_fetchers import (
     load_source_config,
 )
 
-from .base import DailyDataProvider, ProviderContext, ProviderResult
+from .base import DailyDataProvider, ProviderContext, ProviderFetchError, ProviderResult
 from .normalizers import normalize_public_row
 
 _SOURCE_BY_DATASET = {
@@ -43,7 +43,7 @@ class TWSEProvider(DailyDataProvider):
         config = _source_config(source_id, self.source_config)
         result = source_cls(config).fetch(_public_context(context))
         if not result.success:
-            raise RuntimeError(_failure_message(result.status, result.issues))
+            raise ProviderFetchError(_failure_message(result.status, result.issues), result.raw_metadata)
         raw_row = dict(result.rows[0] if result.rows else result.canonical_fields)
         provider_source = f"{self.name}:{result.source_id}"
         row = normalize_public_row(dataset, raw_row, trade_date=context.trade_date, provider_source=provider_source)

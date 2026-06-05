@@ -138,13 +138,30 @@ def _attempt_rows(manifest: Mapping[str, Any], provider_health: Mapping[str, Any
                 dataset = str(entry.get("dataset") or "")
                 for attempt in entry.get("attempts", []) if isinstance(entry.get("attempts"), list) else []:
                     if isinstance(attempt, Mapping):
-                        row = dict(attempt)
-                        row["provider_category"] = attempt.get("provider_category") or dataset
-                        row["source_id"] = attempt.get("source_id") or attempt.get("provider") or attempt.get("provider_id")
-                        if "success" not in row:
-                            row["success"] = attempt.get("status") == "healthy"
+                        row = _provider_health_attempt_row(dataset, attempt)
                         rows.append(row)
     return rows
+
+
+def _provider_health_attempt_row(dataset: str, attempt: Mapping[str, Any]) -> dict[str, Any]:
+    row = dict(attempt)
+    metadata = attempt.get("metadata") if isinstance(attempt.get("metadata"), Mapping) else {}
+    url_fetch = metadata.get("url_fetch") if isinstance(metadata.get("url_fetch"), Mapping) else {}
+    errors = url_fetch.get("errors") if isinstance(url_fetch.get("errors"), list) else []
+    last_error = errors[-1] if errors and isinstance(errors[-1], Mapping) else {}
+    row["provider_category"] = attempt.get("provider_category") or dataset
+    row["source_id"] = attempt.get("source_id") or attempt.get("provider") or attempt.get("provider_id")
+    row.setdefault("endpoint_attempted", metadata.get("endpoint") or url_fetch.get("final_url") or url_fetch.get("initial_url") or last_error.get("url"))
+    row.setdefault("http_status", url_fetch.get("status") or last_error.get("status"))
+    row.setdefault("network_exception", url_fetch.get("network_exception") or last_error.get("network_exception") or "")
+    row.setdefault("rows_fetched", int(metadata.get("bar_count") or 0))
+    if attempt.get("status") == "healthy":
+        row.setdefault("parser_status", "passed")
+        row.setdefault("validation_status", "passed")
+        row.setdefault("failure_class", "none")
+    if "success" not in row:
+        row["success"] = attempt.get("status") == "healthy"
+    return row
 
 
 def _failure_class_counts(attempts: Any) -> dict[str, int]:

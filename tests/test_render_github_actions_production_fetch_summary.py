@@ -130,3 +130,45 @@ def test_provider_health_legacy_minimal_attempts_still_render() -> None:
     )
 
     assert "`price` | `LEGACY_PROVIDER` | `n/a` | `none` | 0 | `n/a` | `n/a` | `n/a`" in markdown
+
+
+def test_provider_health_fallback_uses_url_fetch_metadata_when_manifest_incomplete() -> None:
+    provider_health = {
+        "providers": {
+            "price_provider": {
+                "dataset": "price",
+                "attempts": [
+                    {
+                        "provider": "TWSE_OFFICIAL",
+                        "status": "failed",
+                        "failure_reason": "URL fetch failed",
+                        "metadata": {
+                            "url_fetch": {
+                                "final_url": "https://example.invalid/final",
+                                "status": 503,
+                                "attempts": 3,
+                                "errors": [{"url": "https://example.invalid/final", "attempt": 3, "status": 503, "error": "HTTP 503"}],
+                            }
+                        },
+                    }
+                ],
+            }
+        }
+    }
+
+    rows = _MODULE._attempt_rows({"source_attempts": []}, provider_health)
+    markdown = _MODULE._render_markdown(
+        "2026-06-03",
+        Path("/tmp/input"),
+        Path("/tmp/output"),
+        Path("/tmp/reports"),
+        {"source_attempts": []},
+        {},
+        provider_health,
+        {},
+        {},
+    )
+
+    assert rows[0]["endpoint_attempted"] == "https://example.invalid/final"
+    assert rows[0]["http_status"] == 503
+    assert "`price` | `TWSE_OFFICIAL` | `https://example.invalid/final` | `HTTP 503`" in markdown

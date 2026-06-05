@@ -1480,13 +1480,15 @@ def _fetch_url_text(config: Mapping[str, Any], context: PublicDataFetchContext, 
                     diagnostics.setdefault("redirects", []).append({"from": current_url, "to": target, "status": exc.code})
                     current_url = target
                     break
-                diagnostics.setdefault("errors", []).append({"url": current_url, "attempt": attempt, "error": f"HTTP {exc.code}"})
+                diagnostics["status"] = exc.code
+                diagnostics.setdefault("errors", []).append({"url": current_url, "attempt": attempt, "status": exc.code, "error": f"HTTP {exc.code}"})
                 if attempt >= max_attempts:
                     diagnostics["success"] = False
                     raise ValueError(f"HTTP {exc.code} from {current_url} after {attempt} attempts") from exc
                 time.sleep(backoff_seconds * (2 ** (attempt - 1)))
             except urllib.error.URLError as exc:
-                diagnostics.setdefault("errors", []).append({"url": current_url, "attempt": attempt, "error": str(exc)})
+                diagnostics["network_exception"] = str(exc)
+                diagnostics.setdefault("errors", []).append({"url": current_url, "attempt": attempt, "network_exception": str(exc), "error": str(exc)})
                 if attempt >= max_attempts:
                     diagnostics["success"] = False
                     raise ValueError(f"URL fetch failed from {current_url} after {attempt} attempts: {exc}") from exc

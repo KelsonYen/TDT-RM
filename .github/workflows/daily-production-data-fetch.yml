@@ -114,6 +114,26 @@ jobs:
           fi
           python scripts/run_github_actions_production_fetch.py --trade-date "$AS_OF"
 
+      - name: Verify fetch artifact contract
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          from datetime import date
+          from pathlib import Path
+          from scripts.run_github_actions_production_fetch import validate_fetch_artifact_contract
+
+          as_of = os.environ["AS_OF"]
+          validate_fetch_artifact_contract(
+              trade_date=date.fromisoformat(as_of),
+              outputs_dir=Path("outputs/daily") / as_of,
+              reports_dir=Path("reports/daily") / as_of,
+              staging_dir=Path("inputs/daily") / as_of / "_strict_provider_csvs",
+          )
+          PY
+
       - name: Write GitHub step summary
         if: always()
         shell: bash

@@ -133,3 +133,18 @@ def test_finmind_fallback_summary_reports_token_flags_without_secret_values(monk
     assert status["token_present"] is True
     assert status["skipped"] is True
     assert "api-token-secret" not in str(status)
+
+
+def test_chain_finmind_without_opt_in_or_token_fails_closed_and_does_not_succeed(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("FINMIND_TOKEN", raising=False)
+    monkeypatch.delenv("FINMIND_API_TOKEN", raising=False)
+    monkeypatch.delenv("TDT_RM_ALLOW_FINMIND_LIVE", raising=False)
+    context = ProviderContext(trade_date=date(2026, 6, 3), fetched_at=datetime(2026, 6, 3, tzinfo=UTC), allow_finmind_live=False)
+
+    result = _fetch_dataset("price", (FinMindProvider(),), context, tmp_path)
+
+    assert not result.ok
+    assert result.status == "failed"
+    assert result.provider_health[0].provider == "FINMIND_FALLBACK"
+    assert "live FinMind fallback disabled" in result.provider_health[0].failure_reason
+    assert not (tmp_path / "price.csv").exists()

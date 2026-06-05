@@ -250,3 +250,102 @@ def test_fetch_manifest_finmind_fallback_status_reports_flags_without_secrets(tm
     assert manifest["finmind_fallback"]["finmind_api_token_present"] is True
     assert manifest["finmind_fallback"]["fallback_skipped"] is True
     assert "api-token-secret" not in manifest_text
+
+
+def test_artifact_contract_fail_closed_requires_diagnostics_but_not_staged_csvs(tmp_path: Path):
+    outputs_dir = tmp_path / "outputs" / AS_OF.isoformat()
+    reports_dir = tmp_path / "reports" / AS_OF.isoformat()
+    artifacts = reports_dir / "artifacts"
+    artifacts.mkdir(parents=True)
+    (artifacts / "production_fetch_summary.json").write_text(
+        json.dumps({"trade_date": AS_OF.isoformat(), "overall_status": "NOT_READY", "datasets": {}, "missing_datasets": ["price.csv"]}),
+        encoding="utf-8",
+    )
+    (artifacts / "provider_health.json").write_text(
+        json.dumps({"as_of": AS_OF.isoformat(), "providers": {}, "summary": {"fail_closed": True}}),
+        encoding="utf-8",
+    )
+    write_fetch_manifest(
+        outputs_dir / "fetch_manifest.json",
+        AS_OF,
+        "NOT_READY",
+        tmp_path / "staging",
+        tmp_path / "inputs" / AS_OF.isoformat(),
+        reports_dir,
+        artifacts,
+        artifacts / "production_fetch_summary.json",
+        artifacts / "provider_health.json",
+        artifacts / "validation_report.json",
+        allow_finmind_live=False,
+        blocking_error="provider fetch failed",
+    )
+
+    assert _MODULE.validate_fetch_artifact_contract(
+        trade_date=AS_OF,
+        outputs_dir=outputs_dir,
+        reports_dir=reports_dir,
+        staging_dir=tmp_path / "staging",
+    ) == []
+
+
+def test_artifact_contract_ready_requires_all_staged_csvs(tmp_path: Path):
+    outputs_dir = tmp_path / "outputs" / AS_OF.isoformat()
+    reports_dir = tmp_path / "reports" / AS_OF.isoformat()
+    artifacts = reports_dir / "artifacts"
+    staging = tmp_path / "staging"
+    artifacts.mkdir(parents=True)
+    for filename, row in _strict_rows().items():
+        if filename != "margin.csv":
+            _write_csv(staging / filename, row)
+    (artifacts / "production_fetch_summary.json").write_text(
+        json.dumps({"trade_date": AS_OF.isoformat(), "overall_status": "READY", "datasets": {}, "missing_datasets": []}),
+        encoding="utf-8",
+    )
+    (artifacts / "provider_health.json").write_text(
+        json.dumps({"as_of": AS_OF.isoformat(), "providers": {}, "summary": {"fail_closed": False}}),
+        encoding="utf-8",
+    )
+    provider_csv_paths = {dataset: str(staging / f"{dataset}.csv") for dataset in _MODULE.REQUIRED_DATASETS if dataset != "margin"}
+    payload = {
+        "as_of": AS_OF.isoformat(),
+        "trade_date": AS_OF.isoformat(),
+        "data_status": "READY",
+        "provider_csv_paths": provider_csv_paths,
+        "source_attempts": [],
+    }
+    outputs_dir.mkdir(parents=True)
+    (outputs_dir / "fetch_manifest.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    try:
+        _MODULE.validate_fetch_artifact_contract(trade_date=AS_OF, outputs_dir=outputs_dir, reports_dir=reports_dir, staging_dir=staging)
+    except RuntimeError as exc:
+        assert "margin.csv" in str(exc)
+    else:
+        raise AssertionError("READY artifact contract must require every staged CSV")
+
+
+def test_attempt_manifest_row_populates_endpoint_status_attempts_and_network_exception(tmp_path: Path):
+    row = _MODULE._attempt_manifest_row(
+        "price",
+        {
+            "provider": "TWSE_OFFICIAL",
+            "status": "failed",
+            "failure_reason": "URL fetch failed from https://example.invalid after 2 attempts: timed out",
+            "metadata": {
+                "url_fetch": {
+                    "initial_url": "https://example.invalid",
+                    "final_url": "https://example.invalid/final",
+                    "attempts": 2,
+                    "network_exception": "timed out",
+                    "errors": [{"url": "https://example.invalid/final", "attempt": 2, "network_exception": "timed out", "error": "timed out"}],
+                }
+            },
+        },
+        tmp_path,
+    )
+
+    assert row["endpoint_attempted"] == "https://example.invalid/final"
+    assert row["http_status"] is None
+    assert row["attempts"] == 2
+    assert row["network_exception"] == "timed out"
+    assert row["failure_class"] == "network/proxy"

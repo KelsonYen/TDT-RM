@@ -1,6 +1,6 @@
 """Multi-provider daily data layer for TDT-RM."""
 
-from .base import CSV_BY_DATASET, DATASETS, DatasetFetchResult, ProviderContext, ProviderError, ProviderHealth, ProviderResult, ReconciliationCheck
+from .base import CSV_BY_DATASET, DATASETS, DatasetFetchResult, ProviderContext, ProviderError, ProviderFetchError, ProviderHealth, ProviderResult, ReconciliationCheck
 from .finmind import FinMindProvider
 from .fx import CBCProvider, PublicFXProvider
 from .taifex import TAIFEXProvider
@@ -16,6 +16,7 @@ __all__ = [
     "FinMindProvider",
     "ProviderContext",
     "ProviderError",
+    "ProviderFetchError",
     "ProviderHealth",
     "ProviderResult",
     "ReconciliationCheck",

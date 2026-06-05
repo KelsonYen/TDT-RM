@@ -42,6 +42,14 @@ class ProviderResult:
     raw_metadata: Mapping[str, Any] = field(default_factory=dict)
 
 
+class ProviderFetchError(RuntimeError):
+    """Provider failure that preserves raw diagnostics for health artifacts."""
+
+    def __init__(self, message: str, metadata: Mapping[str, Any] | None = None):
+        super().__init__(message)
+        self.metadata = dict(metadata or {})
+
+
 @dataclass(frozen=True)
 class ReconciliationCheck:
     name: str
