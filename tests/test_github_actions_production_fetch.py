@@ -349,3 +349,32 @@ def test_attempt_manifest_row_populates_endpoint_status_attempts_and_network_exc
     assert row["attempts"] == 2
     assert row["network_exception"] == "timed out"
     assert row["failure_class"] == "network/proxy"
+
+
+def test_attempt_manifest_row_classifies_tunnel_403_as_network_layer(tmp_path: Path):
+    row = _MODULE._attempt_manifest_row(
+        "foreign_flow",
+        {
+            "provider": "TWSE_OFFICIAL",
+            "status": "failed",
+            "failure_reason": "URL fetch failed from https://example.invalid after 3 attempts: <urlopen error Tunnel connection failed: 403 Forbidden>",
+        },
+        tmp_path,
+    )
+
+    assert row["failure_class"] == "network/proxy"
+    assert row["failure_layer"] == "NETWORK"
+
+
+def test_attempt_manifest_row_classifies_disabled_finmind_as_config(tmp_path: Path):
+    row = _MODULE._attempt_manifest_row(
+        "options",
+        {
+            "provider": "FINMIND_FALLBACK",
+            "status": "failed",
+            "failure_reason": "live FinMind fallback disabled/unavailable because FINMIND_TOKEN/FINMIND_API_TOKEN is missing and --allow-finmind-live or TDT_RM_ALLOW_FINMIND_LIVE=true opt-in is missing",
+        },
+        tmp_path,
+    )
+
+    assert row["failure_layer"] == "CONFIG"

@@ -95,11 +95,12 @@ def test_attempt_rows_provider_health_fallback_preserves_diagnostics() -> None:
             "endpoint_attempted": "https://example.invalid",
             "provider_category": "price",
             "source_id": "TWSE_OFFICIAL",
+            "failure_layer": "AUTH",
             "success": False,
         }
     ]
     assert "`price` | `TWSE_OFFICIAL` | `https://example.invalid` | `HTTP 403` | 17" in markdown
-    assert "`not_reached` | `not_reached` | `auth/token`" in markdown
+    assert "`not_reached` | `not_reached` | `auth/token` | `AUTH`" in markdown
 
 
 def test_provider_health_legacy_minimal_attempts_still_render() -> None:
@@ -172,3 +173,24 @@ def test_provider_health_fallback_uses_url_fetch_metadata_when_manifest_incomple
     assert rows[0]["endpoint_attempted"] == "https://example.invalid/final"
     assert rows[0]["http_status"] == 503
     assert "`price` | `TWSE_OFFICIAL` | `https://example.invalid/final` | `HTTP 503`" in markdown
+
+
+def test_provider_health_fallback_classifies_tunnel_403_as_network_layer() -> None:
+    provider_health = {
+        "providers": {
+            "breadth_provider": {
+                "dataset": "breadth",
+                "attempts": [
+                    {
+                        "provider": "TWSE_OFFICIAL",
+                        "status": "failed",
+                        "failure_reason": "URL fetch failed from https://example.invalid after 3 attempts: <urlopen error Tunnel connection failed: 403 Forbidden>",
+                    }
+                ],
+            }
+        }
+    }
+
+    rows = _MODULE._attempt_rows({"source_attempts": []}, provider_health)
+
+    assert rows[0]["failure_layer"] == "NETWORK"

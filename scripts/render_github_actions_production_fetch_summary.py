@@ -72,8 +72,8 @@ def _render_markdown(
         f"- blocking_error: `{manifest.get('blocking_error') or 'none'}`",
         "",
         "### Provider attempts",
-        "| Dataset | Provider | Endpoint attempted | HTTP status / exception | Rows fetched | Parser status | Validation status | Failure class |",
-        "| --- | --- | --- | --- | ---: | --- | --- | --- |",
+        "| Dataset | Provider | Endpoint attempted | HTTP status / exception | Rows fetched | Parser status | Validation status | Failure class | Failure layer |",
+        "| --- | --- | --- | --- | ---: | --- | --- | --- | --- |",
     ]
     for attempt in _attempt_rows(manifest, provider_health):
         lines.append(
@@ -85,10 +85,11 @@ def _render_markdown(
             f"{int(attempt.get('rows_fetched') or 0)} | "
             f"`{_cell(attempt.get('parser_status'))}` | "
             f"`{_cell(attempt.get('validation_status'))}` | "
-            f"`{_cell(attempt.get('failure_class'))}` |"
+            f"`{_cell(attempt.get('failure_class'))}` | "
+            f"`{_cell(attempt.get('failure_layer'))}` |"
         )
     if not _attempt_rows(manifest, provider_health):
-        lines.append("| `none` | `none` | `not captured` | `not captured` | 0 | `not_reached` | `not_reached` | `unknown` |")
+        lines.append("| `none` | `none` | `not captured` | `not captured` | 0 | `not_reached` | `not_reached` | `unknown` | `UNKNOWN` |")
 
     lines.extend([
         "",
@@ -159,9 +160,33 @@ def _provider_health_attempt_row(dataset: str, attempt: Mapping[str, Any]) -> di
         row.setdefault("parser_status", "passed")
         row.setdefault("validation_status", "passed")
         row.setdefault("failure_class", "none")
+        row.setdefault("failure_layer", "NONE")
+    else:
+        row.setdefault("failure_layer", _failure_layer_from_attempt(row))
     if "success" not in row:
         row["success"] = attempt.get("status") == "healthy"
     return row
+
+
+def _failure_layer_from_attempt(attempt: Mapping[str, Any]) -> str:
+    message = str(attempt.get("error") or attempt.get("failure_reason") or attempt.get("network_exception") or "")
+    lowered = message.lower()
+    status = attempt.get("http_status")
+    try:
+        http_status = int(status) if status not in {None, ""} else None
+    except (TypeError, ValueError):
+        http_status = None
+    if "finmind" in lowered and ("disabled" in lowered or "opt-in" in lowered or "token" in lowered):
+        return "CONFIG" if "disabled" in lowered or "opt-in" in lowered else "AUTH"
+    if any(token in lowered for token in ("tunnel connection failed", "proxy", "url fetch failed", "timed out", "dns", "connection", "network")):
+        return "NETWORK"
+    if http_status in {401, 403} or "token" in lowered or "auth" in lowered or "unauthorized" in lowered or "forbidden" in lowered:
+        return "AUTH"
+    if "schema" in lowered or "strict validation" in lowered:
+        return "SCHEMA"
+    if "parse" in lowered or "no row" in lowered or "returned 0" in lowered or "insufficient" in lowered or "stale" in lowered:
+        return "PARSER"
+    return "WORKFLOW"
 
 
 def _failure_class_counts(attempts: Any) -> dict[str, int]:

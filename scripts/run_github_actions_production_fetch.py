@@ -539,6 +539,8 @@ def _attempt_manifest_row(dataset: str, attempt: Mapping[str, Any], staging_dir:
     rows_fetched = _csv_row_count(Path(str(output_path))) if output_path and success else int(metadata.get("bar_count") or 0)
     parser_status = "passed" if success else ("not_reached" if _classify_failure(failure_reason, http_status, rows_fetched, validation_errors) in {"network/proxy", "auth/token"} else "failed")
     validation_status = "passed" if success and not validation_errors else ("failed" if validation_errors else "not_reached")
+    failure_class = "none" if success else _classify_failure(failure_reason, http_status, rows_fetched, validation_errors)
+    failure_layer = "NONE" if success else _failure_layer(failure_reason, http_status, rows_fetched, validation_errors)
     return {
         "provider_category": dataset,
         "source_id": attempt.get("provider"),
@@ -552,7 +554,8 @@ def _attempt_manifest_row(dataset: str, attempt: Mapping[str, Any], staging_dir:
         "parser_status": parser_status,
         "validation_status": validation_status,
         "validation_errors": validation_errors,
-        "failure_class": "none" if success else _classify_failure(failure_reason, http_status, rows_fetched, validation_errors),
+        "failure_class": failure_class,
+        "failure_layer": failure_layer,
         "error": failure_reason,
         "attempts": int(url_fetch.get("attempts") or attempt.get("attempts") or 0),
         "retry_attempts": int(url_fetch.get("attempts") or attempt.get("attempts") or 0),
@@ -580,10 +583,10 @@ def _network_exception(message: str, http_status: int | None) -> str:
 
 def _classify_failure(message: str, http_status: int | None, rows_fetched: int, validation_errors: Sequence[str]) -> str:
     lowered = message.lower()
-    if http_status in {401, 403} or "token" in lowered or "auth" in lowered or "unauthorized" in lowered or "forbidden" in lowered:
-        return "auth/token"
     if any(token in lowered for token in ("tunnel connection failed", "proxy", "url fetch failed", "timed out", "dns", "connection", "network")):
         return "network/proxy"
+    if http_status in {401, 403} or "token" in lowered or "auth" in lowered or "unauthorized" in lowered or "forbidden" in lowered:
+        return "auth/token"
     if validation_errors or "strict validation" in lowered or "schema" in lowered or "parse" in lowered:
         return "parser/schema"
     if rows_fetched == 0 or "no row" in lowered or "returned 0" in lowered or "insufficient" in lowered or "stale" in lowered:
@@ -591,6 +594,25 @@ def _classify_failure(message: str, http_status: int | None, rows_fetched: int, 
     if "validation" in lowered or "reconciliation" in lowered:
         return "validator"
     return "unknown"
+
+
+def _failure_layer(message: str, http_status: int | None, rows_fetched: int, validation_errors: Sequence[str]) -> str:
+    """Map provider failure diagnostics to the production audit failure layer vocabulary."""
+
+    lowered = message.lower()
+    if not message and http_status is None and rows_fetched == 0 and not validation_errors:
+        return "UNKNOWN"
+    if "finmind" in lowered and ("disabled" in lowered or "opt-in" in lowered or "token" in lowered):
+        return "CONFIG" if "disabled" in lowered or "opt-in" in lowered else "AUTH"
+    if any(token in lowered for token in ("tunnel connection failed", "proxy", "url fetch failed", "timed out", "dns", "connection", "network")):
+        return "NETWORK"
+    if http_status in {401, 403} or "token" in lowered or "auth" in lowered or "unauthorized" in lowered or "forbidden" in lowered:
+        return "AUTH"
+    if "schema" in lowered or validation_errors or "strict validation" in lowered:
+        return "SCHEMA"
+    if "parse" in lowered or "no row" in lowered or "returned 0" in lowered or "insufficient" in lowered or "stale" in lowered:
+        return "PARSER"
+    return "WORKFLOW"
 
 
 def _csv_row_count(path: Path) -> int:
