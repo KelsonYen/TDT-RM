@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       trade_date:
-        description: "Taiwan market trade date to fetch (YYYY-MM-DD). Use 2026-06-03 for the completed trading day rerun."
+        description: "Taiwan market trade date to fetch (YYYY-MM-DD). Use 2026-06-04 for the post-PR #87 completed trading day rerun."
         required: true
-        default: "2026-06-03"
+        default: "2026-06-04"
         type: string
       as_of:
         description: "Deprecated alias for trade_date (YYYY-MM-DD). Leave blank unless using older dispatch clients."
