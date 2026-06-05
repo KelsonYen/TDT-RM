@@ -183,7 +183,9 @@ def _fetch_dataset(dataset: str, providers: Iterable[object], context: ProviderC
             health.append(ProviderHealth(name, dataset, "healthy", selected=True, output_path=str(path), checks=checks, metadata=result.raw_metadata))
             return DatasetFetchResult(dataset, "success", provider_used=result.provider, output_path=str(path), failed_providers=tuple(failures), provider_health=tuple(health), reconciliation_checks=checks)
         except Exception as exc:  # noqa: BLE001 - fail closed for this provider, then advance to next provider.
-            diagnostics = {"error": str(exc), "exception_class": exc.__class__.__name__, "traceback": traceback.format_exc()}
+            provider_metadata = getattr(exc, "metadata", {})
+            diagnostics = dict(provider_metadata) if isinstance(provider_metadata, Mapping) else {}
+            diagnostics.update({"error": str(exc), "exception_class": exc.__class__.__name__, "traceback": traceback.format_exc()})
             _write_raw_provider_file(input_dir, dataset, name, "failed", diagnostics)
             failures.append(ProviderError(name, str(exc)))
             health.append(ProviderHealth(name, dataset, "failed", failure_reason=str(exc), metadata=diagnostics))

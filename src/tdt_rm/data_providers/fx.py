@@ -7,7 +7,7 @@ from typing import Any, Mapping
 
 from tdt_rm.public_data_fetchers import CBCDailyFXSource, PublicDataFetchContext, load_source_config
 
-from .base import DailyDataProvider, ProviderContext, ProviderResult
+from .base import DailyDataProvider, ProviderContext, ProviderFetchError, ProviderResult
 from .normalizers import normalize_public_row
 from .taifex import TAIFEXProvider
 
@@ -43,7 +43,7 @@ class CBCProvider(DailyDataProvider):
         )
         if not result.success:
             messages = "; ".join(issue.message for issue in result.issues)
-            raise RuntimeError(f"status={result.status}" + (f"; {messages}" if messages else ""))
+            raise ProviderFetchError(f"status={result.status}" + (f"; {messages}" if messages else ""), result.raw_metadata)
         raw_row = dict(result.rows[0] if result.rows else result.canonical_fields)
         provider_source = f"{self.name}:{result.source_id}"
         row = normalize_public_row(dataset, raw_row, trade_date=context.trade_date, provider_source=provider_source)
