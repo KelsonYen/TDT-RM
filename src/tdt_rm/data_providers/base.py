@@ -30,6 +30,7 @@ class ProviderContext:
     sleep_seconds: float = 0.25
     main7_symbols: tuple[str, ...] = ()
     main7_config: str | Path = "config/main7_symbols.json"
+    breadth_universe_config: str | Path = "config/breadth_representative_universe.json"
     allow_finmind_live: bool = False
 
 

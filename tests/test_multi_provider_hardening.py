@@ -166,3 +166,94 @@ def test_chain_finmind_without_opt_in_or_token_fails_closed_and_does_not_succeed
     assert result.provider_health[0].provider == "FINMIND_FALLBACK"
     assert "live FinMind fallback disabled" in result.provider_health[0].failure_reason
     assert not (tmp_path / "price.csv").exists()
+
+
+def test_provider_chain_adds_yahoo_representative_breadth_before_finmind():
+    chains = _provider_chains(None)
+    breadth_chain_names = [provider.name for provider in chains["breadth"]]
+
+    assert breadth_chain_names == ["TWSE_OFFICIAL", "YAHOO_FINANCE", "FINMIND_FALLBACK"]
+
+
+def test_yahoo_representative_breadth_counts_and_metadata(tmp_path: Path, monkeypatch):
+    from tdt_rm.market_data import MarketPriceBar
+    from tdt_rm.data_providers.yahoo import YahooProvider
+    import tdt_rm.data_providers.yahoo as yahoo_module
+
+    universe = tmp_path / "breadth_universe.json"
+    universe.write_text('{"symbols": ["2330", "2454", "2317", "2382"]}\n', encoding="utf-8")
+
+    def fake_bars(symbol: str, start: date, end: date, timeout: int):
+        closes = {
+            "^TWII": (100.0, 99.0),
+            "2330.TW": (10.0, 11.0),
+            "2454.TW": (20.0, 19.0),
+            "2317.TW": (30.0, 30.0),
+            "2382.TW": (40.0, 42.0),
+        }[symbol]
+        return [
+            MarketPriceBar(observed_at=date(2026, 6, 3), close=closes[0], turnover_amount=0.0),
+            MarketPriceBar(observed_at=date(2026, 6, 4), close=closes[1], turnover_amount=0.0),
+        ]
+
+    monkeypatch.setattr(yahoo_module, "_yahoo_bars", fake_bars)
+    context = ProviderContext(
+        trade_date=date(2026, 6, 4),
+        fetched_at=datetime(2026, 6, 5, tzinfo=UTC),
+        breadth_universe_config=universe,
+    )
+
+    result = YahooProvider().fetch("breadth", context)
+
+    assert result.provider == "YAHOO_FINANCE:representative_universe"
+    assert result.row["advancing_issues"] == 2
+    assert result.row["declining_issues"] == 1
+    assert result.row["index_down"] is True
+    assert validate_strict_row("breadth", result.row) == []
+    assert result.raw_metadata["breadth_source_scope"] == "representative_universe"
+    assert result.raw_metadata["unchanged_count"] == 1
+    assert result.raw_metadata["total_count"] == 4
+    assert result.raw_metadata["advance_decline_ratio"] == 2.0
+
+
+def test_non_sponsor_finmind_breadth_falls_through_to_representative_fallback(tmp_path: Path, monkeypatch):
+    from tdt_rm.market_data import MarketPriceBar
+    from tdt_rm.data_providers.yahoo import YahooProvider
+    import tdt_rm.data_providers.yahoo as yahoo_module
+
+    monkeypatch.setenv("FINMIND_TOKEN", "regular-token")
+    monkeypatch.delenv("FINMIND_API_TOKEN", raising=False)
+    monkeypatch.delenv("TDT_RM_FINMIND_SPONSOR_ACCESS", raising=False)
+    monkeypatch.delenv("FINMIND_SPONSOR_ACCESS", raising=False)
+
+    universe = tmp_path / "breadth_universe.json"
+    universe.write_text('{"symbols": ["2330", "2454"]}\n', encoding="utf-8")
+
+    def fake_bars(symbol: str, start: date, end: date, timeout: int):
+        closes = {
+            "^TWII": (100.0, 101.0),
+            "2330.TW": (10.0, 11.0),
+            "2454.TW": (20.0, 19.0),
+        }[symbol]
+        return [
+            MarketPriceBar(observed_at=date(2026, 6, 3), close=closes[0], turnover_amount=0.0),
+            MarketPriceBar(observed_at=date(2026, 6, 4), close=closes[1], turnover_amount=0.0),
+        ]
+
+    monkeypatch.setattr(yahoo_module, "_yahoo_bars", fake_bars)
+    context = ProviderContext(
+        trade_date=date(2026, 6, 4),
+        fetched_at=datetime(2026, 6, 5, tzinfo=UTC),
+        allow_finmind_live=True,
+        breadth_universe_config=universe,
+    )
+
+    result = _fetch_dataset("breadth", (FinMindProvider(), YahooProvider()), context, tmp_path)
+
+    assert result.ok
+    assert result.provider_health[0].provider == "FINMIND_FALLBACK"
+    assert "requires backer/sponsor" in result.provider_health[0].failure_reason
+    assert result.provider_health[1].provider == "YAHOO_FINANCE"
+    assert result.provider_health[1].selected is True
+    assert result.provider_used == "YAHOO_FINANCE:representative_universe"
+    assert (tmp_path / "breadth.csv").exists()
