@@ -67,6 +67,8 @@ def main() -> int:
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     health_path.parent.mkdir(parents=True, exist_ok=True)
 
+    allow_finmind_live = _allow_finmind_live(args)
+
     main7 = load_main7_symbols(args.main7_config)
     context = ProviderContext(
         trade_date=args.trade_date,
@@ -76,7 +78,7 @@ def main() -> int:
         sleep_seconds=args.sleep_seconds,
         main7_symbols=main7,
         main7_config=args.main7_config,
-        allow_finmind_live=args.allow_finmind_live,
+        allow_finmind_live=allow_finmind_live,
     )
 
     chains = _provider_chains(args.source_config)
@@ -93,13 +95,13 @@ def main() -> int:
     missing = [f"{dataset}.csv" for dataset, result in results.items() if dataset in DATASETS and not result.ok]
     provider_health = _provider_health_payload(results, args.trade_date, fetched_at, validation_errors)
     health_path.write_text(json.dumps(provider_health, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    finmind_status = _finmind_fallback_status(args.allow_finmind_live)
+    finmind_status = _finmind_fallback_status(allow_finmind_live)
     summary = {
         "trade_date": args.trade_date.isoformat(),
         "fetched_at": fetched_at.isoformat().replace("+00:00", "Z"),
         "input_dir": str(input_dir),
         "provider_priority": list(_PROVIDER_PRIORITY),
-        "finmind_live_enabled": bool(args.allow_finmind_live),
+        "finmind_live_enabled": allow_finmind_live,
         "finmind_fallback": finmind_status,
         "datasets": {dataset: result.as_dict() for dataset, result in results.items() if dataset in DATASETS},
         "missing_datasets": missing,
@@ -112,6 +114,13 @@ def main() -> int:
 
     _print_summary(summary)
     return 0 if summary["overall_status"] == "READY" else 1
+
+
+def _allow_finmind_live(args: argparse.Namespace) -> bool:
+    return bool(
+        args.allow_finmind_live
+        or os.getenv("TDT_RM_ALLOW_FINMIND_LIVE", "").strip().lower() in {"1", "true", "yes", "y", "on"}
+    )
 
 
 def _normalize_dash_args(argv: list[str]) -> list[str]:

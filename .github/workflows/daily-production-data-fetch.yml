@@ -119,7 +119,12 @@ jobs:
           else
             echo "FinMind fallback disabled; official-source-first provider chain must complete without live FinMind fallback."
           fi
-          python scripts/run_github_actions_production_fetch.py --trade-date "$AS_OF"
+          echo "Resolved FinMind live enabled: ${TDT_RM_ALLOW_FINMIND_LIVE:-false}"
+          args=(--trade-date "$AS_OF")
+          if [[ "${TDT_RM_ALLOW_FINMIND_LIVE:-false}" == "true" ]]; then
+            args+=(--allow-finmind-live)
+          fi
+          python scripts/run_github_actions_production_fetch.py "${args[@]}"
 
       - name: Verify fetch artifact contract
         if: always()

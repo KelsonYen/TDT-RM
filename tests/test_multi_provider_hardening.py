@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 from pathlib import Path
+from types import SimpleNamespace
 import importlib.util
 
 _SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "fetch_daily_data_multi_provider.py"
@@ -10,10 +11,11 @@ assert _SPEC and _SPEC.loader
 _FETCH_MODULE = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_FETCH_MODULE)
 _fetch_dataset = _FETCH_MODULE._fetch_dataset
+_allow_finmind_live = _FETCH_MODULE._allow_finmind_live
 _provider_chains = _FETCH_MODULE._provider_chains
-from tdt_rm.data_providers import ProviderContext, ProviderResult
-from tdt_rm.data_providers.finmind import FinMindProvider
-from tdt_rm.data_providers.normalizers import REAL_SOURCE_TYPE, reconciliation_checks, validate_strict_row
+from tdt_rm.data_providers import ProviderContext, ProviderResult  # noqa: E402
+from tdt_rm.data_providers.finmind import FinMindProvider  # noqa: E402
+from tdt_rm.data_providers.normalizers import REAL_SOURCE_TYPE, reconciliation_checks, validate_strict_row  # noqa: E402
 
 
 class StaticProvider:
@@ -91,6 +93,22 @@ def test_fetch_dataset_blocks_when_all_providers_fail(tmp_path: Path):
     assert result.status == "failed"
     assert result.validation_errors == ("all providers failed for price",)
     assert not (tmp_path / "price.csv").exists()
+
+
+def test_finmind_live_opt_in_accepts_cli_or_env(monkeypatch):
+    monkeypatch.delenv("TDT_RM_ALLOW_FINMIND_LIVE", raising=False)
+
+    assert _allow_finmind_live(SimpleNamespace(allow_finmind_live=False)) is False
+    assert _allow_finmind_live(SimpleNamespace(allow_finmind_live=True)) is True
+
+    monkeypatch.setenv("TDT_RM_ALLOW_FINMIND_LIVE", "true")
+    assert _allow_finmind_live(SimpleNamespace(allow_finmind_live=False)) is True
+
+    monkeypatch.setenv("TDT_RM_ALLOW_FINMIND_LIVE", "false")
+    assert _allow_finmind_live(SimpleNamespace(allow_finmind_live=False)) is False
+
+    monkeypatch.delenv("TDT_RM_ALLOW_FINMIND_LIVE", raising=False)
+    assert _allow_finmind_live(SimpleNamespace(allow_finmind_live=False)) is False
 
 
 def test_finmind_fallback_is_disabled_without_explicit_opt_in():
