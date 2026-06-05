@@ -89,7 +89,7 @@ def _render_markdown(
         f"- missing datasets: `{', '.join(_missing_dataset_names(manifest)) or 'none'}`",
         f"- pipeline_status: `{manifest.get('pipeline_status', 'missing')}`",
         f"- validation_status: `{_validation_status(validation)}`",
-        f"- FinMind live enabled: `{bool(manifest.get('finmind_live_enabled'))}`",
+        f"- FinMind live enabled: `{_finmind_live_status(manifest)}`",
         f"- blocking_error: `{manifest.get('blocking_error') or 'none'}`",
         "",
         "### Provider attempts",
@@ -169,6 +169,12 @@ def _render_markdown(
     ])
     return "\n".join(lines) + "\n"
 
+
+
+def _finmind_live_status(manifest: Mapping[str, Any]) -> str:
+    if "finmind_live_enabled" not in manifest:
+        return "missing"
+    return str(bool(manifest.get("finmind_live_enabled")))
 
 def _dataset_audit_matrix(
     trade_date: str,
