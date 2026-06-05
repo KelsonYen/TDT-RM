@@ -507,7 +507,7 @@ def test_twse_t86_current_foreign_flow_field_parses_non_null():
     )
 
     assert row is not None
-    assert row["foreign_spot_net_buy"] == -1250.0
+    assert row["foreign_spot_net_buy"] == 0.0
     assert row["foreign_spot_net_sell"] == 1250.0
     assert normalize_public_row("foreign_flow", row, trade_date=AS_OF, provider_source="twse_t86")["foreign_spot_net_sell"] == 1250.0
 

@@ -610,7 +610,10 @@ def _coerce_bool(value: Any) -> bool:
         return True
     if normalized in {"0", "false", "f", "no", "n", "off", "否", ""}:
         return False
-    raise ValueError(f"cannot coerce {value!r} to bool")
+    try:
+        return bool(float(normalized.replace(",", "")))
+    except ValueError:
+        raise ValueError(f"cannot coerce {value!r} to bool") from None
 
 
 def _coerce_date(value: Any) -> date:
