@@ -152,6 +152,37 @@ jobs:
           )
           PY
 
+      - name: Run daily production pipeline
+        shell: bash
+        run: |
+          set -euo pipefail
+          status_file="outputs/daily/$AS_OF/daily_pipeline_status.txt"
+          mkdir -p "$(dirname "$status_file")"
+          provider_input_dir="inputs/daily/$AS_OF/_strict_provider_csvs"
+          daily_input_dir="inputs/daily/$AS_OF"
+          for csv in price.csv foreign_flow.csv fx.csv breadth.csv futures.csv options.csv leadership.csv margin.csv; do
+            if [[ -f "$provider_input_dir/$csv" && ! -f "$daily_input_dir/$csv" ]]; then
+              cp "$provider_input_dir/$csv" "$daily_input_dir/$csv"
+            fi
+          done
+          if [[ -f "$provider_input_dir/provider_field_map.json" && ! -f "$daily_input_dir/provider_field_map.json" ]]; then
+            cp "$provider_input_dir/provider_field_map.json" "$daily_input_dir/provider_field_map.json"
+          fi
+          set +e
+          python scripts/run_daily_production_pipeline.py \
+            --trade-date "$AS_OF" \
+            --input-dir "inputs/daily/$AS_OF" \
+            --outputs-dir "outputs/daily/$AS_OF" \
+            --reports-dir "reports/daily/$AS_OF"
+          rc=$?
+          set -e
+          if [[ "$rc" -eq 0 ]]; then
+            echo "passed" > "$status_file"
+          else
+            echo "failed" > "$status_file"
+          fi
+          exit "$rc"
+
       - name: Write GitHub step summary
         if: always()
         shell: bash
@@ -163,6 +194,23 @@ jobs:
             --output-dir "outputs/daily/$AS_OF" \
             --reports-dir "reports/daily/$AS_OF" \
             --connectivity-audit-dir "outputs/daily/$AS_OF/provider_connectivity_audit" >> "$GITHUB_STEP_SUMMARY"
+
+          daily_pipeline_status="not_reached"
+          if [[ -f "outputs/daily/$AS_OF/daily_pipeline_status.txt" ]]; then
+            daily_pipeline_status="$(cat "outputs/daily/$AS_OF/daily_pipeline_status.txt")"
+          fi
+          {
+            echo ""
+            echo "### Daily production pipeline"
+            echo "- daily_pipeline_status: \`$daily_pipeline_status\`"
+            echo "- generated report paths:"
+            echo "  - \`reports/daily/$AS_OF/${AS_OF}_tdt_rm_daily_report.md\`"
+            echo "  - \`reports/daily/$AS_OF/latest_report.md\`"
+            echo "  - \`outputs/daily/$AS_OF/tdt_rm_daily_${AS_OF}.json\`"
+            echo "  - \`outputs/daily/$AS_OF/tdt_rm_daily_${AS_OF}.md\`"
+            echo "  - \`outputs/daily/$AS_OF/tdt_rm_daily_${AS_OF}_manifest.json\`"
+            echo "  - \`outputs/daily/$AS_OF/pipeline_summary.json\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload production fetch artifacts
         id: upload-production-fetch-artifacts
