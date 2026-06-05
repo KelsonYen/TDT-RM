@@ -23,10 +23,10 @@ jobs:
       AS_OF: ${{ github.event.inputs.as_of || '' }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -53,7 +53,7 @@ jobs:
 
       - name: Upload probe artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: github-actions-market-data-probe
           path: outputs/github_actions_market_data_probe/
