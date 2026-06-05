@@ -1,0 +1,2 @@
+trade_date,provider_source,source_type,index_down,advancing_issues,declining_issues,declining_issues_significantly_expand,declining_issues_significantly_gt_advancing,declining_gt_advancing_consecutive_days,breadth_weakens_for_2_days
+2026-06-05,TWSE_OFFICIAL:twse_mi_index_breadth,REAL_PROVIDER,true,3144.0,9578.0,true,true,1,false

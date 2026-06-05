@@ -1,0 +1,115 @@
+{
+  "artifact_digest": "not available before upload",
+  "artifact_name": "tdt-rm-production-fetch-2026-06-05",
+  "artifacts": {
+    "fetch_manifest": "outputs/daily/2026-06-05/fetch_manifest.json",
+    "production_fetch_summary": "reports/daily/2026-06-05/artifacts/production_fetch_summary.json",
+    "provider_connectivity_summary": "outputs/daily/2026-06-05/provider_connectivity_summary.json",
+    "provider_csvs": "inputs/daily/2026-06-05/_strict_provider_csvs",
+    "provider_health": "reports/daily/2026-06-05/artifacts/provider_health.json"
+  },
+  "as_of": "2026-06-05",
+  "commit_sha": "9ecfd83bb4f9842a265d0e489d82008371ff3292",
+  "dataset_audit_matrix": [
+    {
+      "dataset": "price",
+      "endpoint_attempted": "https://www.twse.com.tw/exchangeReport/FMTQIK?date=20260605&response=json",
+      "exception_message": "none",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TWSE_OFFICIAL",
+      "provider_chain": "TWSE_OFFICIAL",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    },
+    {
+      "dataset": "foreign_flow",
+      "endpoint_attempted": "https://www.twse.com.tw/fund/T86?date=20260605&selectType=ALL&response=json",
+      "exception_message": "none",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TWSE_OFFICIAL",
+      "provider_chain": "TWSE_OFFICIAL",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    },
+    {
+      "dataset": "fx",
+      "endpoint_attempted": "https://openapi.taifex.com.tw/v1/DailyForeignExchangeRates",
+      "exception_message": "none",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TAIFEX_OFFICIAL",
+      "provider_chain": "TAIFEX_OFFICIAL",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    },
+    {
+      "dataset": "breadth",
+      "endpoint_attempted": "https://www.twse.com.tw/exchangeReport/MI_INDEX?date=20260605&type=ALLBUT0999&response=json",
+      "exception_message": "none",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TWSE_OFFICIAL",
+      "provider_chain": "TWSE_OFFICIAL",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    },
+    {
+      "dataset": "futures",
+      "endpoint_attempted": "https://openapi.taifex.com.tw/v1/DailyMarketReportFut",
+      "exception_message": "none",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TAIFEX_OFFICIAL",
+      "provider_chain": "TAIFEX_OFFICIAL",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    },
+    {
+      "dataset": "options",
+      "endpoint_attempted": "https://openapi.taifex.com.tw/v1/TAIFEXVIX -> not captured by provider adapter",
+      "exception_message": "status=unavailable; no usable TAIFEX options row at https://openapi.taifex.com.tw/v1/PutCallRatio; no usable TAIFEX options row at https://openapi.taifex.com.tw/v1/TAIFEXVIX; no TAIFEX PCR/VIX row for 2026-06-05",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TAIFEX_OFFICIAL -> FINMIND_FALLBACK",
+      "provider_chain": "TAIFEX_OFFICIAL -> FINMIND_FALLBACK",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    },
+    {
+      "dataset": "leadership",
+      "endpoint_attempted": "https://www.twse.com.tw/exchangeReport/STOCK_DAY?date=20260301&stockNo=2308&response=json",
+      "exception_message": "none",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TWSE_OFFICIAL",
+      "provider_chain": "TWSE_OFFICIAL",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    }
+  ],
+  "failure_classes": {
+    "no-row": 1,
+    "none": 8
+  },
+  "manifest_status": "READY",
+  "missing_datasets": [],
+  "production_ready": true,
+  "run_id": "27045860522",
+  "trade_date": "2026-06-05"
+}

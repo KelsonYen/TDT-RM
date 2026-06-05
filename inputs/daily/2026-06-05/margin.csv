@@ -1,0 +1,2 @@
+trade_date,provider_source,source_type,margin_balance_5d_flat_or_down,hot_stock_margin_fast_increase,margin_balance_5d_increases,index_5d_return_pct,margin_balance_5d_decline_pct,margin_not_retreating
+2026-06-05,TWSE_OFFICIAL:twse_margin,REAL_PROVIDER,true,false,false,0.0,0.20727788578275225,false

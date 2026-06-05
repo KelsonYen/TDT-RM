@@ -1,0 +1,7 @@
+provider_name,dataset_type,endpoint_or_method,requires_token,token_present,dns_ok,https_ok,http_status,sample_rows_or_payload_present,usable_for_production,failure_reason
+TWSE official endpoint,TAIEX cash-market price,https://www.twse.com.tw/rwd/en/exchangeReport/FMTQIK?date=20260605&response=json,False,False,True,True,200,True,True,
+TAIFEX official endpoint,TAIEX futures derivatives,https://openapi.taifex.com.tw/v1/DailyMarketReportFut,False,False,True,True,200,False,False,Provider schema / API failure
+Yahoo Finance chart API,public TAIEX price (yfinance-compatible),"Yahoo Finance chart endpoint for ^TWII, equivalent to the public endpoint used by yfinance-style fetches",False,False,True,True,200,True,True,
+Stooq CSV endpoint,public TAIEX price,https://stooq.com/q/d/l/?s=^twii&i=d,False,False,True,True,200,True,True,
+FinMind API,vendor Taiwan market metadata/sample,https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockInfo&token=__FINMIND_TOKEN_REDACTED__,True,True,True,True,200,False,False,Provider schema / API failure
+CBC FX official endpoint,USD/TWD FX,https://cpx.cbc.gov.tw/API/DataAPI/Get?FileName=BP01D01en,False,False,True,True,200,False,False,Provider schema / API failure

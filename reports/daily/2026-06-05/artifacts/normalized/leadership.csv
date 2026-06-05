@@ -1,0 +1,2 @@
+trade_date,provider_source,source_type,count_main_7_below_ma20,count_main_7_below_ma60,majority_main_7_assets_above_ma20,main_7_symbols,main_7_below_ma20_symbols,mhs
+2026-06-05,TWSE_OFFICIAL:twse_main7_leadership,REAL_PROVIDER,0,0,true,"2330,0050,00878,2454,2317,2382,2308",,100.0

@@ -1,0 +1,2 @@
+trade_date,provider_source,source_type,close,ma5,ma20,ma60,ma20_slope,one_day_return_pct,two_day_return_pct,close_below_ma20_consecutive_days,index_5d_return_pct,return_60d_pct,previous_ma60,turnover_amount
+2026-06-05,TWSE_OFFICIAL:twse_fmtqik_price,REAL_PROVIDER,45070.94,45620.556,43030.505000000005,38316.17783333334,173.35000000000582,-1.3278321517877676,-2.9880436925678406,0,0.7555953174551044,37.52935062906084,38111.19333333334,1319821926499.0

@@ -1,0 +1,39 @@
+{
+  "dataset": "price",
+  "provider": "TWSE_OFFICIAL",
+  "raw_metadata": {
+    "bar_count": 67,
+    "endpoint": "https://www.twse.com.tw/exchangeReport/FMTQIK?date=20260605&response=json",
+    "official_source": "TWSE FMTQIK",
+    "source_type": "twse_official_json",
+    "url_fetch": {
+      "attempts": 1,
+      "errors": [],
+      "final_url": "https://www.twse.com.tw/exchangeReport/FMTQIK?date=20260301&response=json",
+      "initial_url": "https://www.twse.com.tw/exchangeReport/FMTQIK?date=20260301&response=json",
+      "max_attempts": 3,
+      "redirects": [],
+      "status": 200,
+      "success": true
+    }
+  },
+  "raw_source": "twse_fmtqik_price",
+  "row": {
+    "close": 45070.94,
+    "close_below_ma20_consecutive_days": 0,
+    "index_5d_return_pct": 0.7555953174551044,
+    "ma20": 43030.505000000005,
+    "ma20_slope": 173.35000000000582,
+    "ma5": 45620.556,
+    "ma60": 38316.17783333334,
+    "one_day_return_pct": -1.3278321517877676,
+    "previous_ma60": 38111.19333333334,
+    "provider_source": "TWSE_OFFICIAL:twse_fmtqik_price",
+    "return_60d_pct": 37.52935062906084,
+    "source_type": "REAL_PROVIDER",
+    "trade_date": "2026-06-05",
+    "turnover_amount": 1319821926499.0,
+    "two_day_return_pct": -2.9880436925678406
+  },
+  "status": "success"
+}

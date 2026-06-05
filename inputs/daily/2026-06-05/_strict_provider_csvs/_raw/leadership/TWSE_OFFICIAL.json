@@ -1,0 +1,32 @@
+{
+  "dataset": "leadership",
+  "provider": "TWSE_OFFICIAL",
+  "raw_metadata": {
+    "endpoint": "",
+    "official_source": "TWSE STOCK_DAY",
+    "source_type": "twse_official_json",
+    "url_fetch": {
+      "attempts": 1,
+      "errors": [],
+      "final_url": "https://www.twse.com.tw/exchangeReport/STOCK_DAY?date=20260301&stockNo=2308&response=json",
+      "initial_url": "https://www.twse.com.tw/exchangeReport/STOCK_DAY?date=20260301&stockNo=2308&response=json",
+      "max_attempts": 3,
+      "redirects": [],
+      "status": 200,
+      "success": true
+    }
+  },
+  "raw_source": "twse_main7_leadership",
+  "row": {
+    "count_main_7_below_ma20": 0,
+    "count_main_7_below_ma60": 0,
+    "main_7_below_ma20_symbols": "",
+    "main_7_symbols": "2330,0050,00878,2454,2317,2382,2308",
+    "majority_main_7_assets_above_ma20": true,
+    "mhs": 100.0,
+    "provider_source": "TWSE_OFFICIAL:twse_main7_leadership",
+    "source_type": "REAL_PROVIDER",
+    "trade_date": "2026-06-05"
+  },
+  "status": "success"
+}

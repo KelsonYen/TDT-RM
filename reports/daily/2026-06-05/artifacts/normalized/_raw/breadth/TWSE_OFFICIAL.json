@@ -1,0 +1,33 @@
+{
+  "dataset": "breadth",
+  "provider": "TWSE_OFFICIAL",
+  "raw_metadata": {
+    "endpoint": "https://www.twse.com.tw/exchangeReport/MI_INDEX?date=20260605&type=ALLBUT0999&response=json",
+    "official_source": "TWSE MI_INDEX",
+    "source_type": "twse_official_json",
+    "url_fetch": {
+      "attempts": 1,
+      "errors": [],
+      "final_url": "https://www.twse.com.tw/exchangeReport/MI_INDEX?date=20260605&type=ALLBUT0999&response=json",
+      "initial_url": "https://www.twse.com.tw/exchangeReport/MI_INDEX?date=20260605&type=ALLBUT0999&response=json",
+      "max_attempts": 3,
+      "redirects": [],
+      "status": 200,
+      "success": true
+    }
+  },
+  "raw_source": "twse_mi_index_breadth",
+  "row": {
+    "advancing_issues": 3144.0,
+    "breadth_weakens_for_2_days": false,
+    "declining_gt_advancing_consecutive_days": 1,
+    "declining_issues": 9578.0,
+    "declining_issues_significantly_expand": true,
+    "declining_issues_significantly_gt_advancing": true,
+    "index_down": true,
+    "provider_source": "TWSE_OFFICIAL:twse_mi_index_breadth",
+    "source_type": "REAL_PROVIDER",
+    "trade_date": "2026-06-05"
+  },
+  "status": "success"
+}

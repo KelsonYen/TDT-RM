@@ -1,0 +1,22 @@
+{
+  "dataset": "options",
+  "provider": "FINMIND_FALLBACK",
+  "raw_metadata": {
+    "finmind_token_present": true,
+    "network_requirement": "external-network-required"
+  },
+  "raw_source": "TaiwanOptionDaily:TXO",
+  "row": {
+    "bcd": 53.94564644925195,
+    "fetched_at": "2026-06-05T23:41:20Z",
+    "pcr_rises": false,
+    "pcr_stable": true,
+    "provider_source": "FINMIND_FALLBACK:TaiwanOptionDaily:TXO",
+    "source_type": "REAL_PROVIDER",
+    "tail_risk": 53.94564644925195,
+    "trade_date": "2026-06-05",
+    "vix_rises": false,
+    "vix_stable": true
+  },
+  "status": "success"
+}
