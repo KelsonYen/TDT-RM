@@ -194,3 +194,84 @@ def test_provider_health_fallback_classifies_tunnel_403_as_network_layer() -> No
     rows = _MODULE._attempt_rows({"source_attempts": []}, provider_health)
 
     assert rows[0]["failure_layer"] == "NETWORK"
+
+
+def test_renderer_writes_dataset_matrix_to_fetch_summary_from_partial_provider_health(tmp_path: Path, monkeypatch) -> None:
+    import json
+
+    trade_date = "2026-06-03"
+    input_dir = tmp_path / "inputs" / trade_date
+    output_dir = tmp_path / "outputs" / trade_date
+    reports_dir = tmp_path / "reports" / trade_date
+    artifacts_dir = reports_dir / "artifacts"
+    artifacts_dir.mkdir(parents=True)
+    output_dir.mkdir(parents=True)
+    (output_dir / "fetch_manifest.json").write_text(
+        json.dumps(
+            {
+                "as_of": trade_date,
+                "trade_date": trade_date,
+                "data_status": "NOT_READY",
+                "production_ready": False,
+                "missing_production_csvs": ["price.csv"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifacts_dir / "provider_health.json").write_text(
+        json.dumps(
+            {
+                "providers": {
+                    "price_provider": {
+                        "dataset": "price",
+                        "attempts": [
+                            {
+                                "provider": "TWSE_OFFICIAL",
+                                "status": "failed",
+                                "failure_reason": "HTTP 403 from https://example.invalid after 1 attempts",
+                                "parser_status": "not_reached",
+                                "validation_status": "not_reached",
+                                "failure_class": "auth/token",
+                                "metadata": {
+                                    "endpoint": "https://example.invalid",
+                                    "url_fetch": {"status": 403, "final_url": "https://example.invalid"},
+                                },
+                            }
+                        ],
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "render_github_actions_production_fetch_summary.py",
+            "--trade-date",
+            trade_date,
+            "--input-dir",
+            str(input_dir),
+            "--output-dir",
+            str(output_dir),
+            "--reports-dir",
+            str(reports_dir),
+        ],
+    )
+
+    assert _MODULE.main() == 0
+
+    summary = json.loads((artifacts_dir / "production_fetch_summary.json").read_text(encoding="utf-8"))
+    matrix = {row["dataset"]: row for row in summary["dataset_audit_matrix"]}
+    assert matrix["price"]["provider_chain"] == "TWSE_OFFICIAL"
+    assert matrix["price"]["provider_attempted"] == "TWSE_OFFICIAL"
+    assert matrix["price"]["endpoint_attempted"] == "https://example.invalid"
+    assert matrix["price"]["exception_message"] == "HTTP 403 from https://example.invalid after 1 attempts"
+    assert matrix["price"]["http_status"] == "403"
+    assert matrix["price"]["failure_happened_at"] == "remote HTTP response"
+    assert matrix["price"]["parser_executed"] == "NO"
+    assert matrix["price"]["validation_executed"] == "NO"
+    assert matrix["price"]["output_csv_written"] == "NO"
+    assert matrix["price"]["root_cause_classification"] == "auth/token"

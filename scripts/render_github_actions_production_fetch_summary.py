@@ -5,10 +5,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 DATASETS = ("price", "foreign_flow", "fx", "breadth", "futures", "options", "leadership", "margin")
+AUDIT_DATASETS = ("price", "foreign_flow", "fx", "breadth", "futures", "options", "leadership")
 
 
 def main() -> int:
@@ -31,21 +33,32 @@ def main() -> int:
     validation = _load_json(artifact_dir / "validation_report.json")
     connectivity = _load_json(Path(args.connectivity_audit_dir) / "connectivity_audit.json") if args.connectivity_audit_dir else {}
 
+    audit_matrix = _dataset_audit_matrix(args.trade_date, input_dir, manifest, fetch_summary, provider_health)
+    _write_augmented_fetch_summary(artifact_dir / "production_fetch_summary.json", args.trade_date, manifest, fetch_summary, audit_matrix)
+
     payload = {
         "trade_date": args.trade_date,
+        "as_of": args.trade_date,
+        "run_id": _env("GITHUB_RUN_ID"),
+        "commit_sha": _env("GITHUB_SHA"),
+        "artifact_name": _artifact_name(args.trade_date),
+        "artifact_digest": _env("TDT_RM_ARTIFACT_DIGEST", "not available before upload"),
         "manifest_status": manifest.get("data_status", "missing"),
         "production_ready": bool(manifest.get("production_ready")),
+        "missing_datasets": _missing_dataset_names(manifest),
         "failure_classes": _failure_class_counts(manifest.get("source_attempts")),
+        "dataset_audit_matrix": audit_matrix,
         "artifacts": {
             "provider_connectivity_summary": str(output_dir / "provider_connectivity_summary.json"),
             "fetch_manifest": str(output_dir / "fetch_manifest.json"),
             "production_fetch_summary": str(artifact_dir / "production_fetch_summary.json"),
+            "provider_health": str(artifact_dir / "provider_health.json"),
             "provider_csvs": str(input_dir / "_strict_provider_csvs"),
         },
     }
     (output_dir / "provider_connectivity_summary.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-    print(_render_markdown(args.trade_date, input_dir, output_dir, reports_dir, manifest, fetch_summary, provider_health, validation, connectivity))
+    print(_render_markdown(args.trade_date, input_dir, output_dir, reports_dir, manifest, fetch_summary, provider_health, validation, connectivity, audit_matrix))
     return 0
 
 
@@ -59,13 +72,21 @@ def _render_markdown(
     provider_health: Mapping[str, Any],
     validation: Mapping[str, Any],
     connectivity: Mapping[str, Any],
+    audit_matrix: Sequence[Mapping[str, Any]] | None = None,
 ) -> str:
+    matrix = list(audit_matrix) if audit_matrix is not None else _dataset_audit_matrix(trade_date, input_dir, manifest, fetch_summary, provider_health)
     lines = [
         "## Production connectivity and fetch validation",
         "",
+        f"- run id: `{_env('GITHUB_RUN_ID')}`",
+        f"- commit sha: `{_env('GITHUB_SHA')}`",
         f"- trade_date: `{trade_date}`",
+        f"- as_of date: `{manifest.get('as_of') or trade_date}`",
+        f"- artifact name: `{_artifact_name(trade_date)}`",
+        f"- artifact digest: `{_env('TDT_RM_ARTIFACT_DIGEST', 'not available before upload')}`",
         f"- data_status: `{manifest.get('data_status', 'missing')}`",
         f"- production_ready: `{bool(manifest.get('production_ready'))}`",
+        f"- missing datasets: `{', '.join(_missing_dataset_names(manifest)) or 'none'}`",
         f"- pipeline_status: `{manifest.get('pipeline_status', 'missing')}`",
         f"- validation_status: `{_validation_status(validation)}`",
         f"- FinMind live enabled: `{bool(manifest.get('finmind_live_enabled'))}`",
@@ -90,6 +111,28 @@ def _render_markdown(
         )
     if not _attempt_rows(manifest, provider_health):
         lines.append("| `none` | `none` | `not captured` | `not captured` | 0 | `not_reached` | `not_reached` | `unknown` | `UNKNOWN` |")
+
+    lines.extend([
+        "",
+        "### Required dataset audit matrix",
+        "| Dataset | Provider chain | Provider attempted | Exact URL or endpoint domain attempted | Exact exception message | HTTP status | Failure happened at | Parser executed? | Validation executed? | Output CSV written? | Root cause classification |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ])
+    for row in matrix:
+        lines.append(
+            "| "
+            f"`{_cell(row.get('dataset'))}` | "
+            f"{_code_cell(row.get('provider_chain'))} | "
+            f"{_code_cell(row.get('provider_attempted'))} | "
+            f"{_code_cell(row.get('endpoint_attempted'))} | "
+            f"{_code_cell(row.get('exception_message'))} | "
+            f"{_code_cell(row.get('http_status'))} | "
+            f"`{_cell(row.get('failure_happened_at'))}` | "
+            f"`{_cell(row.get('parser_executed'))}` | "
+            f"`{_cell(row.get('validation_executed'))}` | "
+            f"`{_cell(row.get('output_csv_written'))}` | "
+            f"`{_cell(row.get('root_cause_classification'))}` |"
+        )
 
     lines.extend([
         "",
@@ -125,6 +168,165 @@ def _render_markdown(
         f"- Production inputs: `{input_dir}`",
     ])
     return "\n".join(lines) + "\n"
+
+
+def _dataset_audit_matrix(
+    trade_date: str,
+    input_dir: Path,
+    manifest: Mapping[str, Any],
+    fetch_summary: Mapping[str, Any],
+    provider_health: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    attempts = _attempt_rows(manifest, provider_health)
+    attempts_by_dataset: dict[str, list[Mapping[str, Any]]] = {dataset: [] for dataset in AUDIT_DATASETS}
+    for attempt in attempts:
+        dataset = str(attempt.get("provider_category") or attempt.get("dataset") or "")
+        if dataset in attempts_by_dataset:
+            attempts_by_dataset[dataset].append(attempt)
+    provider_paths = manifest.get("provider_csv_paths") if isinstance(manifest.get("provider_csv_paths"), Mapping) else {}
+    missing = set(_missing_dataset_names(manifest))
+    summary_datasets = fetch_summary.get("datasets") if isinstance(fetch_summary.get("datasets"), Mapping) else {}
+    rows: list[dict[str, Any]] = []
+    for dataset in AUDIT_DATASETS:
+        dataset_attempts = attempts_by_dataset.get(dataset, [])
+        summary_row = summary_datasets.get(dataset) if isinstance(summary_datasets.get(dataset), Mapping) else {}
+        selected = _selected_or_last_attempt(dataset_attempts)
+        chain = _provider_chain(dataset_attempts, summary_row)
+        output_path = Path(str(provider_paths.get(dataset) or input_dir / "_strict_provider_csvs" / f"{dataset}.csv"))
+        output_written = output_path.exists() and dataset not in missing
+        parser_status = _combined_status(dataset_attempts, "parser_status", selected.get("parser_status"))
+        validation_status = _combined_status(dataset_attempts, "validation_status", selected.get("validation_status"))
+        http_statuses = _joined_unique(_normal_status(attempt.get("http_status")) for attempt in dataset_attempts if _normal_status(attempt.get("http_status")) != "n/a")
+        exception_messages = _joined_unique(_attempt_error(attempt) for attempt in dataset_attempts if _attempt_error(attempt) != "n/a")
+        endpoints = _joined_unique(_cell(attempt.get("endpoint_attempted")) for attempt in dataset_attempts if _cell(attempt.get("endpoint_attempted")) != "n/a")
+        root_cause = _root_cause(dataset_attempts, selected, output_written)
+        rows.append(
+            {
+                "dataset": dataset,
+                "provider_chain": chain,
+                "provider_attempted": _joined_unique(_cell(attempt.get("source_id") or attempt.get("provider_id") or attempt.get("provider")) for attempt in dataset_attempts) or _cell(summary_row.get("provider_used")),
+                "endpoint_attempted": endpoints or "not captured",
+                "exception_message": exception_messages or "none" if output_written else exception_messages or str(manifest.get("blocking_error") or "not captured"),
+                "http_status": http_statuses or "n/a",
+                "failure_happened_at": _failure_stage(selected, parser_status, validation_status, output_written),
+                "parser_executed": _executed(parser_status),
+                "validation_executed": _executed(validation_status),
+                "output_csv_written": "YES" if output_written else "NO",
+                "root_cause_classification": root_cause,
+            }
+        )
+    return rows
+
+
+def _write_augmented_fetch_summary(path: Path, trade_date: str, manifest: Mapping[str, Any], fetch_summary: Mapping[str, Any], audit_matrix: Sequence[Mapping[str, Any]]) -> None:
+    payload = dict(fetch_summary) if isinstance(fetch_summary, Mapping) else {}
+    payload.setdefault("trade_date", trade_date)
+    payload.setdefault("as_of", trade_date)
+    payload["run_id"] = _env("GITHUB_RUN_ID")
+    payload["commit_sha"] = _env("GITHUB_SHA")
+    payload["artifact_name"] = _artifact_name(trade_date)
+    payload["artifact_digest"] = _env("TDT_RM_ARTIFACT_DIGEST", "not available before upload")
+    payload["production_ready"] = bool(manifest.get("production_ready"))
+    payload["missing_datasets"] = _missing_dataset_names(manifest) or payload.get("missing_datasets", [])
+    payload["dataset_audit_matrix"] = list(audit_matrix)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _selected_or_last_attempt(attempts: Sequence[Mapping[str, Any]]) -> Mapping[str, Any]:
+    for attempt in attempts:
+        if attempt.get("selected") or attempt.get("success"):
+            return attempt
+    return attempts[-1] if attempts else {}
+
+
+def _provider_chain(attempts: Sequence[Mapping[str, Any]], summary_row: Mapping[str, Any]) -> str:
+    chain = _joined_unique(_cell(attempt.get("source_id") or attempt.get("provider_id") or attempt.get("provider")) for attempt in attempts)
+    if chain:
+        return chain
+    failed = summary_row.get("failed_providers") if isinstance(summary_row.get("failed_providers"), list) else []
+    failed_chain = _joined_unique(_cell(item.get("provider")) for item in failed if isinstance(item, Mapping))
+    provider_used = _cell(summary_row.get("provider_used"))
+    return " -> ".join(item for item in (failed_chain, provider_used if provider_used != "n/a" else "") if item) or "not captured"
+
+
+def _combined_status(attempts: Sequence[Mapping[str, Any]], key: str, fallback: object = None) -> str:
+    values = [_cell(attempt.get(key)) for attempt in attempts if _cell(attempt.get(key)) != "n/a"]
+    if values:
+        if "failed" in values:
+            return "failed"
+        if "passed" in values:
+            return "passed"
+        return values[-1]
+    return _cell(fallback) if _cell(fallback) != "n/a" else "not_reached"
+
+
+def _attempt_error(attempt: Mapping[str, Any]) -> str:
+    return _cell(attempt.get("error") or attempt.get("failure_reason") or attempt.get("network_exception"))
+
+
+def _normal_status(status: object) -> str:
+    return _cell(status)
+
+
+def _root_cause(attempts: Sequence[Mapping[str, Any]], selected: Mapping[str, Any], output_written: bool) -> str:
+    if output_written:
+        return "none"
+    causes = _joined_unique(_cell(attempt.get("failure_class")) for attempt in attempts if _cell(attempt.get("failure_class")) not in {"n/a", "none"})
+    return causes or (_cell(selected.get("failure_class")) if _cell(selected.get("failure_class")) != "n/a" else "unknown")
+
+
+def _failure_stage(selected: Mapping[str, Any], parser_status: str, validation_status: str, output_written: bool) -> str:
+    if output_written:
+        return "unknown"
+    layer = str(selected.get("failure_layer") or "").upper()
+    message = _attempt_error(selected).lower()
+    status = selected.get("http_status")
+    if "dns" in message or "name or service" in message or "name resolution" in message:
+        return "DNS"
+    if "tunnel connection failed" in message or "proxy" in message or "connect" in message:
+        return "proxy CONNECT / tunnel"
+    if "tls" in message or "ssl" in message or "certificate" in message:
+        return "TLS"
+    if status not in {None, "", "n/a"}:
+        return "remote HTTP response"
+    if layer in {"AUTH", "HTTP"}:
+        return "remote HTTP response"
+    if parser_status == "failed" or layer == "PARSER":
+        return "parser"
+    if validation_status == "failed" or layer in {"SCHEMA", "VALIDATION"}:
+        return "validation"
+    if layer == "NETWORK":
+        return "proxy CONNECT / tunnel" if "tunnel" in message or "proxy" in message else "unknown"
+    return "unknown"
+
+
+def _executed(status: str) -> str:
+    return "NO" if status in {"not_reached", "n/a", ""} else "YES"
+
+
+def _joined_unique(values: Any) -> str:
+    seen: list[str] = []
+    for value in values:
+        text = str(value)
+        if text and text != "n/a" and text not in seen:
+            seen.append(text)
+    return " -> ".join(seen)
+
+
+def _missing_dataset_names(manifest: Mapping[str, Any]) -> list[str]:
+    missing = manifest.get("missing_production_csvs")
+    if not isinstance(missing, list):
+        return []
+    return [str(item).removesuffix(".csv") for item in missing]
+
+
+def _artifact_name(trade_date: str) -> str:
+    return f"tdt-rm-production-fetch-{trade_date}"
+
+
+def _env(name: str, default: str = "unknown") -> str:
+    return os.environ.get(name, default) or default
 
 
 def _attempt_rows(manifest: Mapping[str, Any], provider_health: Mapping[str, Any]) -> list[Mapping[str, Any]]:

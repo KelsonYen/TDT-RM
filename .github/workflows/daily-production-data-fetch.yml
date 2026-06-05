@@ -154,6 +154,7 @@ jobs:
             --connectivity-audit-dir "outputs/daily/$AS_OF/provider_connectivity_audit" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload production fetch artifacts
+        id: upload-production-fetch-artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -167,5 +168,22 @@ jobs:
             outputs/daily/${{ steps.as-of.outputs.as_of }}/provider_connectivity_summary.json
             outputs/daily/${{ steps.as-of.outputs.as_of }}/provider_connectivity_audit/
             reports/daily/${{ steps.as-of.outputs.as_of }}/artifacts/production_fetch_summary.json
+            reports/daily/${{ steps.as-of.outputs.as_of }}/artifacts/provider_health.json
           if-no-files-found: warn
           retention-days: 90
+
+      - name: Append uploaded artifact digest to job summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo ""
+            echo "### Uploaded artifact identity"
+            echo "- run id: \`${{ github.run_id }}\`"
+            echo "- commit sha: \`${{ github.sha }}\`"
+            echo "- trade_date: \`${{ steps.as-of.outputs.trade_date }}\`"
+            echo "- as_of date: \`${{ steps.as-of.outputs.as_of }}\`"
+            echo "- artifact name: \`tdt-rm-production-fetch-${{ steps.as-of.outputs.as_of }}\`"
+            echo "- artifact digest: \`${{ steps.upload-production-fetch-artifacts.outputs.artifact-digest || 'not available' }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
