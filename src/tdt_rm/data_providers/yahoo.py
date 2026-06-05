@@ -8,6 +8,7 @@ import json
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from pathlib import Path
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Iterable, Mapping
 
@@ -20,7 +21,7 @@ from .normalizers import normalize_public_row
 @dataclass(frozen=True)
 class YahooProvider(DailyDataProvider):
     name: str = "YAHOO_FINANCE"
-    datasets: tuple[str, ...] = ("price", "fx", "leadership")
+    datasets: tuple[str, ...] = ("price", "fx", "breadth", "leadership")
 
     def fetch(self, dataset: str, context: ProviderContext) -> ProviderResult:
         start = context.trade_date - timedelta(days=context.lookback_days)
@@ -30,12 +31,15 @@ class YahooProvider(DailyDataProvider):
         elif dataset == "fx":
             bars = _yahoo_bars("USDTWD=X", start, context.trade_date, context.timeout)
             row = _fx_row(bars, context.trade_date)
+        elif dataset == "breadth":
+            row, metadata = _representative_breadth_row(context, start)
         elif dataset == "leadership":
             row = _leadership_row(context, start)
         else:
             raise ValueError(f"Yahoo provider does not support {dataset}")
-        provider_source = f"{self.name}:{dataset}"
-        return ProviderResult(dataset, provider_source, provider_source, normalize_public_row(dataset, row, trade_date=context.trade_date, provider_source=provider_source))
+        provider_source = f"{self.name}:{'representative_universe' if dataset == 'breadth' else dataset}"
+        raw_metadata = metadata if dataset == "breadth" else {}
+        return ProviderResult(dataset, provider_source, provider_source, normalize_public_row(dataset, row, trade_date=context.trade_date, provider_source=provider_source), raw_metadata)
 
 
 @dataclass(frozen=True)
@@ -102,6 +106,93 @@ def _leadership_row(context: ProviderContext, start: date) -> dict[str, Any]:
         "main_7_below_ma20_symbols": ",".join(below20),
         "mhs": round(100.0 * (len(symbols) - len(below20)) / len(symbols), 4),
     }
+
+
+def _representative_breadth_row(context: ProviderContext, start: date) -> tuple[dict[str, Any], dict[str, Any]]:
+    symbols, universe_metadata = _load_breadth_universe(context.breadth_universe_config)
+    if not symbols:
+        raise RuntimeError("representative breadth universe is empty")
+    taiex_bars = _yahoo_bars("^TWII", start, context.trade_date, context.timeout)
+    taiex_bars = [bar for bar in sorted(taiex_bars, key=lambda item: item.observed_at) if bar.observed_at <= context.trade_date]
+    if len(taiex_bars) < 2:
+        raise RuntimeError("TAIEX Yahoo bars missing for representative breadth index_down derivation")
+    index_down = taiex_bars[-1].close < taiex_bars[-2].close
+
+    advancing = declining = unchanged = missing = 0
+    observations: dict[str, dict[str, Any]] = {}
+    for symbol in symbols:
+        yahoo_symbol = symbol if "." in symbol or symbol.startswith("^") else f"{symbol}.TW"
+        bars = _yahoo_bars(yahoo_symbol, start, context.trade_date, context.timeout)
+        bars = [bar for bar in sorted(bars, key=lambda item: item.observed_at) if bar.observed_at <= context.trade_date]
+        if len(bars) < 2:
+            missing += 1
+            observations[symbol] = {"status": "missing", "bars": len(bars)}
+            continue
+        previous = bars[-2].close
+        current = bars[-1].close
+        if current > previous:
+            advancing += 1
+            direction = "advancing"
+        elif current < previous:
+            declining += 1
+            direction = "declining"
+        else:
+            unchanged += 1
+            direction = "unchanged"
+        observations[symbol] = {
+            "status": direction,
+            "previous_date": bars[-2].observed_at.isoformat(),
+            "current_date": bars[-1].observed_at.isoformat(),
+            "previous_close": previous,
+            "current_close": current,
+        }
+    total = advancing + declining + unchanged
+    minimum = max(1, int(len(symbols) * 0.5))
+    if total < minimum:
+        raise RuntimeError(f"representative breadth has only {total} usable symbols; need at least {minimum}")
+    ratio = None if declining == 0 else advancing / declining
+    row = {
+        "date": context.trade_date.isoformat(),
+        "index_down": index_down,
+        "advancing_issues": advancing,
+        "declining_issues": declining,
+        "declining_issues_significantly_expand": declining >= max(advancing * 1.5, 700),
+        "declining_issues_significantly_gt_advancing": declining > advancing * 1.5,
+        "declining_gt_advancing_consecutive_days": 1 if declining > advancing else 0,
+        "breadth_weakens_for_2_days": declining > advancing and index_down,
+    }
+    metadata = {
+        "breadth_source_scope": "representative_universe",
+        "breadth_universe_config": str(context.breadth_universe_config),
+        "breadth_universe_description": universe_metadata.get("description", ""),
+        "advancing_count": advancing,
+        "declining_count": declining,
+        "unchanged_count": unchanged,
+        "total_count": total,
+        "configured_symbol_count": len(symbols),
+        "missing_symbol_count": missing,
+        "advance_decline_ratio": ratio,
+        "symbols": list(symbols),
+        "symbol_observations": observations,
+    }
+    return row, metadata
+
+
+def _load_breadth_universe(path: str | Path) -> tuple[tuple[str, ...], Mapping[str, Any]]:
+    config_path = Path(path)
+    if not config_path.is_absolute():
+        config_path = Path(__file__).resolve().parents[3] / config_path
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    if isinstance(payload, list):
+        symbols = tuple(str(item).strip() for item in payload if str(item).strip())
+        return symbols, {}
+    if not isinstance(payload, Mapping):
+        raise ValueError("breadth universe config must be a JSON list or object with a symbols list")
+    raw_symbols = payload.get("symbols")
+    if not isinstance(raw_symbols, list):
+        raise ValueError("breadth universe config must contain a symbols list")
+    symbols = tuple(dict.fromkeys(str(item).strip() for item in raw_symbols if str(item).strip()))
+    return symbols, payload
 
 
 def _yahoo_bars(symbol: str, start: date, end: date, timeout: int) -> list[MarketPriceBar]:

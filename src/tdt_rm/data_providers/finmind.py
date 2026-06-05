@@ -59,6 +59,11 @@ class FinMindProvider(DailyDataProvider):
             )
         if not token:
             raise RuntimeError("live FinMind fallback unavailable because FINMIND_TOKEN/FINMIND_API_TOKEN is missing")
+        if dataset == "breadth" and not _finmind_sponsor_access_enabled():
+            raise RuntimeError(
+                "FinMind breadth all-universe mode skipped because it requires backer/sponsor "
+                "TaiwanStockPrice access; set TDT_RM_FINMIND_SPONSOR_ACCESS=true only for sponsor tokens"
+            )
         client = FinMindClient(token, timeout=context.timeout, sleep_seconds=context.sleep_seconds, opener=None)
         start = context.trade_date - timedelta(days=context.lookback_days)
         fetched_at = context.fetched_at.isoformat().replace("+00:00", "Z")
@@ -87,3 +92,10 @@ class FinMindProvider(DailyDataProvider):
                 "network_requirement": self.network_requirement,
             },
         )
+
+
+def _finmind_sponsor_access_enabled() -> bool:
+    return any(
+        os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "y", "on"}
+        for name in ("TDT_RM_FINMIND_SPONSOR_ACCESS", "FINMIND_SPONSOR_ACCESS")
+    )

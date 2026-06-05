@@ -52,6 +52,7 @@ def main() -> int:
     parser.add_argument("--provider-health-json", help="Optional path for provider_health.json diagnostics.")
     parser.add_argument("--source-config", help="Optional public data source config JSON/YAML.")
     parser.add_argument("--main7-config", default="config/main7_symbols.json", help="JSON file containing Main-7 symbols.")
+    parser.add_argument("--breadth-universe-config", default="config/breadth_representative_universe.json", help="JSON file containing the deterministic representative stock universe for breadth fallback.")
     parser.add_argument("--lookback-days", type=int, default=180, help="Historical lookback for derived indicators (default: 180).")
     parser.add_argument("--timeout", type=int, default=30, help="HTTP timeout seconds (default: 30).")
     parser.add_argument("--sleep-seconds", type=float, default=0.25, help="FinMind polite delay seconds (default: 0.25).")
@@ -78,6 +79,7 @@ def main() -> int:
         sleep_seconds=args.sleep_seconds,
         main7_symbols=main7,
         main7_config=args.main7_config,
+        breadth_universe_config=args.breadth_universe_config,
         allow_finmind_live=allow_finmind_live,
     )
 
@@ -159,7 +161,7 @@ def _provider_chains(source_config: str | None) -> dict[str, tuple[object, ...]]
         "price": (twse, tip, yahoo, stooq, finmind),
         "foreign_flow": (twse, finmind),
         "fx": (taifex, cbc, yahoo, finmind),
-        "breadth": (twse, finmind),
+        "breadth": (twse, yahoo, finmind),
         "futures": (taifex, finmind),
         "options": (taifex, finmind),
         "leadership": (twse, yahoo, finmind),
