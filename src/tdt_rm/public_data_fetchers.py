@@ -1678,7 +1678,7 @@ def _parse_t86_foreign_flow(payload: Any, as_of: date) -> dict[str, Any] | None:
     if not net_values:
         return None
     total_net = sum(net_values)
-    return {"date": as_of.isoformat(), "foreign_spot_net_buy": total_net, "foreign_spot_net_sell": total_net < 0, "foreign_spot_large_sell": total_net <= -10_000_000_000, "foreign_large_sell": total_net <= -10_000_000_000, "futures_hedging_increases": False, "futures_hedging_significant": False}
+    return {"date": as_of.isoformat(), "foreign_spot_net_buy": total_net, "foreign_spot_net_sell": abs(min(total_net, 0.0)), "foreign_spot_large_sell": total_net <= -10_000_000_000, "foreign_large_sell": total_net <= -10_000_000_000, "futures_hedging_increases": False, "futures_hedging_significant": False}
 
 
 def _parse_taifex_fx_rows(payload: Any, as_of: date) -> list[dict[str, Any]]:
