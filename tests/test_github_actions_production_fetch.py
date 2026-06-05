@@ -386,3 +386,9 @@ def test_daily_production_workflow_avoids_network_dependent_editable_install() -
     assert "Prepare Python path" in workflow
     assert "python -m pip install -e ." not in workflow
     assert "PYTHONPATH=$GITHUB_WORKSPACE/src:$GITHUB_WORKSPACE/scripts" in workflow
+
+def test_daily_production_workflow_default_trade_date_targets_pr87_validation_date() -> None:
+    workflow = Path(".github/workflows/daily-production-data-fetch.yml").read_text(encoding="utf-8")
+
+    assert 'default: "2026-06-04"' in workflow
+    assert "Use 2026-06-04 for the post-PR #87 completed trading day rerun." in workflow
