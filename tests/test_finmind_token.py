@@ -100,3 +100,116 @@ def test_default_finmind_opener_uses_urllib_environment(monkeypatch):
     monkeypatch.delenv("FINMIND_HTTP_PROXY", raising=False)
 
     assert module.build_finmind_opener(_finmind_proxy_args()) is None
+
+
+def test_finmind_client_get_allows_optional_end_date():
+    module = _load_finmind_module()
+
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b'{"status": 200, "data": []}'
+
+    class Opener:
+        def __init__(self):
+            self.urls = []
+
+        def open(self, request, timeout):
+            self.urls.append(request.full_url)
+            return Response()
+
+    opener = Opener()
+    client = module.FinMindClient(None, sleep_seconds=0, opener=opener)
+
+    assert client.get("TaiwanStockPrice", start_date=module.date(2026, 6, 4), end_date=None) == []
+    query = module.urllib.parse.parse_qs(module.urllib.parse.urlparse(opener.urls[0]).query)
+    assert query["dataset"] == ["TaiwanStockPrice"]
+    assert query["start_date"] == ["2026-06-04"]
+    assert "end_date" not in query
+
+
+def test_build_breadth_uses_single_date_all_universe_requests_and_counts_advancers_decliners():
+    module = _load_finmind_module()
+
+    class FakeClient:
+        def __init__(self):
+            self.calls = []
+
+        def get(self, dataset, *, start_date, end_date=None, data_id=None):
+            self.calls.append((dataset, start_date, end_date, data_id))
+            if dataset == "TaiwanStockTotalReturnIndex" and data_id == "TAIEX":
+                return [
+                    {"date": "2026-06-03", "stock_id": "TAIEX", "price": 101},
+                    {"date": "2026-06-04", "stock_id": "TAIEX", "price": 100},
+                ]
+            if dataset == "TaiwanStockPrice" and data_id is None and end_date is None:
+                if start_date == module.date(2026, 6, 3):
+                    return [
+                        {"date": "2026-06-03", "stock_id": "1101", "close": 10},
+                        {"date": "2026-06-03", "stock_id": "1102", "close": 20},
+                        {"date": "2026-06-03", "stock_id": "1103", "close": 30},
+                        {"date": "2026-06-03", "stock_id": "1104", "close": 40},
+                    ]
+                if start_date == module.date(2026, 6, 4):
+                    return [
+                        {"date": "2026-06-04", "stock_id": "1101", "close": 11},
+                        {"date": "2026-06-04", "stock_id": "1102", "close": 19},
+                        {"date": "2026-06-04", "stock_id": "1103", "close": 30},
+                        {"date": "2026-06-04", "stock_id": "1105", "close": 50},
+                    ]
+            return []
+
+    client = FakeClient()
+    row, source = module.build_breadth(
+        client,
+        module.date(2026, 6, 4),
+        module.date(2026, 1, 1),
+        "2026-06-05T00:00:00Z",
+    )
+
+    assert source == "TaiwanStockPrice:listed_universe"
+    assert row["advancing_issues"] == 1
+    assert row["declining_issues"] == 1
+    assert row["index_down"] is True
+    assert client.calls == [
+        ("TaiwanStockTotalReturnIndex", module.date(2026, 1, 1), module.date(2026, 6, 4), "TAIEX"),
+        ("TaiwanStockPrice", module.date(2026, 6, 3), None, None),
+        ("TaiwanStockPrice", module.date(2026, 6, 4), None, None),
+    ]
+    assert all(
+        not (dataset == "TaiwanStockPrice" and end_date == module.date(2026, 6, 4) and data_id is None)
+        for dataset, _start_date, end_date, data_id in client.calls
+    )
+
+
+def test_build_breadth_reports_finmind_all_date_entitlement_requirement():
+    module = _load_finmind_module()
+
+    class FakeClient:
+        def get(self, dataset, *, start_date, end_date=None, data_id=None):
+            if dataset == "TaiwanStockTotalReturnIndex":
+                return [
+                    {"date": "2026-06-03", "stock_id": "TAIEX", "price": 101},
+                    {"date": "2026-06-04", "stock_id": "TAIEX", "price": 100},
+                ]
+            raise RuntimeError("status=402 permission denied")
+
+    try:
+        module.build_breadth(
+            FakeClient(),
+            module.date(2026, 6, 4),
+            module.date(2026, 1, 1),
+            "2026-06-05T00:00:00Z",
+        )
+    except RuntimeError as exc:
+        assert "FinMind backer/sponsor all-date TaiwanStockPrice access is required" in str(exc)
+        assert "status=402 permission denied" in str(exc)
+    else:
+        raise AssertionError("expected RuntimeError")

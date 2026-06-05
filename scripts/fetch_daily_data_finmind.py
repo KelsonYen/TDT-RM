@@ -88,12 +88,13 @@ class FinMindClient:
         self.sleep_seconds = sleep_seconds
         self.opener = opener
 
-    def get(self, dataset: str, *, start_date: date, end_date: date, data_id: str | None = None) -> list[dict[str, Any]]:
+    def get(self, dataset: str, *, start_date: date, end_date: date | None = None, data_id: str | None = None) -> list[dict[str, Any]]:
         params: dict[str, str] = {
             "dataset": dataset,
             "start_date": start_date.isoformat(),
-            "end_date": end_date.isoformat(),
         }
+        if end_date is not None:
+            params["end_date"] = end_date.isoformat()
         if data_id:
             params["data_id"] = data_id
         headers = {"User-Agent": "TDT-RM FinMind ingestion/1.0"}
@@ -339,32 +340,29 @@ def build_fx(client: FinMindClient, trade_date: date, start: date, fetched_at: s
 
 
 def build_breadth(client: FinMindClient, trade_date: date, start: date, fetched_at: str) -> tuple[dict[str, Any], str]:
-    rows = client.get("TaiwanStockPrice", start_date=trade_date - timedelta(days=14), end_date=trade_date)
-    by_stock: dict[str, list[tuple[date, float]]] = {}
-    for row in rows:
-        stock_id = str(row.get("stock_id") or "")
-        if not stock_id.isdigit():
-            continue
-        close_value = first(row, "close", "Close", "price", "TAIEX", "收盤價")
-        if close_value is None:
-            continue
-        by_stock.setdefault(stock_id, []).append((parse_row_date(row), to_float(close_value)))
+    price_rows = fetch_price_rows(client, start=start, end=trade_date, data_id="TAIEX")
+    bars = price_bars_for(price_rows, trade_date)
+    if len(bars) < 2 or bars[-1].observed_at != trade_date:
+        raise RuntimeError("TAIEX rows missing for index_down derivation")
+    previous_trade_date = bars[-2].observed_at
+    index_down = bars[-1].close < bars[-2].close
+
+    previous_rows = fetch_breadth_universe_for_date(client, previous_trade_date)
+    target_rows = fetch_breadth_universe_for_date(client, trade_date)
+    previous_by_stock = breadth_closes_by_stock(previous_rows, previous_trade_date)
+    target_by_stock = breadth_closes_by_stock(target_rows, trade_date)
+
     advancing = declining = 0
-    for points in by_stock.values():
-        ordered = sorted((day, value) for day, value in points if day <= trade_date)
-        if len(ordered) < 2 or ordered[-1][0] != trade_date:
+    for stock_id, close_today in target_by_stock.items():
+        close_previous = previous_by_stock.get(stock_id)
+        if close_previous is None:
             continue
-        if ordered[-1][1] > ordered[-2][1]:
+        if close_today > close_previous:
             advancing += 1
-        elif ordered[-1][1] < ordered[-2][1]:
+        elif close_today < close_previous:
             declining += 1
     if advancing + declining == 0:
         raise RuntimeError("stock universe breadth rows missing for trade date")
-    price_rows = fetch_price_rows(client, start=start, end=trade_date, data_id="TAIEX")
-    bars = price_bars_for(price_rows, trade_date)
-    if len(bars) < 2:
-        raise RuntimeError("TAIEX rows missing for index_down derivation")
-    index_down = bars[-1].close < bars[-2].close
     row = base_row(trade_date, fetched_at)
     row.update({
         "index_down": index_down,
@@ -376,6 +374,35 @@ def build_breadth(client: FinMindClient, trade_date: date, start: date, fetched_
         "breadth_weakens_for_2_days": declining > advancing and index_down,
     })
     return row, "TaiwanStockPrice:listed_universe"
+
+
+def fetch_breadth_universe_for_date(client: FinMindClient, trade_date: date) -> list[dict[str, Any]]:
+    try:
+        rows = client.get("TaiwanStockPrice", start_date=trade_date, end_date=None)
+    except RuntimeError as exc:
+        raise RuntimeError(
+            "FinMind backer/sponsor all-date TaiwanStockPrice access is required "
+            f"for breadth all-universe single-date requests ({trade_date.isoformat()}): {exc}"
+        ) from exc
+    if not rows:
+        raise RuntimeError(
+            "FinMind backer/sponsor all-date TaiwanStockPrice access is required "
+            f"for breadth all-universe single-date requests ({trade_date.isoformat()}): no rows returned"
+        )
+    return rows
+
+
+def breadth_closes_by_stock(rows: Iterable[Mapping[str, Any]], trade_date: date) -> dict[str, float]:
+    closes: dict[str, float] = {}
+    for row in rows:
+        stock_id = str(row.get("stock_id") or "")
+        if not stock_id.isdigit() or parse_row_date(row) != trade_date:
+            continue
+        close_value = first(row, "close", "Close", "price", "TAIEX", "收盤價")
+        if close_value is None:
+            continue
+        closes[stock_id] = to_float(close_value)
+    return closes
 
 
 def build_margin(client: FinMindClient, trade_date: date, start: date, fetched_at: str) -> tuple[dict[str, Any], str]:
@@ -647,12 +674,13 @@ class RecordingFinMindClient(FinMindClient):
     def clear_requests(self) -> None:
         self.requests.clear()
 
-    def get(self, dataset: str, *, start_date: date, end_date: date, data_id: str | None = None) -> list[dict[str, Any]]:
+    def get(self, dataset: str, *, start_date: date, end_date: date | None = None, data_id: str | None = None) -> list[dict[str, Any]]:
         params: dict[str, str] = {
             "dataset": dataset,
             "start_date": start_date.isoformat(),
-            "end_date": end_date.isoformat(),
         }
+        if end_date is not None:
+            params["end_date"] = end_date.isoformat()
         if data_id:
             params["data_id"] = data_id
         headers = {"User-Agent": "TDT-RM FinMind ingestion diagnostics/1.0"}
