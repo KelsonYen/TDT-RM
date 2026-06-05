@@ -494,10 +494,11 @@ def test_twse_t86_compact_foreign_flow_alias_parses_non_null():
 
     assert row is not None
     assert row["foreign_spot_net_buy"] == 1234.0
-    assert row["foreign_spot_net_sell"] is False
+    assert row["foreign_spot_net_sell"] == 0.0
 
 
 def test_twse_t86_current_foreign_flow_field_parses_non_null():
+    from tdt_rm.data_providers.normalizers import normalize_public_row
     from tdt_rm.public_data_fetchers import _parse_t86_foreign_flow
 
     row = _parse_t86_foreign_flow(
@@ -507,7 +508,8 @@ def test_twse_t86_current_foreign_flow_field_parses_non_null():
 
     assert row is not None
     assert row["foreign_spot_net_buy"] == -1250.0
-    assert row["foreign_spot_net_sell"] is True
+    assert row["foreign_spot_net_sell"] == 1250.0
+    assert normalize_public_row("foreign_flow", row, trade_date=AS_OF, provider_source="twse_t86")["foreign_spot_net_sell"] == 1250.0
 
 
 def test_twse_mi_index_breadth_type_rows_parse_market_and_stock_counts():
@@ -586,6 +588,7 @@ def test_taifex_nested_list_payload_flattens_to_mapping_rows_only():
 
 
 def test_twse_t86_20260603_parenthesized_foreign_flow_fixture_parses():
+    from tdt_rm.data_providers.normalizers import normalize_public_row
     from tdt_rm.public_data_fetchers import _parse_t86_foreign_flow
 
     payload = json.loads((FIXTURE_DIR / "twse_t86_20260603_response.json").read_text(encoding="utf-8"))
@@ -595,7 +598,8 @@ def test_twse_t86_20260603_parenthesized_foreign_flow_fixture_parses():
     assert row is not None
     assert row["date"] == trade_date.isoformat()
     assert row["foreign_spot_net_buy"] == 10000.0
-    assert row["foreign_spot_net_sell"] is False
+    assert row["foreign_spot_net_sell"] == 0.0
+    assert normalize_public_row("foreign_flow", row, trade_date=trade_date, provider_source="twse_t86")["foreign_spot_net_sell"] == 0.0
 
 
 def test_twse_mi_index_20260603_numbered_breadth_fixture_parses():
