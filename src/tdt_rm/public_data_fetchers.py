@@ -1548,7 +1548,7 @@ def _parse_fmtqik_price_bars(payload: Any, as_of: date) -> list[MarketPriceBar]:
         if observed is None or observed > as_of:
             continue
         close = _to_float(_first(row, "發行量加權股價指數", "TAIEX", "taiex_close", "close"))
-        turnover = _to_float(_first(row, "成交金額", "Trading Value", "turnover_amount", "turnover"))
+        turnover = _to_float(_first(row, "成交金額", "TradeValue", "Trading Value", "turnover_amount", "turnover"))
         if close is not None:
             bars.append(MarketPriceBar(observed_at=observed, close=close, turnover_amount=turnover or 0.0))
     return bars
@@ -2083,11 +2083,17 @@ def _parse_date(value: Any) -> date | None:
     if not text:
         return None
     compact = re.sub(r"[^0-9]", "", text.split()[0])
-    if len(compact) == 8 and "-" not in text.split()[0]:
-        try:
-            return date(int(compact[:4]), int(compact[4:6]), int(compact[6:8]))
-        except ValueError:
-            return None
+    if "-" not in text.split()[0]:
+        if len(compact) == 8:
+            try:
+                return date(int(compact[:4]), int(compact[4:6]), int(compact[6:8]))
+            except ValueError:
+                return None
+        if len(compact) == 7:
+            try:
+                return date(int(compact[:3]) + 1911, int(compact[3:5]), int(compact[5:7]))
+            except ValueError:
+                return None
     parts = text.split()[0].split("-")
     try:
         if len(parts) == 3 and len(parts[0]) <= 3:

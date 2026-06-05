@@ -73,6 +73,80 @@ def test_twse_official_redirect_following_handles_307(monkeypatch):
     ]
 
 
+def test_parse_date_supports_compact_roc_date():
+    from tdt_rm.public_data_fetchers import _parse_date
+
+    assert _parse_date("1150601") == date(2026, 6, 1)
+    assert _parse_date("1151332") is None
+
+
+def test_fmtqik_openapi_top_level_rows_parse_close_and_trade_value():
+    from tdt_rm.public_data_fetchers import _parse_fmtqik_price_bars
+
+    payload = [
+        {
+            "Date": "1150601",
+            "TradeVolume": "17539429740",
+            "TradeValue": "1611133989740",
+            "Transaction": "7653162",
+            "TAIEX": "45337.91",
+            "Change": "604.97",
+        },
+        {
+            "Date": "1150602",
+            "TradeVolume": "17539429741",
+            "TradeValue": "1611133989741",
+            "Transaction": "7653163",
+            "TAIEX": "45338.91",
+            "Change": "1.00",
+        },
+    ]
+
+    bars = _parse_fmtqik_price_bars(payload, date(2026, 6, 2))
+
+    assert len(bars) == 2
+    assert bars[0].observed_at == date(2026, 6, 1)
+    assert bars[0].close == 45337.91
+    assert bars[0].turnover_amount == 1611133989740.0
+    assert bars[1].observed_at == date(2026, 6, 2)
+
+
+def test_fmtqik_fixture_style_rows_still_parse():
+    from tdt_rm.public_data_fetchers import _parse_fmtqik_price_bars
+
+    payload = json.loads((FIXTURE_DIR / "official_price_response.json").read_text(encoding="utf-8"))
+
+    bars = _parse_fmtqik_price_bars(payload, AS_OF)
+
+    assert len(bars) >= 61
+    assert bars[-1].observed_at == AS_OF
+    assert bars[-1].close == 42008
+    assert bars[-1].turnover_amount == 500084000000.0
+
+
+def test_fmtqik_provider_strict_success_still_requires_61_usable_bars(monkeypatch):
+    from tdt_rm import public_data_fetchers as fetchers
+    from tdt_rm.public_data_fetchers import TWSEFMTQIKPriceSource
+
+    monkeypatch.setattr(
+        fetchers,
+        "_fetch_configured_payloads",
+        lambda config, context: [
+            [
+                {"Date": "1150601", "TradeValue": "1611133989740", "TAIEX": "45337.91"},
+                {"Date": "1150602", "TradeValue": "1611133989741", "TAIEX": "45338.91"},
+            ]
+        ],
+    )
+    source = TWSEFMTQIKPriceSource({"source_id": "twse_fmtqik_price", "min_bars": 61})
+
+    result = source.fetch(PublicDataFetchContext(as_of=date(2026, 6, 2)))
+
+    assert not result.success
+    assert result.status == "failed"
+    assert result.raw_metadata["bar_count"] == 2
+    assert result.issues[0].code == "insufficient_price_history"
+
 def test_twse_margin_source_generates_required_margin_fields(monkeypatch):
     from tdt_rm import public_data_fetchers as fetchers
 
