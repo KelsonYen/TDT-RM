@@ -378,3 +378,11 @@ def test_attempt_manifest_row_classifies_disabled_finmind_as_config(tmp_path: Pa
     )
 
     assert row["failure_layer"] == "CONFIG"
+
+
+def test_daily_production_workflow_avoids_network_dependent_editable_install() -> None:
+    workflow = Path(".github/workflows/daily-production-data-fetch.yml").read_text(encoding="utf-8")
+
+    assert "Prepare Python path" in workflow
+    assert "python -m pip install -e ." not in workflow
+    assert "PYTHONPATH=$GITHUB_WORKSPACE/src:$GITHUB_WORKSPACE/scripts" in workflow
