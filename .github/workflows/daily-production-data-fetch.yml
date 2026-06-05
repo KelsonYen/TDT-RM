@@ -23,7 +23,7 @@ on:
     - cron: "30 0 * * 1-5"
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   PYTHON_VERSION: "3.11"
@@ -230,6 +230,49 @@ jobs:
             reports/daily/${{ steps.as-of.outputs.as_of }}/artifacts/provider_health.json
           if-no-files-found: warn
           retention-days: 90
+
+      - name: Commit daily production report back to repository
+        if: ${{ success() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          trade_date="${{ steps.as-of.outputs.trade_date }}"
+          if [[ -z "$trade_date" ]]; then
+            echo "Resolved trade_date is empty; cannot build daily report commit message." >&2
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          commit_paths=(
+            "outputs/daily/$trade_date"
+            "reports/daily/$trade_date"
+            "inputs/daily/$trade_date"
+          )
+
+          existing_paths=()
+          for path in "${commit_paths[@]}"; do
+            if [[ -e "$path" ]]; then
+              existing_paths+=("$path")
+            fi
+          done
+
+          if [[ "${#existing_paths[@]}" -eq 0 ]]; then
+            echo "NO_DAILY_REPORT_CHANGES_TO_COMMIT"
+            echo "NO_DAILY_REPORT_CHANGES_TO_COMMIT" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          git add -- "${existing_paths[@]}"
+          if git diff --cached --quiet; then
+            echo "NO_DAILY_REPORT_CHANGES_TO_COMMIT"
+            echo "NO_DAILY_REPORT_CHANGES_TO_COMMIT" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          git commit -m "chore(daily): add production report $trade_date"
+          git push
 
       - name: Append uploaded artifact digest to job summary
         if: always()
