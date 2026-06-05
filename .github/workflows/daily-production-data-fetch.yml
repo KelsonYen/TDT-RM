@@ -80,12 +80,19 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
 
-      - name: Install package
+      - name: Prepare Python path
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --upgrade pip
-          python -m pip install -e .
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/src:$GITHUB_WORKSPACE/scripts:${PYTHONPATH:-}" >> "$GITHUB_ENV"
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+
+          root = Path.cwd()
+          sys.path.insert(0, str(root / "src"))
+          import tdt_rm  # noqa: F401
+          PY
 
       - name: Run provider connectivity audit
         shell: bash
