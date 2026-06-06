@@ -27,6 +27,7 @@ def test_crash_probability_returns_requested_score_level_and_trace_output():
         "eti5_total": 2,
         "tail_risk": 60,
         "bcd": 70,
+        "bcd_status": "COMPLETE",
     }
     assert serialized["trace_output"]["scaled_inputs"]["eti5_scaled"] == 40
     assert serialized["trace_output"]["contributions"] == {
@@ -77,3 +78,14 @@ def test_crash_probability_rejects_eti5_total_outside_valid_range(eti5_total):
                 bcd=0,
             )
         )
+
+
+def test_crash_probability_excludes_bcd_when_status_is_incomplete():
+    result = score_crash_probability(
+        CrashProbabilityInput(tcwrs=50, eti5_total=2, tail_risk=60, bcd=70, bcd_status="INCOMPLETE")
+    )
+
+    assert result.cp_raw == 44
+    assert result.trace_output["raw"]["bcd"] is None
+    assert result.trace_output["input_status"]["bcd"] == "missing_excluded_from_cp_contribution"
+    assert result.trace_output["input_status"]["bcd_status"] == "INCOMPLETE"

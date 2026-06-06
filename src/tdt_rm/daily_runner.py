@@ -269,6 +269,7 @@ def build_daily_payload(
             eti5_total=eti5.eti_score,
             tail_risk=tail_risk,
             bcd=bcd,
+            bcd_status=bcd_result.data_quality_status,
         )
     )
     bear_trend = score_bear_trend_filter(
@@ -287,6 +288,7 @@ def build_daily_payload(
             tail_risk=tail_risk,
             bcd=bcd,
             taiex=close,
+            bcd_status=bcd_result.data_quality_status,
             ma20=ma20,
             consecutive_down_days=consecutive_down_days,
             mhs=mhs,
@@ -431,6 +433,7 @@ def build_daily_payload_from_snapshot(
             eti5_total=eti5.eti_score,
             tail_risk=tail_risk,
             bcd=bcd,
+            bcd_status=bcd_result.data_quality_status,
         )
     )
     bear_trend = score_bear_trend_filter(
@@ -450,6 +453,7 @@ def build_daily_payload_from_snapshot(
             bcd=bcd,
             taiex=close,
             ma20=ma20,
+            bcd_status=bcd_result.data_quality_status,
             consecutive_down_days=consecutive_down_days,
             mhs=mhs,
             cp_score=cp.cp_score,

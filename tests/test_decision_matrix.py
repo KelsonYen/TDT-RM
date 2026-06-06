@@ -51,6 +51,26 @@ def test_bcd_orange_uses_calibrated_rule_without_price_confirmation_context():
     assert result.matched_rule == "BCD >= 61 AND TCWRS >= 41 AND ETI5_total >= 2"
 
 
+def test_incomplete_bcd_status_blocks_bcd_decision_rules():
+    result = resolve_five_light_signal(
+        DecisionMatrixInput(
+            tcwrs=20,
+            eti5_total=0,
+            tail_risk=0,
+            bcd=80,
+            bcd_status="INCOMPLETE",
+            taiex=80,
+            ma20=90,
+            consecutive_down_days=4,
+        )
+    )
+
+    assert result.signal == "Green"
+    assert result.matched_rule == "Default/green light conditions"
+    assert result.trace_output["bcd"] is None
+    assert result.trace_output["bcd_status"] == "INCOMPLETE"
+
+
 def test_bear_trend_filter_applies_floor_without_changing_tcwrs():
     bear = score_bear_trend_filter(
         BearTrendInput(close=80, ma20=90, ma60=100, previous_ma60=101, return_60d_pct=-12)

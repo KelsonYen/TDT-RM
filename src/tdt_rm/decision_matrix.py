@@ -41,6 +41,7 @@ class DecisionMatrixInput:
     ma20: float
     consecutive_down_days: int
     mhs: float = 0.0
+    bcd_status: str = "COMPLETE"
     cp_score: float | None = None
     eti_available_count: int | None = None
 
@@ -205,12 +206,16 @@ def resolve_five_light_signal(
 ) -> DecisionMatrixResult:
     """Apply V5.1.4 rules, then non-downgrading bear/CAL floors."""
 
+    bcd_status_complete = str(data.bcd_status).upper() == "COMPLETE"
+    effective_bcd = data.bcd if bcd_status_complete else None
+
     trace = {
         "tcwrs": data.tcwrs,
         "eti5_total": data.eti5_total,
         "eti_available_count": data.eti_available_count,
         "tail_risk": data.tail_risk,
-        "bcd": data.bcd,
+        "bcd": effective_bcd,
+        "bcd_status": data.bcd_status,
         "taiex": data.taiex,
         "ma20": data.ma20,
         "consecutive_down_days": data.consecutive_down_days,
@@ -237,7 +242,7 @@ def resolve_five_light_signal(
         (61 <= data.tcwrs <= 75 and data.eti5_total >= 2, "61 <= TCWRS <= 75 AND ETI5_total >= 2"),
         (data.eti5_total >= 3 and data.tcwrs >= 41, "ETI5_total >= 3 AND TCWRS >= 41"),
         (data.tcwrs >= 41 and data.tail_risk >= 61 and data.eti5_total >= 2, "TCWRS >= 41 AND TailRisk >= 61 AND ETI5_total >= 2"),
-        (data.bcd is not None and data.bcd >= 61 and data.tcwrs >= 41 and data.eti5_total >= 2, "BCD >= 61 AND TCWRS >= 41 AND ETI5_total >= 2"),
+        (effective_bcd is not None and effective_bcd >= 61 and data.tcwrs >= 41 and data.eti5_total >= 2, "BCD >= 61 AND TCWRS >= 41 AND ETI5_total >= 2"),
         (data.eti5_total >= 4 and data.tcwrs < 41, "ETI5_total >= 4 AND TCWRS < 41; downgraded to Orange"),
     )
     for matched, rule in orange_rules:
@@ -250,7 +255,7 @@ def resolve_five_light_signal(
         (data.mhs >= 86 and data.tcwrs >= 30, "MHS >= 86 AND TCWRS >= 30"),
         (data.eti5_total >= 2 and data.tcwrs >= 21, "ETI5_total >= 2 AND TCWRS >= 21"),
         (data.tail_risk >= 61 and data.tcwrs >= 21, "TailRisk >= 61 AND TCWRS >= 21"),
-        (data.bcd is not None and data.bcd >= 61 and data.tcwrs >= 21, "BCD >= 61 AND TCWRS >= 21"),
+        (effective_bcd is not None and effective_bcd >= 61 and data.tcwrs >= 21, "BCD >= 61 AND TCWRS >= 21"),
     )
     for matched, rule in strengthened_yellow_rules:
         if matched:
@@ -262,7 +267,7 @@ def resolve_five_light_signal(
         (data.mhs >= 71, "MHS >= 71"),
         (data.eti5_total >= 1, "ETI5_total >= 1"),
         (data.tail_risk >= 41, "TailRisk >= 41"),
-        (data.bcd is not None and data.bcd >= 41, "BCD >= 41"),
+        (effective_bcd is not None and effective_bcd >= 41, "BCD >= 41"),
     )
     for matched, rule in yellow_rules:
         if matched:
