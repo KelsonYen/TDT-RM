@@ -4,6 +4,7 @@ from pathlib import Path
 
 from tdt_rm.daily_pipeline import render_final_operator_report, run_daily_pipeline
 from tdt_rm.daily_validation import validate_daily_artifacts
+from tdt_rm.report_quality import assess_production_report_quality, render_operator_disclosure
 
 
 TRADE_DATE = date(2026, 6, 5)
@@ -39,13 +40,40 @@ def test_2026_06_05_fallback_options_and_disclosures_fail_operator_quality(tmp_p
     assert any(item["provider_source"] == "FINMIND_FALLBACK:TaiwanOptionDaily:TXO" for item in disclosure["fallback_provider_datasets"])
     assert {item["operator_field"] for item in disclosure["fallback_operator_dependencies"]} >= {"Tail Risk", "BCD", "Crash Probability"}
     assert {item["field"] for item in disclosure["placeholder_default_like_fields"]} >= {"nasdaq", "sox"}
+    assert "required module(s) not integrated: ETF Exit" not in disclosure["blocking_reasons"]
     assert any(item["module"] == "ETF Exit" and item["status"] == "not_integrated" for item in disclosure["non_integrated_modules"])
+    assert any(item["module"] == "ETF Exit" and item["status"] == "not_integrated" for item in disclosure["non_blocking_module_warnings"])
 
     report = render_final_operator_report(result)
     assert "## Operator Disclosure" in report
     assert "Production Report Quality: `FAIL_FOR_OPERATOR_USE`" in report
     assert "Acceptable for Real-World Daily Use: `NO`" in report
     assert "FINMIND_FALLBACK:TaiwanOptionDaily:TXO" in report
+    assert "### Blocking Quality Failures" in report
+    assert "### Non-Blocking Module Warnings" in report
+    assert "### Data-Source Warnings" in report
     assert "field=nasdaq" in report
     assert "field=sox" in report
     assert "module=ETF Exit; status=not_integrated" in report
+    assert "required module(s) not integrated: ETF Exit" not in report
+
+
+def test_etf_exit_not_integrated_only_passes_with_non_blocking_disclosure():
+    payload = {"etf_exit": {"status": "not_integrated", "notes": "standalone daily report"}, "data": {}}
+
+    disclosure = assess_production_report_quality(payload)
+
+    assert disclosure["production_report_quality"] == "PASS_WITH_DISCLOSURE"
+    assert disclosure["acceptable_for_real_world_daily_use"] is True
+    assert disclosure["blocking_reasons"] == []
+    assert disclosure["non_integrated_modules"] == [
+        {"module": "ETF Exit", "status": "not_integrated", "notes": "standalone daily report"}
+    ]
+    assert disclosure["non_blocking_module_warnings"] == disclosure["non_integrated_modules"]
+
+    rendered = render_operator_disclosure(disclosure)
+    blocking_section, rest = rendered.split("### Non-Blocking Module Warnings", maxsplit=1)
+    module_section = rest.split("### Data-Source Warnings", maxsplit=1)[0]
+    assert "required module(s) not integrated: ETF Exit" not in rendered
+    assert "module=ETF Exit; status=not_integrated" not in blocking_section
+    assert "module=ETF Exit; status=not_integrated" in module_section
