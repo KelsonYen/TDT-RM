@@ -40,6 +40,7 @@ def assess_production_report_quality(payload: Mapping[str, Any]) -> dict[str, An
     fallback_dependencies = _fallback_dependencies(field_sources, source_metadata)
     placeholder_fields = _placeholder_global_fields(payload, field_sources)
     non_integrated_modules = _non_integrated_modules(etf_exit)
+    bcd_provider_violations = _bcd_provider_violations(payload, field_sources)
 
     blocking_reasons: list[str] = []
     if fallback_dependencies:
@@ -48,6 +49,9 @@ def assess_production_report_quality(payload: Mapping[str, Any]) -> dict[str, An
     if placeholder_fields:
         fields = ", ".join(item["field"] for item in placeholder_fields)
         blocking_reasons.append(f"default-like global-risk field(s) without confirmed source: {fields}")
+    if bcd_provider_violations:
+        reasons = "; ".join(item["reason"] for item in bcd_provider_violations)
+        blocking_reasons.append(f"provider-supplied BCD is forbidden: {reasons}")
 
     module_warnings = non_integrated_modules
     if blocking_reasons:
@@ -64,10 +68,27 @@ def assess_production_report_quality(payload: Mapping[str, Any]) -> dict[str, An
         "fallback_provider_datasets": fallback_datasets,
         "fallback_operator_dependencies": fallback_dependencies,
         "placeholder_default_like_fields": placeholder_fields,
+        "bcd_provider_violations": bcd_provider_violations,
         "non_integrated_modules": non_integrated_modules,
         "non_blocking_module_warnings": module_warnings,
         "blocking_reasons": blocking_reasons,
     }
+
+
+def _bcd_provider_violations(payload: Mapping[str, Any], field_sources: Mapping[str, Any]) -> list[dict[str, Any]]:
+    violations: list[dict[str, Any]] = []
+    source_id = _field_source_id(field_sources.get("bcd"))
+    if source_id == "options_csv":
+        violations.append({"field": "field_sources.bcd", "source_id": source_id, "reason": "field_sources.bcd == options_csv"})
+    elif source_id:
+        violations.append({"field": "field_sources.bcd", "source_id": source_id, "reason": f"field_sources.bcd assigned to provider {source_id}"})
+
+    data = _mapping(payload.get("data"))
+    snapshot = _mapping(data.get("snapshot") or data.get("assembled_snapshot"))
+    canonical_row = _mapping(snapshot.get("canonical_row")) if snapshot else {}
+    if "bcd" in canonical_row and canonical_row.get("bcd") is not None:
+        violations.append({"field": "snapshot.canonical_row.bcd", "source_id": source_id, "reason": "assembled snapshot contains provider-supplied bcd"})
+    return violations
 
 
 def render_operator_disclosure(quality: Mapping[str, Any]) -> str:

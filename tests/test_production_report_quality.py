@@ -78,7 +78,7 @@ def test_etf_exit_not_integrated_only_passes_with_non_blocking_disclosure():
     assert "module=ETF Exit; status=not_integrated" in module_section
 
 
-def test_confirmed_finmind_fallback_named_provider_is_not_fallback_blocking():
+def test_options_csv_bcd_source_fails_even_for_confirmed_finmind_provider():
     payload = {
         "data": {
             "field_sources": {"tail_risk": "options_csv", "bcd": "options_csv"},
@@ -94,10 +94,13 @@ def test_confirmed_finmind_fallback_named_provider_is_not_fallback_blocking():
 
     disclosure = assess_production_report_quality(payload)
 
-    assert disclosure["production_report_quality"] == "PASS"
-    assert disclosure["blocking_reasons"] == []
+    assert disclosure["production_report_quality"] == "FAIL_FOR_OPERATOR_USE"
     assert disclosure["fallback_provider_datasets"] == []
     assert disclosure["fallback_operator_dependencies"] == []
+    assert disclosure["bcd_provider_violations"] == [
+        {"field": "field_sources.bcd", "source_id": "options_csv", "reason": "field_sources.bcd == options_csv"}
+    ]
+    assert disclosure["blocking_reasons"] == ["provider-supplied BCD is forbidden: field_sources.bcd == options_csv"]
 
 
 def test_nasdaq_sox_zero_without_source_fails():

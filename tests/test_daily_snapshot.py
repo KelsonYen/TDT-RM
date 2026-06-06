@@ -125,9 +125,38 @@ def test_missing_required_price_fields_fails():
     assert any(issue.code == "missing_required_field" and issue.field == "canonical_row.close" for issue in validation.issues)
 
 
+def test_snapshot_validation_rejects_provider_supplied_bcd():
+    snap = snapshot(bcd=35.0)
+
+    validation = validate_daily_snapshot(snap)
+
+    assert not validation.is_valid
+    assert any(issue.code == "provider_supplied_bcd" for issue in validation.issues)
+
+
+def test_snapshot_validation_rejects_options_csv_bcd_source():
+    snap = snapshot()
+    snap = DailyMarketSnapshot(
+        trade_date=snap.trade_date,
+        observed_at=snap.observed_at,
+        canonical_row={key: value for key, value in snap.canonical_row.items() if key != "bcd"},
+        price_bars=snap.price_bars,
+        field_sources={**snap.field_sources, "bcd": "options_csv"},
+        source_metadata=snap.source_metadata,
+        data_status=snap.data_status,
+        limitations=snap.limitations,
+        warnings=snap.warnings,
+    )
+
+    validation = validate_daily_snapshot(snap)
+
+    assert not validation.is_valid
+    assert any(issue.code == "forbidden_bcd_source" for issue in validation.issues)
+
+
 def test_formal_tail_risk_is_used_but_bcd_is_computed_only():
     payload = build_daily_payload_from_snapshot(
-        snapshot(tail_risk=12.25, bcd=8.75),
+        snapshot(tail_risk=12.25),
         timestamp=datetime(2026, 3, 31, 9, 0, tzinfo=UTC),
     )
 
@@ -154,7 +183,7 @@ def test_build_daily_payload_from_snapshot_preserves_existing_payload_shape():
 
 def test_run_daily_production_snapshot_path_writes_artifacts(tmp_path: Path):
     snapshot_path = tmp_path / "snapshot.json"
-    snapshot_path.write_text(json.dumps(snapshot(tail_risk=10.0, bcd=5.0).as_dict()), encoding="utf-8")
+    snapshot_path.write_text(json.dumps(snapshot(tail_risk=10.0).as_dict()), encoding="utf-8")
     out = tmp_path / "out"
 
     result = run_daily_production(

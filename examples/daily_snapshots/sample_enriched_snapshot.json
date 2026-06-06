@@ -44,7 +44,6 @@
     "count_main_7_below_ma20": 5,
     "count_main_7_below_ma60": 2,
     "tail_risk": 42.5,
-    "bcd": 38.0,
     "mhs": 12.0,
     "return_60d_pct": 1.45,
     "previous_ma60": 20965.22
@@ -71,7 +70,6 @@
     "breadth_weakens_for_2_days": "local_breadth_features",
     "count_main_7_below_ma20": "local_leadership_features",
     "tail_risk": "operator_formal_tail_risk",
-    "bcd": "operator_formal_bcd",
     "mhs": "operator_mhs_input"
   },
   "source_metadata": {
@@ -118,10 +116,6 @@
     },
     "operator_formal_tail_risk": {
       "name": "Operator-supplied formal Tail Risk score",
-      "retrieved_at": "2026-05-29T06:27:00+00:00"
-    },
-    "operator_formal_bcd": {
-      "name": "Operator-supplied formal BCD score",
       "retrieved_at": "2026-05-29T06:27:00+00:00"
     },
     "operator_mhs_input": {
