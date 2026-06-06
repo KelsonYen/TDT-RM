@@ -98,8 +98,29 @@ def test_daily_snapshot_assembler_merges_outputs_and_populates_sources():
 
     assert result.validation.is_valid
     assert result.snapshot.canonical_row["tail_risk"] == 40.0
+    assert "bcd" not in result.snapshot.canonical_row
+    assert "bcd" not in result.snapshot.field_sources
     assert result.snapshot.field_sources["tail_risk"] == "scores"
     assert "scores" in result.snapshot.source_metadata
+
+
+def test_provider_field_map_cannot_supply_bcd():
+    provider = StaticMappingProvider(
+        "options_csv",
+        "Options CSV",
+        {"trade_date": "2026-05-29", "bcd_score": 35.0, "tail_risk": 40.0},
+        category="options",
+    )
+
+    result = provider.fetch_or_load(
+        DailyProviderContext(
+            as_of=date(2026, 5, 29),
+            provider_field_maps={"options_csv": {"bcd": "bcd_score"}},
+        )
+    )
+
+    assert "bcd" not in result.canonical_fields
+    assert result.canonical_fields["tail_risk"] == 40.0
 
 
 def test_field_conflicts_are_detected_and_reported():

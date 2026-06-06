@@ -34,7 +34,6 @@ _ALIASES: dict[str, tuple[str, ...]] = {
     "ma60": ("ma60", "taiex_ma60", "index_ma60"),
     "ma20_slope": ("ma20_slope", "taiex_ma20_slope", "index_ma20_slope"),
     "tail_risk": ("tail_risk", "tail_risk_score", "formal_tail_risk"),
-    "bcd": ("bcd", "bcd_score", "formal_bcd"),
     "mhs": ("mhs", "mhs_score"),
     "foreign_spot_net_sell_consecutive_days": ("foreign_spot_net_sell_consecutive_days",),
     "foreign_large_sell": ("foreign_large_sell",),
@@ -220,6 +219,14 @@ def validate_daily_snapshot(snapshot: DailyMarketSnapshot, *, as_of: date | None
     missing = sorted(field for field in _REQUIRED_CANONICAL_FIELDS if _missing(row.get(field)))
     for field_name in missing:
         issues.append(_issue(SNAPSHOT_ERROR_SEVERITY, "missing_required_field", f"canonical_row.{field_name} is required", f"canonical_row.{field_name}"))
+    bcd_source = snapshot.field_sources.get("bcd")
+    if bcd_source == "options_csv":
+        issues.append(_issue(SNAPSHOT_ERROR_SEVERITY, "forbidden_bcd_source", "field_sources.bcd must not be options_csv", "field_sources.bcd"))
+    if not _missing(row.get("bcd")):
+        source_detail = f" from {bcd_source}" if bcd_source else ""
+        issues.append(_issue(SNAPSHOT_ERROR_SEVERITY, "provider_supplied_bcd", f"daily snapshot contains provider-supplied bcd{source_detail}; BCD must be computed only by score_bcd(BCDInput(...))", "canonical_row.bcd"))
+    elif bcd_source:
+        issues.append(_issue(SNAPSHOT_ERROR_SEVERITY, "provider_supplied_bcd_source", "daily snapshot must not assign field_sources.bcd; BCD is not a provider field", "field_sources.bcd"))
     if as_of is not None and snapshot.trade_date > as_of:
         issues.append(_issue(SNAPSHOT_ERROR_SEVERITY, "future_trade_date", f"snapshot trade_date {snapshot.trade_date} is after as_of {as_of}", "trade_date"))
     if snapshot.price_bars:
@@ -327,9 +334,11 @@ def _canonicalize_row(row: Mapping[str, Any], *, field_map: Mapping[str, str] | 
     claimed_raw_keys = set(field_map.values()) if field_map else set()
     if field_map:
         for canonical_name, raw_name in field_map.items():
+            if canonical_name == "bcd":
+                continue
             if raw_name in row and not _missing(row[raw_name]):
                 canonical[canonical_name] = row[raw_name]
-    candidates = set(_ALIASES) | {field.name for field in fields(TCWRSInput)} | {field.name for field in fields(ETI5Input)} | {"tail_risk", "bcd", "mhs", "observed_at"}
+    candidates = set(_ALIASES) | {field.name for field in fields(TCWRSInput)} | {field.name for field in fields(ETI5Input)} | {"tail_risk", "mhs", "observed_at"}
     for canonical_name in candidates:
         if canonical_name in canonical:
             continue

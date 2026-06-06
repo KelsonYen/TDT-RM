@@ -501,6 +501,8 @@ def _canonicalize_row(row: Mapping[str, Any], *, field_map: Mapping[str, str] | 
     claimed_raw_keys = set(field_map.values()) if field_map else set()
     if field_map:
         for canonical_name, raw_name in field_map.items():
+            if canonical_name == "bcd":
+                continue
             if raw_name in row and not _missing(row[raw_name]):
                 canonical[canonical_name] = _coerce_value(canonical_name, row[raw_name])
     for canonical_name in _CANONICAL_FIELDS:
@@ -524,6 +526,8 @@ def _normalize_field_map(field_map: Mapping[str, str]) -> dict[str, str]:
 
     normalized: dict[str, str] = {}
     for left, right in field_map.items():
+        if str(left) == "bcd" or str(right) == "bcd":
+            continue
         canonical_left = left in _CANONICAL_FIELDS
         canonical_right = right in _CANONICAL_FIELDS
         if canonical_left or not canonical_right:
