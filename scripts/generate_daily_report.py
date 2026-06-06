@@ -10,6 +10,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from tdt_rm.daily_runner import render_user_daily_report
+
 REQUIRED_CORE_OUTPUTS: Mapping[str, tuple[str, ...]] = {
     "TCWRS": ("scores.TCWRS", "tcwrs", "TCWRS"),
     "MHS": ("scores.MHS", "mhs", "MHS"),
@@ -135,86 +139,20 @@ def load_report_bundle(
 
 
 def render_daily_report(bundle: Mapping[str, Any], pipeline_summary: Mapping[str, Any] | None = None) -> str:
-    """Render the production Markdown report from a validated artifact bundle.
-
-    The optional ``pipeline_summary`` argument is accepted for compatibility with
-    older callers; when provided, it is merged into a transient bundle.
-    """
+    """Render Dr. Yen's final user-facing daily investment risk report."""
 
     if "model_output" not in bundle:
         legacy_bundle = _legacy_bundle(bundle, pipeline_summary)
         _validate_bundle(legacy_bundle)
         bundle = legacy_bundle
 
-    trade_date = str(bundle["trade_date"])
-    model_output = _mapping(bundle.get("model_output"))
-    fetch_manifest = _mapping(bundle.get("fetch_manifest"))
-    provider_health = _provider_entries(_mapping(bundle.get("provider_health")))
-    validation = _validation_payload(_mapping(bundle.get("validation_artifact")))
-    warnings = _validation_messages(validation, "warnings")
-    blocking_errors = _validation_messages(validation, "errors")
-    model_version = _first_present(model_output, ("model_version",), default="unknown")
-    pipeline_status = _pipeline_status(fetch_manifest, _mapping(bundle.get("pipeline_payload")), validation)
-    data_status = _data_status(fetch_manifest, model_output, _mapping(bundle.get("pipeline_payload")))
-    validation_status = _validation_status(validation)
-    manifest_path = bundle.get("fetch_manifest_path") or bundle.get("daily_validation_path") or "none"
-
-    lines = [
-        f"# TDT-RM Daily Production Report｜{trade_date}",
-        "",
-        "## Metadata",
-        f"* Trade Date: {trade_date}",
-        f"* Generated At: {bundle.get('generated_at')}",
-        f"* Model Version: {model_version}",
-        f"* Pipeline Status: {pipeline_status}",
-        f"* Data Status: {data_status}",
-        f"* Validation Status: {validation_status}",
-        f"* Manifest Path: {manifest_path}",
-        "",
-        "## Core Model Outputs",
-    ]
-    core = _core_outputs(model_output)
-    for label in REQUIRED_CORE_OUTPUTS:
-        lines.append(f"* {label}: {core[label]}")
-
-    lines.extend(["", "## Provider Health Summary"])
-    for provider_name in sorted(provider_health):
-        provider = _mapping(provider_health[provider_name])
-        lines.append(
-            "* "
-            f"{provider_name}: {provider.get('status')}, "
-            f"as_of={provider.get('as_of')}, "
-            f"source_type={provider.get('source_type')}, "
-            f"records_loaded={provider.get('records_loaded')}, "
-            f"freshness_status={provider.get('freshness_status')}"
-        )
-
-    lines.extend(["", "## Data Freshness Summary"])
-    for provider_name in sorted(provider_health):
-        provider = _mapping(provider_health[provider_name])
-        lines.append(
-            "* "
-            f"{provider_name}: as_of={provider.get('as_of')}, "
-            f"expected_trade_date={trade_date}, "
-            f"freshness_status={provider.get('freshness_status')}"
-        )
-
-    lines.extend(
-        [
-            "",
-            "## Validation Summary",
-            f"* validation_passed: {_validation_passed(validation)}",
-            f"* blocking_errors: {_format_messages(blocking_errors)}",
-            f"* warnings: {_format_messages(warnings + _provider_warning_messages(provider_health))}",
-            "",
-            "## Final Decision",
-            f"Signal: {core['Signal']}",
-            f"Exposure Limit: {core['Exposure Limit']}",
-            f"Operator Action: {_operator_action(str(core['Signal']), str(core['Exposure Limit']))}",
-            "",
-        ]
-    )
-    return "\n".join(lines)
+    model_output = dict(_mapping(bundle.get("model_output")))
+    data = dict(_mapping(model_output.get("data")))
+    data.setdefault("data_status", _data_status(_mapping(bundle.get("fetch_manifest")), model_output, _mapping(bundle.get("pipeline_payload"))))
+    data.setdefault("latest_bar_date", bundle.get("trade_date"))
+    model_output["data"] = data
+    model_output.setdefault("trade_date", bundle.get("trade_date"))
+    return render_user_daily_report(model_output, generated_at=bundle.get("generated_at"))
 
 
 def render_failed_report(error_message: str) -> str:

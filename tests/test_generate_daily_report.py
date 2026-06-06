@@ -121,10 +121,10 @@ def test_valid_full_output_artifacts_generate_daily_report(tmp_path: Path):
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
     report = (output_dir / "daily_report.md").read_text(encoding="utf-8")
-    assert "TDT-RM Daily Production Report｜2026-06-03" in report
-    assert "* TCWRS: 18" in report
-    assert "* Crash Probability: 24.8" in report
-    assert "Signal: Yellow" in report
+    assert report.splitlines()[0] == "2026/06/03 台股雙溫度計風控報告"
+    assert "TCWRS：18" in report
+    assert "Crash Probability：24.8%" in report
+    assert "今日燈號：黃燈" in report
 
 
 def test_missing_model_output_fails_closed_without_formal_report(tmp_path: Path):
@@ -175,8 +175,9 @@ def test_provider_fallback_warning_still_generates_report(tmp_path: Path):
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
     report = (output_dir / "daily_report.md").read_text(encoding="utf-8")
-    assert "source_type=local_fallback" in report
-    assert "breadth provider used fallback" in report
+    forbidden = ["Audit", "Pipeline", "Validation", "Artifact", "canonical artifact", "source artifact"]
+    assert all(term not in report for term in forbidden)
+    assert "今日動作" in report
 
 
 def test_generated_report_includes_all_required_sections(tmp_path: Path):
@@ -186,8 +187,8 @@ def test_generated_report_includes_all_required_sections(tmp_path: Path):
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
     report = (output_dir / "daily_report.md").read_text(encoding="utf-8")
-    for section in ["Metadata", "Core Model Outputs", "Provider Health Summary", "Data Freshness Summary", "Validation Summary", "Final Decision"]:
-        assert f"## {section}" in report
+    for section in ["核心結論", "ETI-5明細", "今日動作", "優先減碼順序", "警報解除條件", "結論"]:
+        assert f"■ {section}" in report
 
 
 def test_manifest_records_report_generation_status(tmp_path: Path):
@@ -201,3 +202,44 @@ def test_manifest_records_report_generation_status(tmp_path: Path):
     assert fetch_manifest["daily_report"]["status"] == "passed"
     assert fetch_manifest["daily_report"]["report_path"] == str(output_dir / "daily_report.md")
     assert production_manifest["daily_report"]["status"] == "passed"
+
+
+def test_user_report_format_quality_requirements(tmp_path: Path):
+    output_dir = _valid_artifacts(tmp_path)
+
+    proc = _run(output_dir)
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    report = (output_dir / "daily_report.md").read_text(encoding="utf-8")
+    forbidden = [
+        "Audit",
+        "Pipeline",
+        "Validation",
+        "Artifact",
+        "canonical artifact",
+        "source artifact",
+        "manifest",
+        "provider attempts",
+        "fallback dependencies",
+        "operator quality gate",
+        "Production Report Quality",
+        "FAIL_FOR_OPERATOR_USE",
+        "PASS_FOR_OPERATOR_USE",
+    ]
+    assert all(term not in report for term in forbidden)
+    assert report.splitlines()[0] == "2026/06/03 台股雙溫度計風控報告"
+    assert all(f"■ {section}" in report for section in ["核心結論", "ETI-5明細", "今日動作", "優先減碼順序", "警報解除條件", "結論"])
+    assert "|" not in report
+    assert "今日燈號" in report
+    assert "股票曝險上限" in report
+    assert "■ 今日動作" in report
+    assert all(label in report for label in [
+        "ETI-1 加權指數跌破20日線",
+        "ETI-2 外資連續賣超",
+        "ETI-3 新台幣轉貶",
+        "ETI-4 市場廣度惡化",
+        "ETI-5 主流七標的失靈",
+    ])
+    assert "產出時間：" in report
+    assert __import__("re").search(r"產出時間：\d{4}/\d{2}/\d{2} \d{2}:\d{2}", report)
+    assert __import__("re").search(r"資料狀態：(正式版|暫估版)", report)

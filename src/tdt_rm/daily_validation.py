@@ -224,13 +224,26 @@ def validate_daily_artifacts(
         markdown = markdown_artifact.read_text(encoding="utf-8")
         trade_date = str(payload.get("trade_date", ""))
         signal = str(payload.get("signal", ""))
-        if trade_date and trade_date not in markdown:
+        slash_trade_date = trade_date.replace("-", "/")
+        if trade_date and trade_date not in markdown and slash_trade_date not in markdown:
             issues.append(_error("markdown_trade_date_mismatch", f"Markdown artifact does not reference trade_date {trade_date}", "markdown_path"))
-        if signal and signal not in markdown:
+        localized_signal = _localized_signal(signal)
+        if signal and signal not in markdown and localized_signal not in markdown:
             issues.append(_error("markdown_signal_mismatch", f"Markdown artifact does not reference signal {signal}", "markdown_path"))
 
     return DailyValidationResult(tuple(issues))
 
+
+
+def _localized_signal(signal: str) -> str:
+    return {
+        "Green": "綠燈",
+        "Yellow": "黃燈",
+        "Strengthened Yellow": "強化黃燈",
+        "Orange": "橘燈",
+        "Red": "紅燈",
+        "Deep Red": "紅燈",
+    }.get(signal, signal)
 
 def build_daily_run_manifest(
     payload: Mapping[str, Any],
