@@ -10,6 +10,12 @@
   },
   "as_of": "2026-06-05",
   "blocking_error": null,
+  "daily_report": {
+    "error_message": "",
+    "generated_at": "2026-06-06T23:21:28.866855+00:00",
+    "report_path": "reports/daily/2026-06-05/2026-06-05_tdt_rm_user_report.md",
+    "status": "passed"
+  },
   "data_status": "READY",
   "fail_closed": false,
   "failed_sources": [],

@@ -18,6 +18,7 @@ import urllib.request
 from dataclasses import dataclass, field, fields
 from datetime import UTC, date, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from typing import Any, Iterable, Mapping, Protocol, Sequence
 
 from .bcd import BCDInput, BCDResult, BreadthBar, assert_bcd_tail_risk_independence, score_bcd
@@ -47,6 +48,7 @@ DEFAULT_TWSE_URL = "https://www.twse.com.tw/rwd/en/TAIEX/MI_5MINS_HIST"
 DEFAULT_MIN_BARS = 61
 DEFAULT_LOOKBACK_MONTHS = 12
 MODEL_VERSION = "TDT-RM V5.1.4"
+TAIPEI_TZ = ZoneInfo("Asia/Taipei")
 
 
 class DailyDataFetcher(Protocol):
@@ -615,7 +617,8 @@ def render_user_daily_report(payload: Mapping[str, Any], *, generated_at: str | 
     signal = str(payload.get("signal") or "")
     market_state = str(payload.get("market_regime") or payload.get("regime_state") or "watch")
     exposure_limit = payload.get("equity_exposure_limit") or payload.get("exposure_limit")
-    report_time = _display_report_time(generated_at or payload.get("timestamp") or datetime.now(UTC))
+    report_timestamp = generated_at if generated_at is not None else datetime.now(TAIPEI_TZ)
+    report_time = _display_report_time(report_timestamp)
     data_status = _display_data_status(data.get("data_status") or data.get("status") or payload.get("data_status"))
     tcwrs = scores.get("TCWRS", payload.get("tcwrs"))
     mhs = scores.get("MHS", payload.get("mhs"))
@@ -692,13 +695,16 @@ def _slash_date(value: Any) -> str:
 
 def _display_report_time(value: str | datetime) -> str:
     if isinstance(value, datetime):
-        return value.strftime("%Y/%m/%d %H:%M")
-    text = str(value).replace("Z", "+00:00")
-    try:
-        parsed = datetime.fromisoformat(text)
-    except ValueError:
-        return str(value)[:16].replace("-", "/").replace("T", " ")
-    return parsed.strftime("%Y/%m/%d %H:%M")
+        parsed = value
+    else:
+        text = str(value).replace("Z", "+00:00")
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            return str(value)[:16].replace("-", "/").replace("T", " ")
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=TAIPEI_TZ)
+    return parsed.astimezone(TAIPEI_TZ).strftime("%Y/%m/%d %H:%M")
 
 
 def _display_data_status(value: Any) -> str:
