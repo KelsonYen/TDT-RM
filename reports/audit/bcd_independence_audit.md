@@ -1,77 +1,87 @@
 # BCD Independence Audit
 
-## Executive result
+Trade date: 2026-06-05
+Calculation version: BCD-INDEPENDENT-V1
+BCD Status: INCOMPLETE
+Completeness score: 0.0
+Missing Inputs: ["breadth_history", "main7_returns", "main7_weights", "main7_concentration", "sector_breadth", "sector_diffusion", "otc_return_pct", "small_mid_breadth", "small_mid_weakness", "turnover_concentration_topn", "turnover_concentration"]
 
-BCD is now calculated only from independent breadth, leadership, diffusion, OTC/small-mid, and turnover concentration inputs. If those inputs are incomplete, the production payload sets `bcd_status = INCOMPLETE`, `bcd = null`, and records missing components rather than copying Tail Risk, an options CSV value, or any other proxy.
-
-## Required input sources
-
-| Required input | Production source path | Notes |
-| --- | --- | --- |
-| `breadth_history` | Snapshot canonical row → `BCDInput.breadth_history` | Parsed into `BreadthBar` history. |
-| `main7_returns` | Snapshot canonical row → `BCDInput.main7_returns` | Leadership return map. |
-| `main7_weights` | Snapshot canonical row → `BCDInput.main7_weights` | Leadership weight map. |
-| `sector_diffusion` | Snapshot canonical row fields `sector_returns` and `sector_above_ma20` | Both are required for complete sector diffusion. |
-| `otc_return_pct` | Snapshot canonical row → `BCDInput.otc_return_pct` | OTC / small-mid return divergence. |
-| `small_mid_breadth` | Snapshot canonical row `small_mid_advancing_issues` + `small_mid_declining_issues` | Converted to a `BreadthBar`. |
-| `turnover_concentration_topn` | Snapshot canonical row → `BCDInput.turnover_concentration_topn` | Top-N turnover concentration. |
-
-## Complete lineage report
-
-| Field written | Source file | Function / method | Line number | Upstream dependency |
-| --- | --- | --- | ---: | --- |
-| `BCDResult.final_score` | `src/tdt_rm/bcd.py` | `score_bcd` | 200 | Sum of component scores only when `_missing_required_inputs` is empty and dependency guard passes. |
-| `bcd` | `src/tdt_rm/daily_runner.py` | `build_daily_payload_from_snapshot` | 413-414 | `bcd_result.final_score` from `_bcd_result_from_snapshot`; never `tail_risk` or `options_csv.bcd`. |
-| `payload["bcd"]` | `src/tdt_rm/daily_runner.py` | `build_daily_payload_from_snapshot` | 481 | `_round_optional(bcd)`, preserving `null` when incomplete. |
-| `payload["scores"]["BCD"]` | `src/tdt_rm/daily_runner.py` | `build_daily_payload_from_snapshot` | 504-510 | Same `_round_optional(bcd)` value as top-level payload. |
-| `traces.bcd` | `src/tdt_rm/daily_runner.py` | `build_daily_payload_from_snapshot` | 512-519 | `BCDResult.as_dict()` audit trace. |
-| `bcd_status`, `bcd_data_completeness`, `bcd_missing_components`, `bcd_source_dependencies`, `bcd_calculation_version` | `src/tdt_rm/daily_runner.py` | `build_daily_payload_from_snapshot` | 481-486 | `BCDResult` audit fields. |
-| `bcd` in price-only payload | `src/tdt_rm/daily_runner.py` | `build_daily_payload` | 234-235, 311 | `_price_only_bcd_result` returns `INCOMPLETE`, so the written BCD is `null`; no synthetic price-only BCD is emitted. |
-| `bcd` in CP input | `src/tdt_rm/daily_runner.py` | `build_daily_payload_from_snapshot` | 428-434 | Passes `None` through when BCD is incomplete. |
-| BCD decision thresholds | `src/tdt_rm/decision_matrix.py` | `resolve_five_light_signal` | 240, 253, 265 | Rules evaluate BCD thresholds only when `data.bcd is not None`. |
-| BCD CP contribution | `src/tdt_rm/crash_probability.py` | `score_crash_probability` | 77-112 | Missing BCD is excluded with `input_status.bcd = missing_excluded_from_cp_contribution`. |
-| Snapshot provider category fields | `src/tdt_rm/daily_providers.py` | module constants / assembler inputs | 44-86 | `options` and `scores` categories no longer include `bcd`; `options_csv.bcd` cannot write `snapshot.canonical_row["bcd"]`. |
-| Daily report disclosure | `src/tdt_rm/daily_runner.py` | `render_user_daily_report` | 638-640 | Report prints BCD value, status, missing inputs, and BCD explanation lines. |
-| Audit artifact writer | `src/tdt_rm/daily_runner.py` | `write_bcd_audit_artifacts` | 982-1029 | Writes BCD trace JSON/CSV and this independence audit Markdown. |
-
-No production assignment path copies `tail_risk → bcd`. No production provider category accepts `options_csv.bcd → snapshot.bcd`.
+## Input sources
+- advancing_issues: breadth_csv
+- breadth_weakens_for_2_days: breadth_csv
+- close: taiex_price
+- close_below_ma20_consecutive_days: taiex_price
+- count_main_7_below_ma20: leadership_csv
+- count_main_7_below_ma60: leadership_csv
+- declining_gt_advancing_consecutive_days: breadth_csv
+- declining_issues: breadth_csv
+- declining_issues_significantly_expand: breadth_csv
+- declining_issues_significantly_gt_advancing: breadth_csv
+- foreign_large_sell: foreign_flow_csv
+- foreign_spot_large_sell: foreign_flow_csv
+- foreign_spot_net_buy: foreign_flow_csv
+- foreign_spot_net_sell: foreign_flow_csv
+- foreign_spot_net_sell_consecutive_days: foreign_flow_csv
+- futures_hedging_increases: futures_csv
+- futures_hedging_significant: futures_csv
+- futures_net_short_decreases: futures_csv
+- futures_net_short_increases: futures_csv
+- hot_stock_margin_fast_increase: margin_csv
+- index_5d_return_pct: taiex_price
+- index_down: breadth_csv
+- ma20: taiex_price
+- ma20_slope: taiex_price
+- ma5: taiex_price
+- ma60: taiex_price
+- main_7_symbols: leadership_csv
+- majority_main_7_assets_above_ma20: leadership_csv
+- margin_balance_5d_decline_pct: margin_csv
+- margin_balance_5d_flat_or_down: margin_csv
+- margin_balance_5d_increases: margin_csv
+- margin_not_retreating: margin_csv
+- mhs: leadership_csv
+- observed_at: margin_csv
+- one_day_return_pct: taiex_price
+- pcr_rises: options_csv
+- pcr_stable: options_csv
+- previous_ma60: taiex_price
+- return_60d_pct: taiex_price
+- taiex_return_pct: taiex_price
+- tail_risk: options_csv
+- turnover_amount: taiex_price
+- twd_appreciates: fx_csv
+- twd_depreciates_significantly: fx_csv
+- twd_stable: fx_csv
+- two_day_return_pct: taiex_price
+- usd_twd_3d_change_pct: fx_csv
+- usd_twd_5d_change_pct: fx_csv
+- vix_rises: options_csv
+- vix_stable: options_csv
 
 ## Calculation path
-
-1. `DailySnapshotAssembler` collects only independent BCD inputs from breadth, leadership, sector/diffusion, OTC/small-mid, and margin/turnover sources. The options and scores provider categories exclude BCD.
-2. `build_daily_payload_from_snapshot` calls `_bcd_result_from_snapshot`.
-3. `_bcd_result_from_snapshot` maps the required independent inputs into `BCDInput`.
-4. `score_bcd` runs component scoring and explicit completeness validation.
-5. If any required input is missing, `score_bcd` returns `final_score=None`, `data_quality_status="INCOMPLETE"`, a completeness score, missing components, dependencies, and version.
-6. Downstream CP and decision code accepts `None` without fabricating a BCD threshold or CP contribution.
-
-## Completeness score
-
-Completeness is calculated as:
-
-```text
-present_required_inputs / 7
-```
-
-The seven required inputs are `breadth_history`, `main7_returns`, `main7_weights`, `sector_diffusion`, `otc_return_pct`, `small_mid_breadth`, and `turnover_concentration_topn`.
+- `src/tdt_rm/daily_runner.py::build_daily_payload_from_snapshot` calls `_bcd_result_from_snapshot` and writes BCD payload/audit fields.
+- `src/tdt_rm/daily_runner.py::_bcd_result_from_snapshot` maps independent snapshot breadth, leadership, sector, OTC/small-mid, and turnover fields into `BCDInput`.
+- `src/tdt_rm/bcd.py::score_bcd` validates completeness and returns `final_score=None` unless all required independent inputs are present.
 
 ## Dependency graph
-
-```text
+```
 breadth_history ─┐
 main7_returns ──┤
 main7_weights ──┤
-sector_diffusion ├─> BCDInput -> score_bcd -> bcd / scores.BCD / traces.bcd
+sector_diffusion ├─> BCDInput -> score_bcd -> bcd
 otc_return_pct ─┤
 small_mid_breadth ─┤
 turnover_concentration_topn ─┘
-
-tail_risk ─X forbidden as BCD dependency
-options_csv.bcd ─X forbidden as snapshot or BCD dependency
+tail_risk ─X (forbidden dependency)
+options_csv.bcd ─X (forbidden dependency)
 ```
 
+## Source dependencies
+- advancing_issues<-breadth_csv
+- declining_issues<-breadth_csv
+- taiex_return_pct<-taiex_price
+
 ## Comparison against tail_risk
-
-The independence guard fails execution when `abs(bcd - tail_risk) < 0.0001` persists for more than three consecutive trading days. The daily snapshot path appends the current day to any supplied BCD/Tail Risk comparison history and calls the guard before writing the payload.
-
-When BCD is incomplete, the comparison is not treated as a valid equality because `bcd = null`.
+- Tail Risk: 53.95
+- BCD: None
+- not comparable (BCD incomplete/null)
