@@ -12,7 +12,7 @@ def _write_json(path: Path, payload: dict) -> Path:
     return path
 
 
-def _valid_artifacts(tmp_path: Path, *, provider_status: str = "healthy", provider_source_type: str = "live", provider_freshness: str = "passed", provider_as_of: str = TRADE_DATE, validation_status: str = "passed") -> Path:
+def _valid_artifacts(tmp_path: Path, *, provider_status: str = "healthy", provider_source_type: str = "live", provider_freshness: str | None = "passed", provider_as_of: str = TRADE_DATE, validation_status: str = "passed") -> Path:
     output_dir = tmp_path / "outputs"
     _write_json(
         output_dir / "fetch_manifest.json",
@@ -37,7 +37,19 @@ def _valid_artifacts(tmp_path: Path, *, provider_status: str = "healthy", provid
                     "as_of": provider_as_of,
                     "source_type": provider_source_type,
                     "records_loaded": 1,
-                    "freshness_status": provider_freshness,
+                    **({"freshness_status": provider_freshness} if provider_freshness is not None else {}),
+                    "attempts": [
+                        {
+                            "provider": "TWSE_OFFICIAL",
+                            "attempted": True,
+                            "selected": True,
+                            "status": provider_status,
+                            "output_path": str(output_dir / "price.csv"),
+                            "checks": [{"name": "strict_schema", "status": "passed"}],
+                        }
+                    ],
+                    "source_selected": "TWSE_OFFICIAL",
+                    "reconciliation_checks": [{"name": "strict_schema", "status": "passed"}],
                     "diagnostics": {"messages": ["provider used local fallback"] if provider_source_type == "local_fallback" else []},
                 },
                 "leadership_provider": {
@@ -155,6 +167,25 @@ def test_provider_failed_fails_closed(tmp_path: Path):
     proc = _run(output_dir)
 
     assert proc.returncode != 0
+    assert not (output_dir / "daily_report.md").exists()
+
+
+def test_required_provider_healthy_without_freshness_status_generates_report(tmp_path: Path):
+    output_dir = _valid_artifacts(tmp_path, provider_freshness=None)
+
+    proc = _run(output_dir)
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert (output_dir / "daily_report.md").exists()
+
+
+def test_required_provider_stale_freshness_status_fails_closed(tmp_path: Path):
+    output_dir = _valid_artifacts(tmp_path, provider_freshness="stale")
+
+    proc = _run(output_dir)
+
+    assert proc.returncode != 0
+    assert "required provider stale or freshness failed: price_provider" in proc.stderr
     assert not (output_dir / "daily_report.md").exists()
 
 
