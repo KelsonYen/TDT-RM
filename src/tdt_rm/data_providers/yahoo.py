@@ -264,3 +264,55 @@ def _close_below_ma20_consecutive_days(bars: list[MarketPriceBar]) -> int:
 
 def _pct_change(current: float, previous: float) -> float:
     return 0.0 if previous == 0 else (current / previous - 1.0) * 100.0
+
+
+def main7_constituent_price_series(context: ProviderContext, *, start: date | None = None) -> dict[str, list[MarketPriceBar]]:
+    """Fetch Main-7 constituent price series from Yahoo without imputation."""
+
+    effective_start = start or (context.trade_date - timedelta(days=context.lookback_days))
+    series: dict[str, list[MarketPriceBar]] = {}
+    for symbol in context.main7_symbols:
+        yahoo_symbol = symbol if "." in symbol or symbol.startswith("^") else f"{symbol}.TW"
+        bars = _yahoo_bars(yahoo_symbol, effective_start, context.trade_date, context.timeout)
+        usable = [bar for bar in sorted(bars, key=lambda item: item.observed_at) if bar.observed_at <= context.trade_date]
+        if usable:
+            series[symbol] = usable
+    return series
+
+
+def main7_return_series(context: ProviderContext, *, start: date | None = None) -> dict[str, float]:
+    """Return latest one-day Main-7 returns from Yahoo price series."""
+
+    returns: dict[str, float] = {}
+    for symbol, bars in main7_constituent_price_series(context, start=start).items():
+        if len(bars) >= 2:
+            returns[symbol] = _pct_change(bars[-1].close, bars[-2].close)
+    return returns
+
+
+def main7_weight_input(context: ProviderContext) -> dict[str, float]:
+    """Load optional Main-7 weights from context metadata/config.
+
+    If no explicit weights are supplied, return an empty mapping rather than
+    equal-weighting by default; BCD will mark main7_weights missing.
+    """
+
+    raw = context.metadata.get("main7_weights") if hasattr(context, "metadata") else None
+    if isinstance(raw, Mapping):
+        return {str(key): float(value) for key, value in raw.items()}
+    return {}
+
+
+def topn_turnover_concentration_source(rows: Iterable[Mapping[str, Any]], *, topn: int = 10) -> float | None:
+    """Compute Top-N turnover concentration from per-security turnover rows."""
+
+    turnovers: list[float] = []
+    for row in rows:
+        value = row.get("turnover") or row.get("turnover_amount") or row.get("TradeValue") or row.get("成交金額")
+        if value in {None, ""}:
+            continue
+        turnovers.append(float(str(value).replace(",", "")))
+    total = sum(turnovers)
+    if total <= 0 or not turnovers:
+        return None
+    return sum(sorted(turnovers, reverse=True)[:topn]) / total

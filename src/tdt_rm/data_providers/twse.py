@@ -70,3 +70,64 @@ def _source_config(source_id: str, source_config: str | None) -> Mapping[str, An
 def _failure_message(status: str, issues: tuple[Any, ...]) -> str:
     messages = "; ".join(str(getattr(issue, "message", issue)) for issue in issues)
     return f"status={status}" + (f"; {messages}" if messages else "")
+
+@dataclass(frozen=True)
+class TWSEBreadthHistoryAdapter:
+    """Adapter facade for audit-required TWSE advancing/declining history."""
+
+    source_config: str | None = None
+
+    def fetch_history(self, context: ProviderContext, *, lookback_days: int = 20) -> list[dict[str, Any]]:
+        """Return available official breadth rows through the provider layer.
+
+        The adapter does not synthesize missing dates; failed or unavailable
+        TWSE observations are simply omitted so downstream BCD trace can mark
+        breadth_history as partial when history is insufficient.
+        """
+
+        rows: list[dict[str, Any]] = []
+        provider = TWSEProvider(source_config=self.source_config)
+        from datetime import timedelta
+
+        for offset in range(lookback_days + 1):
+            observed = context.trade_date - timedelta(days=offset)
+            shifted = ProviderContext(
+                trade_date=observed,
+                fetched_at=context.fetched_at,
+                timeout=context.timeout,
+                lookback_days=context.lookback_days,
+                main7_symbols=context.main7_symbols,
+                breadth_universe_config=context.breadth_universe_config,
+            )
+            try:
+                rows.append(provider.fetch("breadth", shifted).row)
+            except Exception:  # noqa: BLE001 - history is optional; absence is audited downstream.
+                continue
+        return sorted(rows, key=lambda item: str(item.get("trade_date") or ""))
+
+
+@dataclass(frozen=True)
+class TWSESectorBreadthAdapter:
+    """Placeholder-free sector breadth adapter contract for TWSE public sources."""
+
+    source_config: str | None = None
+
+    def fetch_sector_breadth(self, context: ProviderContext) -> dict[str, Any]:
+        """Return sector breadth if a public TWSE sector source is configured.
+
+        Current production config has no sector endpoint; returning an explicit
+        unavailable payload lets BCD disclose sector_breadth as missing instead
+        of inventing neutral sector participation.
+        """
+
+        return {
+            "trade_date": context.trade_date.isoformat(),
+            "status": "unavailable",
+            "missing_component": "sector_breadth",
+            "reason": "No configured TWSE public sector breadth endpoint.",
+        }
+
+
+@dataclass(frozen=True)
+class TWSEAdvancingDecliningHistoryAdapter(TWSEBreadthHistoryAdapter):
+    """Named audit integration point for advancing/declining issues history."""

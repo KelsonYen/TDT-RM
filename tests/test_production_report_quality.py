@@ -143,3 +143,26 @@ def test_production_report_quality_fails_only_with_blocking_reasons():
     assert clean["production_report_quality"] == "PASS"
     assert blocked["blocking_reasons"]
     assert blocked["production_report_quality"] == "FAIL_FOR_OPERATOR_USE"
+
+
+def test_production_report_explains_bcd_or_data_limits(tmp_path: Path):
+    result = run_daily_pipeline(
+        as_of=TRADE_DATE,
+        output_dir=tmp_path,
+        price_csv=INPUT_DIR / "price.csv",
+        foreign_csv=INPUT_DIR / "foreign_flow.csv",
+        fx_csv=INPUT_DIR / "fx.csv",
+        breadth_csv=INPUT_DIR / "breadth.csv",
+        futures_csv=INPUT_DIR / "futures.csv",
+        options_csv=INPUT_DIR / "options.csv",
+        leadership_csv=INPUT_DIR / "leadership.csv",
+        margin_csv=INPUT_DIR / "margin.csv",
+        command="pytest",
+    )
+
+    report = render_final_operator_report(result)
+
+    assert "BCD：" in report
+    assert "主要原因：" in report or "資料限制：" in report
+    if "資料限制：" in report:
+        assert "partial BCD" in report

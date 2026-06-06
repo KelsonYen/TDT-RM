@@ -22,7 +22,7 @@ from .daily_providers import (
     ManualScoreProvider,
     TAIEXPriceProvider,
 )
-from .daily_runner import DailyRunResult, render_user_daily_report, run_daily_production
+from .daily_runner import DailyRunResult, render_user_daily_report, run_daily_production, write_bcd_audit_artifacts
 from .daily_snapshot import DailyMarketSnapshot, load_daily_snapshot_json
 from .daily_validation import validate_daily_artifacts
 from .report_quality import assess_production_report_quality, render_operator_disclosure
@@ -166,12 +166,14 @@ def run_daily_pipeline(
         write_manifest=write_manifest,
         command=command,
     )
+    bcd_artifacts = write_bcd_audit_artifacts(production.payload, destination)
     validation = validate_daily_artifacts(production.json_path, production.markdown_path, as_of=as_of)
     result = _build_pipeline_result(
         production=production,
         validation=validation.as_dict(),
         provider_warnings=provider_warnings,
         assembled_snapshot_path=assembled_snapshot_path,
+        extra_artifacts=bcd_artifacts,
     )
     return result.as_dict()
 
@@ -202,7 +204,7 @@ def render_operator_summary(result: Mapping[str, Any]) -> str:
         lines.append(f"- {warning}")
     lines.append(f"validation_status: {result.get('validation_status')}")
     lines.append("artifact_paths:")
-    for name in ("assembled_snapshot", "json", "markdown", "manifest"):
+    for name in ("assembled_snapshot", "json", "markdown", "manifest", "bcd_audit_trace_json", "bcd_audit_trace_csv"):
         if artifacts.get(name):
             lines.append(f"  {name}: {artifacts[name]}")
     return "\n".join(lines)
@@ -514,6 +516,7 @@ def _build_pipeline_result(
     validation: Mapping[str, Any],
     provider_warnings: tuple[str, ...],
     assembled_snapshot_path: Path | None,
+    extra_artifacts: Mapping[str, Path] | None = None,
 ) -> DailyPipelineResult:
     payload = production.payload
     data = _mapping(payload.get("data"))
@@ -526,6 +529,8 @@ def _build_pipeline_result(
         artifacts["manifest"] = str(production.manifest_path)
     if assembled_snapshot_path is not None:
         artifacts["assembled_snapshot"] = str(assembled_snapshot_path)
+    for key, value in (extra_artifacts or {}).items():
+        artifacts[str(key)] = str(value)
 
     quality = _mapping(payload.get("operator_disclosure")) or assess_production_report_quality(payload)
 

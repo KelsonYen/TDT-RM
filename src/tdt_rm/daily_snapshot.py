@@ -45,6 +45,16 @@ _ALIASES: dict[str, tuple[str, ...]] = {
     "declining_issues_significantly_gt_advancing": ("declining_issues_significantly_gt_advancing",),
     "breadth_weakens_for_2_days": ("breadth_weakens_for_2_days",),
     "count_main_7_below_ma20": ("count_main_7_below_ma20",),
+    "breadth_history": ("breadth_history", "advancing_declining_history"),
+    "main7_returns": ("main7_returns", "main_7_returns"),
+    "main7_weights": ("main7_weights", "main_7_weights"),
+    "sector_returns": ("sector_returns",),
+    "sector_above_ma20": ("sector_above_ma20",),
+    "otc_return_pct": ("otc_return_pct",),
+    "small_mid_advancing_issues": ("small_mid_advancing_issues",),
+    "small_mid_declining_issues": ("small_mid_declining_issues",),
+    "small_mid_return_pct": ("small_mid_return_pct",),
+    "turnover_concentration_topn": ("turnover_concentration_topn", "topn_turnover_concentration"),
 }
 
 _ETI_COMPONENT_FIELDS: dict[str, tuple[str, ...]] = {
