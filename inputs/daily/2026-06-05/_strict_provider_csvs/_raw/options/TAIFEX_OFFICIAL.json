@@ -34,7 +34,6 @@
   },
   "raw_source": "taifex_txo_options",
   "row": {
-    "bcd": 100.0,
     "pcr_rises": true,
     "pcr_stable": false,
     "provider_source": "TAIFEX_OFFICIAL:taifex_txo_options",

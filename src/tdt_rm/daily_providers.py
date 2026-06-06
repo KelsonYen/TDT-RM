@@ -26,6 +26,9 @@ from .tcwrs import TCWRSInput
 
 SourceRow = Mapping[str, Any]
 
+FORBIDDEN_PROVIDER_BCD_FIELDS = {"bcd", "BCD", "bcd_score", "provider_bcd", "bcd_final_score", "bcd_status"}
+PROVIDER_BCD_FORBIDDEN_MESSAGE = "Provider-supplied BCD is forbidden. BCD must be computed only by score_bcd(BCDInput(…))."
+
 _MANUAL_SOURCE_KINDS = {"manual", "formal"}
 _PRICE_FIELDS = {
     "observed_at",
@@ -220,7 +223,11 @@ class StaticMappingProvider:
             )
 
     def fetch_or_load(self, context: DailyProviderContext) -> DailyProviderResult:
-        canonical = _canonicalize_row(self.mapping, field_map=context.field_map_for(self.provider_id, self.category))
+        field_map = context.field_map_for(self.provider_id, self.category)
+        guard_errors = _provider_bcd_guard_errors(self.mapping, provider_id=self.provider_id, field_map=field_map)
+        if guard_errors:
+            return _provider_result(self, {}, errors=tuple(guard_errors))
+        canonical = _canonicalize_row(self.mapping, field_map=field_map)
         return _provider_result(self, canonical, notes="In-memory static mapping")
 
 
@@ -257,6 +264,9 @@ class LocalCsvProvider:
             return _provider_result(self, {}, errors=(f"{self.provider_id}: no CSV row found for {context.as_of.isoformat()}",))
         field_map = dict(context.field_map_for(self.provider_id, self.category))
         field_map.update(self.field_map)
+        guard_errors = _provider_bcd_guard_errors(row, provider_id=self.provider_id, field_map=field_map, artifact=self.path)
+        if guard_errors:
+            return _provider_result(self, {}, errors=tuple(guard_errors))
         canonical = _canonicalize_row(row, field_map=field_map)
         return _provider_result(
             self,
@@ -305,6 +315,9 @@ class LocalJsonProvider:
             return _provider_result(self, {}, errors=(f"{self.provider_id}: no JSON row found for {context.as_of.isoformat()}",))
         field_map = dict(context.field_map_for(self.provider_id, self.category))
         field_map.update(self.field_map)
+        guard_errors = _provider_bcd_guard_errors(row, provider_id=self.provider_id, field_map=field_map, artifact=self.path)
+        if guard_errors:
+            return _provider_result(self, {}, errors=tuple(guard_errors))
         canonical = _canonicalize_row(row, field_map=field_map)
         return _provider_result(
             self,
@@ -368,6 +381,9 @@ class ManualScoreProvider:
     def fetch_or_load(self, context: DailyProviderContext) -> DailyProviderResult:
         field_map = dict(context.field_map_for(self.provider_id, "scores"))
         field_map.update(self.field_map)
+        guard_errors = _provider_bcd_guard_errors(self.row, provider_id=self.provider_id, field_map=field_map)
+        if guard_errors:
+            return _provider_result(self, {}, errors=tuple(guard_errors))
         canonical = {key: value for key, value in _canonicalize_row(self.row, field_map=field_map).items() if key in {"observed_at", "tail_risk", "mhs"}}
         return _provider_result(self, canonical, notes="Manual/formal score row")
 
@@ -453,6 +469,30 @@ class DailySnapshotAssembler:
         )
 
 
+
+def _provider_bcd_guard_errors(
+    row: Mapping[str, Any],
+    *,
+    provider_id: str,
+    field_map: Mapping[str, str] | None = None,
+    artifact: str | Path | None = None,
+) -> list[str]:
+    row_fields = sorted(str(key) for key in row if str(key) in FORBIDDEN_PROVIDER_BCD_FIELDS)
+    map_fields = sorted(
+        f"{left}->{right}"
+        for left, right in (field_map or {}).items()
+        if str(left) in FORBIDDEN_PROVIDER_BCD_FIELDS or str(right) in FORBIDDEN_PROVIDER_BCD_FIELDS
+    )
+    if not row_fields and not map_fields:
+        return []
+    location = f" in {artifact}" if artifact is not None else ""
+    details: list[str] = []
+    if row_fields:
+        details.append("row field(s): " + ", ".join(row_fields))
+    if map_fields:
+        details.append("field_map entry(ies): " + ", ".join(map_fields))
+    return [f"{provider_id}{location}: {'; '.join(details)}. {PROVIDER_BCD_FORBIDDEN_MESSAGE}"]
+
 def _provider_result(
     provider: Any,
     canonical: Mapping[str, Any],
@@ -526,8 +566,8 @@ def _normalize_field_map(field_map: Mapping[str, str]) -> dict[str, str]:
 
     normalized: dict[str, str] = {}
     for left, right in field_map.items():
-        if str(left) == "bcd" or str(right) == "bcd":
-            continue
+        if str(left) in FORBIDDEN_PROVIDER_BCD_FIELDS or str(right) in FORBIDDEN_PROVIDER_BCD_FIELDS:
+            raise ValueError(PROVIDER_BCD_FORBIDDEN_MESSAGE)
         canonical_left = left in _CANONICAL_FIELDS
         canonical_right = right in _CANONICAL_FIELDS
         if canonical_left or not canonical_right:

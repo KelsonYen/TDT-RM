@@ -15,7 +15,7 @@
   },
   "canonical_row": {
     "advancing_issues": 620,
-    "bcd": 8.0,
+    "bcd": null,
     "breadth_weakens_for_2_days": false,
     "close": 21550.25,
     "close_below_ma20_consecutive_days": 0,
@@ -69,7 +69,6 @@
   "fallback_proxies": {},
   "field_sources": {
     "advancing_issues": "breadth_csv",
-    "bcd": "options_csv",
     "breadth_weakens_for_2_days": "breadth_csv",
     "close": "taiex_price",
     "close_below_ma20_consecutive_days": "taiex_price",
@@ -128,7 +127,7 @@
   "raw_row_count": 7,
   "requested_date": "2026-06-03",
   "scores": {
-    "BCD": 8.0,
+    "BCD": null,
     "CP": 3.3,
     "ETI-5": 0,
     "MHS": 5.0,
@@ -275,8 +274,7 @@
             "pcr_rises",
             "vix_stable",
             "vix_rises",
-            "tail_risk",
-            "bcd"
+            "tail_risk"
           ],
           "category": "options",
           "notes": null,
@@ -335,13 +333,7 @@
           "source_id": "breadth_csv",
           "source_name": "Local breadth CSV"
         },
-        "bcd": {
-          "field": "bcd",
-          "notes": "inputs/daily/2026-06-03/options.csv",
-          "retrieved_at": "2026-06-03T14:27:51.052633Z",
-          "source_id": "options_csv",
-          "source_name": "Local options CSV"
-        },
+        "bcd": null,
         "breadth_weakens_for_2_days": {
           "field": "breadth_weakens_for_2_days",
           "notes": "inputs/daily/2026-06-03/breadth.csv",
@@ -778,8 +770,7 @@
                 "pcr_rises",
                 "vix_stable",
                 "vix_rises",
-                "tail_risk",
-                "bcd"
+                "tail_risk"
               ],
               "category": "options",
               "notes": null,

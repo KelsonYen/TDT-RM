@@ -15,7 +15,7 @@ STRICT_COLUMNS: dict[str, tuple[str, ...]] = {
     "fx": ("trade_date", "provider_source", "source_type", "usd_twd_3d_change_pct", "usd_twd_5d_change_pct", "twd_appreciates", "twd_stable", "twd_depreciates_significantly"),
     "breadth": ("trade_date", "provider_source", "source_type", "index_down", "advancing_issues", "declining_issues", "declining_issues_significantly_expand", "declining_issues_significantly_gt_advancing", "declining_gt_advancing_consecutive_days", "breadth_weakens_for_2_days"),
     "futures": ("trade_date", "provider_source", "source_type", "futures_hedging_increases", "futures_hedging_significant", "futures_net_short_increases", "futures_net_short_decreases"),
-    "options": ("trade_date", "provider_source", "source_type", "pcr_stable", "pcr_rises", "vix_stable", "vix_rises", "tail_risk", "bcd"),
+    "options": ("trade_date", "provider_source", "source_type", "pcr_stable", "pcr_rises", "vix_stable", "vix_rises", "tail_risk"),
     "leadership": ("trade_date", "provider_source", "source_type", "count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols", "mhs"),
     "margin": ("trade_date", "provider_source", "source_type", "margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "index_5d_return_pct", "margin_balance_5d_decline_pct", "margin_not_retreating"),
 }
@@ -25,7 +25,7 @@ _NUMERIC_COLUMNS: dict[str, tuple[str, ...]] = {
     "foreign_flow": ("foreign_spot_net_buy", "foreign_spot_net_sell", "foreign_spot_net_sell_consecutive_days"),
     "fx": ("usd_twd_3d_change_pct", "usd_twd_5d_change_pct"),
     "breadth": ("advancing_issues", "declining_issues", "declining_gt_advancing_consecutive_days"),
-    "options": ("tail_risk", "bcd"),
+    "options": ("tail_risk",),
     "leadership": ("count_main_7_below_ma20", "count_main_7_below_ma60", "mhs"),
     "margin": ("index_5d_return_pct", "margin_balance_5d_decline_pct"),
 }
@@ -108,7 +108,6 @@ def normalize_public_row(dataset: str, row: Mapping[str, Any], *, trade_date: da
             "vix_stable": _first(row, "vix_stable", default=vix < 25 if vix else True),
             "vix_rises": _first(row, "vix_rises", default=vix >= 25 if vix else False),
             "tail_risk": _first(row, "tail_risk", default=min(100.0, max(0.0, 50.0 + (pcr - 1.0) * 100.0 + max(0.0, vix - 20.0)))),
-            "bcd": _first(row, "bcd", default=min(100.0, max(0.0, 50.0 + max(0.0, pcr - 1.0) * 100.0))),
         }
     elif dataset == "margin":
         decline = _first(row, "margin_balance_5d_decline_pct", default=0)
@@ -175,7 +174,7 @@ def validate_strict_row(dataset: str, row: Mapping[str, Any]) -> list[str]:
             continue
         if column in {"close", "ma5", "ma20", "ma60", "previous_ma60"} and number <= 0:
             errors.append(f"numeric field {column} must be positive")
-        if column in {"tail_risk", "bcd", "mhs"} and not 0 <= number <= 100:
+        if column in {"tail_risk", "mhs"} and not 0 <= number <= 100:
             errors.append(f"numeric field {column} must be in [0, 100]")
     for column in _BOOL_COLUMNS.get(dataset, ()):  # strict bool normalization.
         if row.get(column) in {None, ""}:
@@ -212,7 +211,7 @@ def reconciliation_checks(dataset: str, row: Mapping[str, Any]) -> tuple[Reconci
         chg5 = abs(_float(row.get("usd_twd_5d_change_pct")))
         checks.append(ReconciliationCheck("fx_change_sanity", "passed" if chg3 <= 20 and chg5 <= 25 else "failed", "USD/TWD percentage change outside sanity bounds"))
     elif dataset == "options":
-        checks.append(ReconciliationCheck("scores_range", "passed" if 0 <= _float(row.get("tail_risk")) <= 100 and 0 <= _float(row.get("bcd")) <= 100 else "failed", "tail_risk/bcd must be in [0, 100]"))
+        checks.append(ReconciliationCheck("scores_range", "passed" if 0 <= _float(row.get("tail_risk")) <= 100 else "failed", "tail_risk must be in [0, 100]; provider BCD is forbidden"))
     else:
         checks.append(ReconciliationCheck("dataset_invariants", "passed", "no extra invariants configured"))
     return tuple(checks)

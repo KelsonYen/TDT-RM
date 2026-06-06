@@ -48,7 +48,7 @@ _PROVIDER_FIELDS = {
     "breadth": ("date", "advancing_issues", "declining_issues", "index_down", "declining_issues_significantly_expand", "declining_issues_significantly_gt_advancing", "declining_gt_advancing_consecutive_days", "breadth_weakens_for_2_days"),
     "leadership": ("date", "count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols"),
     "margin": ("date", "margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "index_5d_return_pct", "margin_balance_5d_decline_pct", "margin_not_retreating"),
-    "scores": ("date", "tail_risk", "bcd", "mhs", "score_status", "score_notes"),
+    "scores": ("date", "tail_risk", "mhs", "score_status", "score_notes"),
     "futures": ("date", "txf_close", "txf_settlement", "txf_volume", "txf_open_interest", "txf_basis", "futures_source_contract"),
     "options": ("date", "txo_put_call_ratio", "txo_put_volume", "txo_call_volume", "taifex_vix", "options_source_contract"),
 }
@@ -1122,7 +1122,7 @@ def build_fetch_manifest(fetch_results: Sequence[PublicDataFetchResult], provide
     missing_production_csvs = [category for category in _PRODUCTION_REQUIRED_PROVIDER_CATEGORIES if category not in provider_paths]
     limitations = ["Public data endpoints may be delayed, unavailable, blocked by network policy/403 restrictions, or revised after publication.", "No paid API, broker login, browser automation, or ETF Exit policy is used."]
     if "scores" not in provider_paths:
-        limitations.append("Formal Tail Risk / BCD / MHS were not supplied by public fetchers; the daily pipeline will use existing fallback behavior for Tail Risk/BCD and MHS remains 0.0 unless supplied.")
+        limitations.append("Formal Tail Risk / MHS were not supplied by public fetchers; BCD is always computed internally and remains null/INCOMPLETE when independent BCD inputs are unavailable.")
     if "leadership" not in provider_paths:
         limitations.append("Leadership/Main-7 data unavailable; ETI-5 must remain unavailable unless a successful leadership source supplies it.")
     data_status = "public_full" if price_available and not unavailable and not failed else "public_partial" if price_available else "price_unavailable"
@@ -2050,7 +2050,7 @@ def _provider_field_map() -> dict[str, Any]:
 def _scores_are_formal_or_explicit(result: PublicDataFetchResult) -> bool:
     row = dict(result.rows[0] if result.rows else result.canonical_fields)
     status = str(row.get("score_status") or row.get("scores_status") or "").lower()
-    return status in {"formal", "provisional_proxy", "deterministic_provisional"} and any(not _missing(row.get(field)) for field in ("tail_risk", "bcd", "mhs"))
+    return status in {"formal", "provisional_proxy", "deterministic_provisional"} and any(not _missing(row.get(field)) for field in ("tail_risk", "mhs"))
 
 
 def _is_stale(row: Mapping[str, Any], config: Mapping[str, Any], as_of: date) -> bool:

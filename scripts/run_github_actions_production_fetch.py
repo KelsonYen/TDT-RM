@@ -59,7 +59,7 @@ CSV_SPECS: dict[str, CsvSpec] = {
     "twse_margin.csv": CsvSpec("twse_margin.csv", ("trade_date", "provider_source", "source_type", "margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "index_5d_return_pct", "margin_balance_5d_decline_pct", "margin_not_retreating"), ("index_5d_return_pct", "margin_balance_5d_decline_pct"), ("margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "margin_not_retreating")),
     "twse_market_breadth.csv": CsvSpec("twse_market_breadth.csv", ("trade_date", "provider_source", "source_type", "advancing_issues", "declining_issues"), ("advancing_issues", "declining_issues")),
     "twse_turnover_or_volume.csv": CsvSpec("twse_turnover_or_volume.csv", ("trade_date", "provider_source", "source_type", "turnover_amount"), ("turnover_amount",)),
-    "taifex_futures_options.csv": CsvSpec("taifex_futures_options.csv", ("trade_date", "provider_source", "source_type", "futures_hedging_increases", "futures_hedging_significant", "pcr_stable", "pcr_rises", "vix_stable", "vix_rises", "tail_risk", "bcd"), ("tail_risk", "bcd"), ("futures_hedging_increases", "futures_hedging_significant", "pcr_stable", "pcr_rises", "vix_stable", "vix_rises")),
+    "taifex_futures_options.csv": CsvSpec("taifex_futures_options.csv", ("trade_date", "provider_source", "source_type", "futures_hedging_increases", "futures_hedging_significant", "pcr_stable", "pcr_rises", "vix_stable", "vix_rises", "tail_risk"), ("tail_risk",), ("futures_hedging_increases", "futures_hedging_significant", "pcr_stable", "pcr_rises", "vix_stable", "vix_rises")),
     "fx_usdtwd.csv": CsvSpec("fx_usdtwd.csv", ("trade_date", "provider_source", "source_type", "usd_twd_3d_change_pct", "usd_twd_5d_change_pct"), ("usd_twd_3d_change_pct", "usd_twd_5d_change_pct")),
 }
 
@@ -296,7 +296,7 @@ def _write_taifex_combined_file(trade_date: date, futures_path: Path, options_pa
     options = _read_single_row(options_path)
     provider_source = ";".join(filter(None, [futures.get("provider_source"), options.get("provider_source")]))
     source_type = futures.get("source_type") if futures.get("source_type") == options.get("source_type") else ";".join(filter(None, [futures.get("source_type"), options.get("source_type")]))
-    row = {"trade_date": trade_date.isoformat(), "provider_source": provider_source, "source_type": source_type, **{key: futures.get(key) for key in ("futures_hedging_increases", "futures_hedging_significant", "futures_net_short_increases", "futures_net_short_decreases")}, **{key: options.get(key) for key in ("pcr_stable", "pcr_rises", "vix_stable", "vix_rises", "tail_risk", "bcd")}}
+    row = {"trade_date": trade_date.isoformat(), "provider_source": provider_source, "source_type": source_type, **{key: futures.get(key) for key in ("futures_hedging_increases", "futures_hedging_significant", "futures_net_short_increases", "futures_net_short_decreases")}, **{key: options.get(key) for key in ("pcr_stable", "pcr_rises", "vix_stable", "vix_rises", "tail_risk")}}
     _write_csv(dest, CSV_SPECS["taifex_futures_options.csv"].required_columns + ("futures_net_short_increases", "futures_net_short_decreases"), row)
 
 

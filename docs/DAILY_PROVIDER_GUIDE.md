@@ -29,7 +29,7 @@ Implemented source adapters:
 - `LocalCsvProvider` for one-row or `--as-of` date-filtered CSV sources.
 - `LocalJsonProvider` for one JSON object, a snapshot-style JSON object with `canonical_row`, or a date-filtered list of objects.
 - `TAIEXPriceProvider` for local TAIEX price bars or one-row derived price fields. When bars are supplied, it reuses `derive_price_features()` from `tdt_rm.market_data`.
-- `ManualScoreProvider` for formal/manual `tail_risk`, `bcd`, and optional `mhs` values.
+- `ManualScoreProvider` for formal/manual `tail_risk` and optional `mhs`; provider BCD is forbidden values.
 
 ## Mapping source files into canonical fields
 
@@ -45,7 +45,7 @@ Common canonical groups:
 | `breadth` | `index_down`, advancing/declining issue counts, ETI breadth flags |
 | `leadership` | `count_main_7_below_ma20`, optional main-7 symbol lists |
 | `margin` | margin balance, 5-day index return, retail leverage flags |
-| `scores` | formal/manual `tail_risk`, `bcd`, and optional `mhs` |
+| `scores` | formal/manual `tail_risk` and optional `mhs`; provider BCD is forbidden |
 
 A field-map JSON can contain global mappings and category/provider-scoped mappings. See `examples/provider_inputs/sample_provider_field_map.json`.
 
@@ -60,7 +60,7 @@ The assembler never silently overwrites a canonical field with a different value
 Default precedence:
 
 1. Explicit manual/formal source rows win over auto-derived fields.
-2. Formal `tail_risk` and `bcd` from `ManualScoreProvider` win over proxy score values.
+2. Formal `tail_risk` from `ManualScoreProvider` wins over proxy score values; BCD must be computed only by `score_bcd(BCDInput(...))`.
 3. `TAIEXPriceProvider` wins for price and moving-average base fields over generic auto providers.
 4. Proxy fields have the lowest precedence.
 5. Equal-precedence conflicts keep the first value and record an auditable warning.
@@ -90,7 +90,7 @@ The CLI writes normalized snapshot JSON and prints:
 - missing field categories
 - available ETI components
 - Tail Risk source
-- BCD source
+- BCD source: `score_bcd(BCDInput(...))` only; no provider field/source is allowed
 - warning count and warning details
 
 With `--validate`, blocking validation errors exit non-zero. Warning-only snapshots also exit non-zero unless `--allow-warnings` is supplied.

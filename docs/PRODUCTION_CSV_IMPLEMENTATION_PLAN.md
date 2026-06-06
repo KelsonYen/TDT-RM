@@ -13,7 +13,7 @@ The production CSV gap report is `docs/PRODUCTION_GAP_REPORT.md`. It confirms th
 | 3 | `fx.csv` | Yes | Yes | Yes: TAIFEX FX | Not strict production-ready | Yes | Strict provenance writer and holiday handling |
 | 4 | `breadth.csv` | Yes | Yes | Yes: TWSE MI_INDEX | Not strict production-ready | Yes | Multi-day breadth history and strict provenance writer |
 | 5 | `futures.csv` | Yes | Yes | Raw TAIFEX futures source exists | Not strict production-ready | Yes | Decision-field definitions and source mapping for net-short/hedging |
-| 6 | `options.csv` | Yes | Yes | Raw TAIFEX PCR/VIX source exists | Not strict production-ready | Yes | PCR/VIX thresholds and formal Tail Risk/BCD provenance |
+| 6 | `options.csv` | Yes | Yes | Raw TAIFEX PCR/VIX source exists | Not strict production-ready | Yes | PCR/VIX thresholds and formal Tail Risk provenance; BCD is computed internally |
 | 7 | `leadership.csv` | Yes | Yes | Main-7 STOCK_DAY source exists | Not strict production-ready | Yes | MHS source/algorithm and per-symbol history completeness |
 
 ## Implementation plan
@@ -75,13 +75,13 @@ The production CSV gap report is `docs/PRODUCTION_GAP_REPORT.md`. It confirms th
 
 ### 6. `options.csv`
 
-- **Required schema**: `trade_date`, `provider_source`, `source_type`, `pcr_stable`, `pcr_rises`, `vix_stable`, `vix_rises`, `tail_risk`, `bcd`.
+- **Required schema**: `trade_date`, `provider_source`, `source_type`, `pcr_stable`, `pcr_rises`, `vix_stable`, `vix_rises`, `tail_risk`.
 - **Candidate public data source**: TAIFEX `PutCallRatio` and `TAIFEXVIX`.
-- **Fallback source**: formal Tail Risk/BCD provider CSV, or operator-imported controlled CSV.
-- **Expected transformation**: calculate PCR/VIX direction/stability from lookback and ingest formal Tail Risk/BCD scores with provenance.
+- **Fallback source**: formal Tail Risk provider CSV, or operator-imported controlled CSV; provider BCD is forbidden.
+- **Expected transformation**: calculate PCR/VIX direction/stability from lookback and ingest formal Tail Risk with provenance; compute BCD internally only.
 - **Validation rule**: fail if formal/provisional score status is not explicit or PCR/VIX thresholds are unspecified.
 - **Output path**: `inputs/daily/YYYY-MM-DD/options.csv` or provider output dir.
-- **Failure behavior**: do not use mock Tail Risk/BCD as production provider data.
+- **Failure behavior**: do not use mock Tail Risk as production provider data; never use provider BCD.
 - **Test plan**: PCR/VIX fixtures, formal-score provenance fixture, strict validator, no-mock score tests.
 
 ### 7. `leadership.csv`

@@ -1,5 +1,5 @@
 {
-  "bcd": 8.0,
+  "bcd": null,
   "cp": 3.3,
   "cp_level": "Low",
   "data": {
@@ -12,7 +12,9 @@
     ],
     "bar_count": 61,
     "data_status": "enriched_snapshot",
-    "fallback_proxies": {},
+    "fallback_proxies": {
+      "bcd": null
+    },
     "field_sources": {
       "advancing_issues": {
         "field": "advancing_issues",
@@ -21,13 +23,7 @@
         "source_id": "breadth_csv",
         "source_name": "Local breadth CSV"
       },
-      "bcd": {
-        "field": "bcd",
-        "notes": "inputs/daily/2026-06-03/options.csv",
-        "retrieved_at": "2026-06-03T13:33:38.989208Z",
-        "source_id": "options_csv",
-        "source_name": "Local options CSV"
-      },
+      "bcd": null,
       "breadth_weakens_for_2_days": {
         "field": "breadth_weakens_for_2_days",
         "notes": "inputs/daily/2026-06-03/breadth.csv",
@@ -360,13 +356,7 @@
             "source_id": "breadth_csv",
             "source_name": "Local breadth CSV"
           },
-          "bcd": {
-            "field": "bcd",
-            "notes": "inputs/daily/2026-06-03/options.csv",
-            "retrieved_at": "2026-06-03T13:33:38.989208Z",
-            "source_id": "options_csv",
-            "source_name": "Local options CSV"
-          },
+          "bcd": null,
           "breadth_weakens_for_2_days": {
             "field": "breadth_weakens_for_2_days",
             "notes": "inputs/daily/2026-06-03/breadth.csv",
@@ -803,8 +793,7 @@
                   "pcr_rises",
                   "vix_stable",
                   "vix_rises",
-                  "tail_risk",
-                  "bcd"
+                  "tail_risk"
                 ],
                 "category": "options",
                 "notes": null,
@@ -975,8 +964,7 @@
               "pcr_rises",
               "vix_stable",
               "vix_rises",
-              "tail_risk",
-              "bcd"
+              "tail_risk"
             ],
             "category": "options",
             "notes": null,
@@ -1044,7 +1032,7 @@
   "mhs": 5.0,
   "model_version": "TDT-RM V5.1.4",
   "scores": {
-    "BCD": 8.0,
+    "BCD": null,
     "CP": 3.3,
     "ETI-5": 0,
     "MHS": 5.0,
@@ -1074,7 +1062,7 @@
         "cap": 100,
         "cap_applied": false,
         "contributions": {
-          "bcd": 0.8,
+          "bcd": null,
           "eti5": 0.0,
           "tail_risk": 2.5,
           "tcwrs": 0.0
@@ -1084,7 +1072,7 @@
         "cp_score": 3.3,
         "formula": "TCWRS * 0.40 + (ETI5_total * 20) * 0.30 + TailRisk * 0.20 + BCD * 0.10",
         "raw": {
-          "bcd": 8.0,
+          "bcd": null,
           "eti5_total": 0,
           "tail_risk": 12.5,
           "tcwrs": 0
@@ -1093,7 +1081,7 @@
           "eti5_scaled": 0
         },
         "weights": {
-          "bcd": 0.1,
+          "bcd": null,
           "eti5_scaled": 0.3,
           "tail_risk": 0.2,
           "tcwrs": 0.4
@@ -1105,7 +1093,7 @@
       "matched_rule": "Default/green light conditions",
       "signal": "Green",
       "trace_output": {
-        "bcd": 8.0,
+        "bcd": null,
         "bear_trend": {
           "bear_trend_floor_signal": null,
           "bear_trend_score": 0,

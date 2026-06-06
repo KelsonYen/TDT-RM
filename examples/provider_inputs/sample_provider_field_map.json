@@ -1,17 +1,16 @@
 {
-  "price": {
+  "breadth": {
+    "advancing_issues": "advancing_issues",
+    "breadth_weakens_for_2_days": "breadth_weakens_for_2_days",
     "date": "observed_at",
-    "taiex_close": "close",
-    "taiex_ma5": "ma5",
-    "taiex_ma20": "ma20",
-    "taiex_ma60": "ma60",
-    "taiex_ma20_slope": "ma20_slope",
-    "turnover_amount": "turnover_amount"
+    "declining_issues": "declining_issues",
+    "declining_issues_significantly_gt_advancing": "declining_issues_significantly_gt_advancing",
+    "index_down": "index_down"
   },
   "foreign_flow": {
     "date": "observed_at",
-    "foreign_spot_net_sell_consecutive_days": "foreign_spot_net_sell_consecutive_days",
     "foreign_large_sell": "foreign_large_sell",
+    "foreign_spot_net_sell_consecutive_days": "foreign_spot_net_sell_consecutive_days",
     "futures_hedging_increases": "futures_hedging_increases"
   },
   "fx": {
@@ -20,24 +19,24 @@
     "usd_twd_3d_change_pct": "usd_twd_3d_change_pct",
     "usd_twd_5d_change_pct": "usd_twd_5d_change_pct"
   },
-  "breadth": {
-    "date": "observed_at",
-    "advancing_issues": "advancing_issues",
-    "declining_issues": "declining_issues",
-    "index_down": "index_down",
-    "declining_issues_significantly_gt_advancing": "declining_issues_significantly_gt_advancing",
-    "breadth_weakens_for_2_days": "breadth_weakens_for_2_days"
-  },
   "leadership": {
-    "date": "observed_at",
     "count_main_7_below_ma20": "count_main_7_below_ma20",
-    "main_7_symbols": "main_7_symbols",
-    "main_7_below_ma20_symbols": "main_7_below_ma20_symbols"
+    "date": "observed_at",
+    "main_7_below_ma20_symbols": "main_7_below_ma20_symbols",
+    "main_7_symbols": "main_7_symbols"
+  },
+  "price": {
+    "date": "observed_at",
+    "taiex_close": "close",
+    "taiex_ma20": "ma20",
+    "taiex_ma20_slope": "ma20_slope",
+    "taiex_ma5": "ma5",
+    "taiex_ma60": "ma60",
+    "turnover_amount": "turnover_amount"
   },
   "scores": {
     "date": "observed_at",
-    "tail_risk": "tail_risk",
-    "bcd": "bcd",
-    "mhs": "mhs"
+    "mhs": "mhs",
+    "tail_risk": "tail_risk"
   }
 }

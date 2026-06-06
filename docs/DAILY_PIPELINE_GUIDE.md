@@ -68,7 +68,7 @@ The summary is intentionally concise and line-oriented:
 - `signal` and `exposure_limit` — five-light decision output and equity exposure limit.
 - `TCWRS`, `MHS`, `ETI-5`, `Tail Risk`, `BCD`, `CP` — daily score values from existing scoring modules.
 - `available_eti_components` — ETI components supported by sourced snapshot fields.
-- `fallback_proxies` — proxy scores used for Tail Risk or BCD when formal values are absent. `{}` means no fallback proxies were used.
+- `fallback_proxies` — Tail Risk proxy usage and BCD incomplete/null status when independent BCD inputs are absent. `{}` means no fallback proxies were used.
 - `provider_warnings` — assembler warnings, including conflicts or optional coverage issues.
 - `validation_status` — daily artifact validation status.
 - `artifact_paths` — paths to generated JSON, Markdown, manifest, and assembled snapshot artifacts.

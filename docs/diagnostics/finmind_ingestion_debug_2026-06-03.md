@@ -155,9 +155,9 @@ The requested failure-classification vocabulary is normalized here as follows: s
 - HTTP status code: `CONNECT 403`
 - Response row count: `0`
 - Response columns: none; no response body was received
-- Missing required fields: `trade_date`, `provider_source`, `source_type`, `pcr_stable`, `pcr_rises`, `vix_stable`, `vix_rises`, `tail_risk`, `bcd`
+- Missing required fields: `trade_date`, `provider_source`, `source_type`, `pcr_stable`, `pcr_rises`, `vix_stable`, `vix_rises`, `tail_risk`
 - Failure classification: `network_error`
-- Additional semantic gap after network is fixed: FinMind `TaiwanOptionDaily` can provide TXO PCR inputs, but the current TDT-RM `options.csv` also requires VIX and formal `tail_risk` / `bcd` fields that are not provided by this FinMind dataset.
+- Additional semantic gap after network is fixed: FinMind `TaiwanOptionDaily` can provide TXO PCR inputs, but the current TDT-RM `options.csv` also requires VIX and formal `tail_risk` fields; BCD is computed internally that are not provided by this FinMind dataset.
 - Converted to TDT-RM daily input: no; normalized CSV row count was `0`
 
 ### leadership.csv / TaiwanStockPrice:Main7

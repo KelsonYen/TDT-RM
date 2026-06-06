@@ -337,7 +337,7 @@ Default outputs:
 
 ## Daily provider snapshots
 
-The provider-based snapshot assembler can combine local public-data rows for price, foreign flow, FX, breadth, leadership, optional margin, and formal/manual Tail Risk/BCD/MHS into one enriched `DailyMarketSnapshot`. See [Daily Public-Data Provider Guide](docs/DAILY_PROVIDER_GUIDE.md) for provider architecture, field mapping, precedence, conflict handling, and current limitations.
+The provider-based snapshot assembler can combine local public-data rows for price, foreign flow, FX, breadth, leadership, optional margin, and formal/manual Tail Risk/MHS; BCD is computed internally into one enriched `DailyMarketSnapshot`. See [Daily Public-Data Provider Guide](docs/DAILY_PROVIDER_GUIDE.md) for provider architecture, field mapping, precedence, conflict handling, and current limitations.
 
 ```bash
 python scripts/assemble_daily_snapshot.py \
@@ -393,7 +393,7 @@ Each daily JSON/Markdown output includes:
 - trace output for the underlying V5.1.4 scoring modules
 - an `etf_exit` placeholder reserved for future ETF Exit integration
 
-The runner is an orchestration layer only and does not modify model scoring logic. Because this repository does not yet contain standalone formal MHS, Tail Risk, or BCD scorer modules, the daily production runner marks the data as `price_only_provisional`: ETI-5 is limited to available ETI-1 price data, Tail Risk/BCD use the existing price-only proxy approach from the scenario scripts, and MHS is set to `0.0` until a formal scorer or external input is integrated.
+The runner is an orchestration layer only and does not modify model scoring logic. Because this repository does not yet contain standalone formal MHS, Tail Risk, or BCD scorer modules, the daily production runner marks the data as `price_only_provisional`: ETI-5 is limited to available ETI-1 price data, Tail Risk may use a documented fallback when absent, while BCD is computed internally and stays null/INCOMPLETE when independent inputs are missing, and MHS is set to `0.0` until a formal scorer or external input is integrated.
 
 ## Daily production validation
 
@@ -488,7 +488,7 @@ choices under the `data` section:
 - `available_eti_components` is derived from actual supplied fields. ETI
   components are not assumed available merely because default ETI input values
   can be constructed.
-- `fallback_proxies` records when formal `tail_risk` or `bcd` is absent and the
+- `fallback_proxies` records when formal `tail_risk` is absent or independent BCD inputs are incomplete and the
   existing price-only proxy is used instead.
 - `data_status`, `limitations`, and `warnings` summarize operator caveats.
 

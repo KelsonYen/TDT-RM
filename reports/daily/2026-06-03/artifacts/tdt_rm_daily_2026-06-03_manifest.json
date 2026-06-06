@@ -13,7 +13,9 @@
       "ETI-5"
     ],
     "data_status": "enriched_snapshot",
-    "fallback_proxies": {},
+    "fallback_proxies": {
+      "bcd": null
+    },
     "field_sources": {
       "advancing_issues": {
         "field": "advancing_issues",
@@ -22,13 +24,7 @@
         "source_id": "breadth_csv",
         "source_name": "Local breadth CSV"
       },
-      "bcd": {
-        "field": "bcd",
-        "notes": "inputs/daily/2026-06-03/options.csv",
-        "retrieved_at": "2026-06-03T13:33:38.989208Z",
-        "source_id": "options_csv",
-        "source_name": "Local options CSV"
-      },
+      "bcd": null,
       "breadth_weakens_for_2_days": {
         "field": "breadth_weakens_for_2_days",
         "notes": "inputs/daily/2026-06-03/breadth.csv",
@@ -464,8 +460,7 @@
               "pcr_rises",
               "vix_stable",
               "vix_rises",
-              "tail_risk",
-              "bcd"
+              "tail_risk"
             ],
             "category": "options",
             "notes": null,

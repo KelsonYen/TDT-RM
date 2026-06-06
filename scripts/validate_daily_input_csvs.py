@@ -5,12 +5,16 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import sys
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from typing import Any, Mapping, Sequence
 
 FORBIDDEN_SOURCE_TYPES = {"fallback", "mock", "fixture", "synthetic", "neutral", "sample", "test"}
+FORBIDDEN_PROVIDER_BCD_FIELDS = {"bcd", "BCD", "bcd_score", "provider_bcd", "bcd_final_score", "bcd_status"}
+PROVIDER_BCD_FORBIDDEN_MESSAGE = "Provider-supplied BCD is forbidden. BCD must be computed only by score_bcd(BCDInput(…))."
 COMMON_COLUMNS = {
     "trade_date": "date",
     "provider_source": "string",
@@ -58,8 +62,8 @@ SCHEMAS: tuple[CsvSchema, ...] = (
     ),
     CsvSchema(
         "options.csv",
-        ("trade_date", "provider_source", "source_type", "pcr_stable", "pcr_rises", "vix_stable", "vix_rises", "tail_risk", "bcd"),
-        ("tail_risk", "bcd"),
+        ("trade_date", "provider_source", "source_type", "pcr_stable", "pcr_rises", "vix_stable", "vix_rises", "tail_risk"),
+        ("tail_risk",),
         ("pcr_stable", "pcr_rises", "vix_stable", "vix_rises"),
     ),
     CsvSchema(
@@ -84,6 +88,7 @@ def validate_daily_input_csvs(*, trade_date: date, input_dir: str | Path) -> lis
 
     root = Path(input_dir)
     errors: list[str] = []
+    errors.extend(_forbidden_bcd_artifact_errors(root))
     for schema in SCHEMAS:
         path = root / schema.filename
         if not path.exists():
@@ -97,6 +102,9 @@ def validate_daily_input_csvs(*, trade_date: date, input_dir: str | Path) -> lis
         except OSError as exc:
             errors.append(f"{schema.filename}: cannot read CSV: {exc}")
             continue
+        forbidden_columns = _forbidden_bcd_columns(fieldnames)
+        if forbidden_columns:
+            errors.append(f"{schema.filename}: forbidden provider BCD column(s): {', '.join(forbidden_columns)}. {PROVIDER_BCD_FORBIDDEN_MESSAGE}")
         if not rows:
             errors.append(f"{schema.filename}: row count must be > 0")
         missing = [column for column in schema.required_columns if column not in fieldnames]
@@ -129,6 +137,53 @@ def validate_daily_input_csvs(*, trade_date: date, input_dir: str | Path) -> lis
                     errors.append(f"{schema.filename}: line {index}: boolean field {column} is not parseable: {row.get(column)!r}")
     return errors
 
+
+
+def _forbidden_bcd_columns(fieldnames: Sequence[str] | None) -> list[str]:
+    return [name for name in (fieldnames or ()) if str(name).strip() in FORBIDDEN_PROVIDER_BCD_FIELDS]
+
+
+def _forbidden_bcd_artifact_errors(root: Path) -> list[str]:
+    errors: list[str] = []
+    if not root.exists():
+        return errors
+    for path in sorted(root.rglob("*")):
+        if not path.is_file() or path.name in SCHEMAS_BY_FILE:
+            continue
+        suffix = path.suffix.lower()
+        if suffix == ".csv":
+            try:
+                with path.open(newline="", encoding="utf-8-sig") as handle:
+                    columns = _forbidden_bcd_columns(csv.DictReader(handle).fieldnames)
+            except OSError as exc:
+                errors.append(f"{path.relative_to(root)}: cannot read provider artifact: {exc}")
+                continue
+            if columns:
+                errors.append(f"{path.relative_to(root)}: forbidden provider BCD column(s): {', '.join(columns)}. {PROVIDER_BCD_FORBIDDEN_MESSAGE}")
+        elif suffix == ".json":
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                errors.append(f"{path.relative_to(root)}: cannot read provider artifact JSON: {exc}")
+                continue
+            locations = _forbidden_bcd_json_locations(payload)
+            if locations:
+                errors.append(f"{path.relative_to(root)}: forbidden provider BCD field(s) at {', '.join(locations)}. {PROVIDER_BCD_FORBIDDEN_MESSAGE}")
+    return errors
+
+
+def _forbidden_bcd_json_locations(value: Any, prefix: str = "$") -> list[str]:
+    locations: list[str] = []
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            child_prefix = f"{prefix}.{key}"
+            if str(key) in FORBIDDEN_PROVIDER_BCD_FIELDS:
+                locations.append(child_prefix)
+            locations.extend(_forbidden_bcd_json_locations(child, child_prefix))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            locations.extend(_forbidden_bcd_json_locations(child, f"{prefix}[{index}]"))
+    return locations
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate the eight required local daily TDT-RM input CSV files.")

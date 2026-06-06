@@ -475,7 +475,6 @@ def build_options(client: FinMindClient, trade_date: date, start: date, fetched_
         "vix_stable": True,
         "vix_rises": False,
         "tail_risk": min(100.0, max(0.0, 50.0 + pcr_change * 100.0)),
-        "bcd": min(100.0, max(0.0, 50.0 + max(0.0, pcr_change) * 100.0)),
     })
     return row, "TaiwanOptionDaily:TXO"
 
@@ -856,14 +855,14 @@ def classify_failure(exception_message: str, requests: list[RequestEvidence], mi
 
 def semantic_finmind_gap(filename: str) -> str:
     gaps = {
-        "options.csv": "FinMind TaiwanOptionDaily can provide TXO PCR inputs, but it does not provide CBOE VIX or formal TDT-RM Tail Risk/BCD scores required by options.csv.",
+        "options.csv": "FinMind TaiwanOptionDaily can provide TXO PCR inputs, but it does not provide CBOE VIX or formal TDT-RM Tail Risk score required by options.csv; BCD is computed internally.",
     }
     return gaps.get(filename, "")
 
 
 def fallback_source_for(filename: str) -> str:
     fallbacks = {
-        "options.csv": "CBOE/Stooq/Yahoo Finance for VIX plus the formal TDT-RM Tail Risk/BCD scoring provider; keep TaiwanOptionDaily only for TXO PCR.",
+        "options.csv": "CBOE/Stooq/Yahoo Finance for VIX plus the formal TDT-RM Tail Risk scoring provider; never supply BCD; keep TaiwanOptionDaily only for TXO PCR.",
     }
     return fallbacks.get(filename, "")
 

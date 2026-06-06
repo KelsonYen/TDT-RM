@@ -20,6 +20,8 @@ from .tcwrs import TCWRSInput
 
 SNAPSHOT_ERROR_SEVERITY = "error"
 SNAPSHOT_WARNING_SEVERITY = "warning"
+FORBIDDEN_PROVIDER_BCD_FIELDS = {"bcd", "BCD", "bcd_score", "provider_bcd", "bcd_final_score", "bcd_status"}
+PROVIDER_BCD_FORBIDDEN_MESSAGE = "Provider-supplied BCD is forbidden. BCD must be computed only by score_bcd(BCDInput(…))."
 
 _TCWRS_REQUIRED_FIELDS = {
     item.name for item in fields(TCWRSInput) if item.default is MISSING and item.default_factory is MISSING
@@ -197,6 +199,9 @@ def load_daily_snapshot_csv(path: str | Path, *, field_map: Mapping[str, str] | 
         rows = list(csv.DictReader(handle))
     if len(rows) != 1:
         raise ValueError(f"daily snapshot CSV must contain exactly one data row; found {len(rows)}")
+    forbidden_columns = [name for name in rows[0] if str(name) in FORBIDDEN_PROVIDER_BCD_FIELDS]
+    if forbidden_columns:
+        raise ValueError(f"daily snapshot CSV contains forbidden provider BCD column(s): {', '.join(forbidden_columns)}. {PROVIDER_BCD_FORBIDDEN_MESSAGE}")
     canonical_row = _canonicalize_row(rows[0], field_map=field_map)
     trade_date = _coerce_date(canonical_row.get("observed_at") or canonical_row.get("trade_date"))
     canonical_row.setdefault("observed_at", trade_date.isoformat())
@@ -224,7 +229,7 @@ def validate_daily_snapshot(snapshot: DailyMarketSnapshot, *, as_of: date | None
         issues.append(_issue(SNAPSHOT_ERROR_SEVERITY, "forbidden_bcd_source", "field_sources.bcd must not be options_csv", "field_sources.bcd"))
     if not _missing(row.get("bcd")):
         source_detail = f" from {bcd_source}" if bcd_source else ""
-        issues.append(_issue(SNAPSHOT_ERROR_SEVERITY, "provider_supplied_bcd", f"daily snapshot contains provider-supplied bcd{source_detail}; BCD must be computed only by score_bcd(BCDInput(...))", "canonical_row.bcd"))
+        issues.append(_issue(SNAPSHOT_ERROR_SEVERITY, "provider_supplied_bcd", f"daily snapshot contains provider-supplied bcd{source_detail}; BCD must be computed only by score_bcd(BCDInput(…))", "canonical_row.bcd"))
     elif bcd_source:
         issues.append(_issue(SNAPSHOT_ERROR_SEVERITY, "provider_supplied_bcd_source", "daily snapshot must not assign field_sources.bcd; BCD is not a provider field", "field_sources.bcd"))
     if as_of is not None and snapshot.trade_date > as_of:
@@ -334,8 +339,8 @@ def _canonicalize_row(row: Mapping[str, Any], *, field_map: Mapping[str, str] | 
     claimed_raw_keys = set(field_map.values()) if field_map else set()
     if field_map:
         for canonical_name, raw_name in field_map.items():
-            if canonical_name == "bcd":
-                continue
+            if str(canonical_name) in FORBIDDEN_PROVIDER_BCD_FIELDS or str(raw_name) in FORBIDDEN_PROVIDER_BCD_FIELDS:
+                raise ValueError(PROVIDER_BCD_FORBIDDEN_MESSAGE)
             if raw_name in row and not _missing(row[raw_name]):
                 canonical[canonical_name] = row[raw_name]
     candidates = set(_ALIASES) | {field.name for field in fields(TCWRSInput)} | {field.name for field in fields(ETI5Input)} | {"tail_risk", "mhs", "observed_at"}
