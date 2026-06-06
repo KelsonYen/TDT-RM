@@ -2,7 +2,7 @@
 作者：Dr. Yen
 模型：TDT-RM V5.1.4 Backtest Calibration Patch
 資料日期：2026/06/05
-產出時間：2026/06/06 08:52
+產出時間：2026/06/06 10:54
 資料狀態：正式版
 今日燈號：黃燈
 市場狀態：觀察
@@ -10,8 +10,13 @@ TCWRS：12
 MHS：100
 ETI-5：1
 Tail Risk：53.95
-BCD：53.95
-Crash Probability：26.98%
+BCD：4
+資料限制：
+１、缺少 sector breadth
+２、缺少 Top-N turnover concentration
+３、缺少 Main-7 returns
+４、此分數為 partial BCD，不得視為完整拉積盤判斷
+Crash Probability：21.99%
 股票曝險上限：60-80%
 
 ■ 核心結論

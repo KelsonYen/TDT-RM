@@ -8,6 +8,7 @@ change model scoring logic.
 
 from __future__ import annotations
 
+import csv
 import json
 import math
 import statistics
@@ -19,6 +20,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Protocol, Sequence
 
+from .bcd import BCDInput, BCDResult, BreadthBar, score_bcd
 from .crash_probability import CrashProbabilityInput, score_crash_probability
 from .decision_matrix import (
     BearTrendInput,
@@ -229,7 +231,8 @@ def build_daily_payload(
     peak = max(closes)
     drawdown = max(0.0, -_pct_change(peak, close))
     tail_risk = _price_proxy_tail_risk(closes, drawdown, one_day_return, two_day_return)
-    bcd = _price_proxy_bcd(close, ma20, drawdown, consecutive_down_days)
+    bcd_result = _price_only_bcd_result(one_day_return)
+    bcd = bcd_result.final_score
     mhs = 0.0
 
     tcwrs = score_tcwrs(
@@ -337,6 +340,7 @@ def build_daily_payload(
             "crash_probability": cp.as_dict(),
             "bear_trend": bear_trend.as_dict(),
             "decision_matrix": decision.as_dict(),
+            "bcd": bcd_result.as_dict(),
         },
         "data": {
             "source": "TWSE TAIEX MI_5MINS_HIST public monthly index endpoint",
@@ -345,7 +349,7 @@ def build_daily_payload(
             "status": "price_only_provisional",
             "limitations": [
                 "ETI-5 is limited to the available ETI-1 price component.",
-                "Tail Risk and BCD use existing price-only production proxies until formal modules exist.",
+                "BCD is partial: price-only run lacks breadth history, Main-7 returns/weights, sector breadth, OTC/small-mid breadth, and Top-N turnover concentration.",
                 "MHS has no standalone scorer in this repository and is set to 0.0.",
             ],
         },
@@ -401,14 +405,14 @@ def build_daily_payload_from_snapshot(
         }
     else:
         tail_risk = float(observation.tail_risk)
-    if observation.bcd is None:
-        bcd = _price_proxy_bcd(close, ma20, drawdown, consecutive_down_days)
+    bcd_result = _bcd_result_from_snapshot(snapshot, taiex_return_pct=one_day_return)
+    bcd = bcd_result.final_score
+    if bcd_result.data_quality_status != "complete":
         proxy_info["bcd"] = {
-            "status": "price_only_proxy",
-            "reason": "formal bcd absent from daily snapshot",
+            "status": "partial_bcd",
+            "reason": "BCD source fields are incomplete; see traces.bcd.missing_components",
+            "missing_components": list(bcd_result.missing_components),
         }
-    else:
-        bcd = float(observation.bcd)
 
     mhs = float(snapshot.canonical_row.get("mhs", 0.0) or 0.0)
     previous_ma60 = _previous_ma60_from_snapshot(snapshot, ma60)
@@ -498,6 +502,7 @@ def build_daily_payload_from_snapshot(
             "crash_probability": cp.as_dict(),
             "bear_trend": bear_trend.as_dict(),
             "decision_matrix": decision.as_dict(),
+            "bcd": bcd_result.as_dict(),
         },
         "data": {
             "source": "Daily enriched market snapshot",
@@ -599,6 +604,7 @@ def render_user_daily_report(payload: Mapping[str, Any], *, generated_at: str | 
         f"ETI-5：{_format_value(eti5)}",
         f"Tail Risk：{_format_value(tail_risk)}",
         f"BCD：{_format_value(bcd)}",
+        *_bcd_explanation_lines(payload),
         f"Crash Probability：{_format_probability(cp)}",
         f"股票曝險上限：{exposure_limit}",
         "",
@@ -883,6 +889,239 @@ def _price_proxy_tail_risk(
 def _price_proxy_bcd(close: float, ma20: float, drawdown: float, consecutive_down_days: int) -> float:
     below_ma20_pressure = max(0.0, (ma20 - close) / ma20 * 500.0) if ma20 else 0.0
     return min(100.0, max(drawdown * 2.0, below_ma20_pressure, consecutive_down_days * 12.0))
+
+
+
+def _price_only_bcd_result(taiex_return_pct: float) -> BCDResult:
+    return score_bcd(
+        BCDInput(
+            taiex_return_pct=taiex_return_pct,
+            advancing_issues=0,
+            declining_issues=0,
+            breadth_history=(),
+            main7_returns={},
+            main7_weights={},
+            sector_returns={},
+            sector_above_ma20={},
+            otc_return_pct=None,
+            small_mid_breadth=None,
+            turnover_concentration_topn=None,
+        ),
+        source_fields={"taiex_return_pct": "price.one_day_return_pct"},
+    )
+
+
+def _bcd_result_from_snapshot(snapshot: DailyMarketSnapshot, *, taiex_return_pct: float) -> BCDResult:
+    row = dict(snapshot.canonical_row)
+    source_fields = {name: snapshot.field_sources.get(name, "unavailable") for name in row}
+    source_fields.setdefault("taiex_return_pct", snapshot.field_sources.get("one_day_return_pct", "price.one_day_return_pct"))
+    return score_bcd(
+        BCDInput(
+            taiex_return_pct=taiex_return_pct,
+            advancing_issues=_int_or_zero(row.get("advancing_issues")),
+            declining_issues=_int_or_zero(row.get("declining_issues")),
+            breadth_history=_breadth_history_from_row(row),
+            main7_returns=_mapping_of_float(row.get("main7_returns") or row.get("main_7_returns")),
+            main7_weights=_mapping_of_float(row.get("main7_weights") or row.get("main_7_weights")),
+            sector_returns=_mapping_of_float(row.get("sector_returns")),
+            sector_above_ma20=_mapping_of_bool(row.get("sector_above_ma20")),
+            otc_return_pct=_optional_number(row.get("otc_return_pct")),
+            small_mid_breadth=_small_mid_breadth_from_row(row),
+            turnover_concentration_topn=_optional_number(row.get("turnover_concentration_topn") or row.get("topn_turnover_concentration")),
+        ),
+        source_fields=source_fields,
+    )
+
+
+def write_bcd_audit_artifacts(payload: Mapping[str, Any], output_dir: str | Path) -> dict[str, Path]:
+    """Write JSON/CSV audit traces for the BCD module."""
+
+    destination = Path(output_dir)
+    destination.mkdir(parents=True, exist_ok=True)
+    trade_date = str(payload.get("trade_date") or "")
+    trace = dict(_mapping(_mapping(payload.get("traces")).get("bcd")))
+    trace.setdefault("final_score", payload.get("bcd"))
+    trace.setdefault("component_scores", {})
+    trace.setdefault("raw_inputs", {})
+    trace.setdefault("threshold_hits", {})
+    trace.setdefault("missing_components", [])
+    trace.setdefault("source_fields", {})
+    trace.setdefault("data_quality_status", "unavailable" if not trace.get("component_scores") else "partial")
+    json_path = destination / "bcd_audit_trace.json"
+    csv_path = destination / "bcd_audit_trace.csv"
+    json_path.write_text(json.dumps(trace, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    component_scores = _mapping(trace.get("component_scores"))
+    raw_inputs = _mapping(trace.get("raw_inputs"))
+    threshold_hits = _mapping(trace.get("threshold_hits"))
+    source_fields = _mapping(trace.get("source_fields"))
+    missing = {str(item) for item in trace.get("missing_components", []) or []}
+    thresholds = _bcd_threshold_descriptions()
+    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=("trade_date", "component", "raw_value", "threshold", "threshold_hit", "score", "source_field", "missing_reason"),
+        )
+        writer.writeheader()
+        components = set(component_scores) | {item.split(".", 1)[0] for item in threshold_hits} | set(missing)
+        for component in sorted(components):
+            component_hits = {key: value for key, value in threshold_hits.items() if str(key).startswith(component + ".")}
+            raw_value = _bcd_component_raw_value(component, raw_inputs)
+            writer.writerow(
+                {
+                    "trade_date": trade_date,
+                    "component": component,
+                    "raw_value": json.dumps(raw_value, ensure_ascii=False, sort_keys=True),
+                    "threshold": "; ".join(thresholds.get(key, key) for key in component_hits) or thresholds.get(component, ""),
+                    "threshold_hit": any(bool(value) for value in component_hits.values()),
+                    "score": component_scores.get(component, ""),
+                    "source_field": _bcd_source_for_component(component, source_fields),
+                    "missing_reason": "; ".join(item for item in sorted(missing) if item == component or item.startswith(component) or _missing_belongs_to_component(item, component)),
+                }
+            )
+    return {"bcd_audit_trace_json": json_path, "bcd_audit_trace_csv": csv_path}
+
+
+def _bcd_explanation_lines(payload: Mapping[str, Any]) -> list[str]:
+    trace = _mapping(_mapping(payload.get("traces")).get("bcd"))
+    component_scores = _mapping(trace.get("component_scores"))
+    missing = [str(item) for item in trace.get("missing_components", []) or []]
+    if not trace:
+        return ["資料限制：", "１、缺少 BCD trace；此分數不得視為完整拉積盤判斷。"]
+    if missing:
+        priority = ("sector_breadth", "turnover_concentration_topn", "main7_returns", "main7_weights", "breadth_history")
+        ordered_missing = [item for item in priority if item in missing]
+        ordered_missing.extend(item for item in missing if item not in ordered_missing and not item.endswith("_concentration") and not item.endswith("_weakness") and not item.endswith("_diffusion"))
+        shown = ordered_missing[:3]
+        return [
+            "資料限制：",
+            *[f"{_FULLWIDTH_NUMBERS.get(index, str(index))}、缺少 {_bcd_missing_label(item)}" for index, item in enumerate(shown, start=1)],
+            f"{_FULLWIDTH_NUMBERS.get(len(shown) + 1, str(len(shown) + 1))}、此分數為 partial BCD，不得視為完整拉積盤判斷",
+        ]
+    ranked = sorted(component_scores.items(), key=lambda item: float(item[1]), reverse=True)
+    if not ranked:
+        return ["主要原因：", "１、未觸發明顯市場集中度或拉積盤條件。"]
+    return ["主要原因：", *[f"{_FULLWIDTH_NUMBERS.get(index, str(index))}、{_bcd_component_label(name)}：{_format_value(score)}" for index, (name, score) in enumerate(ranked[:3], start=1)]]
+
+
+def _bcd_missing_label(name: str) -> str:
+    return {
+        "sector_breadth": "sector breadth",
+        "turnover_concentration_topn": "Top-N turnover concentration",
+        "main7_returns": "Main-7 returns",
+        "main7_weights": "Main-7 weights",
+        "breadth_history": "breadth history",
+        "otc_return_pct": "OTC return",
+        "small_mid_breadth": "small/mid breadth",
+    }.get(name, name)
+
+
+def _bcd_component_label(name: str) -> str:
+    return {
+        "index_breadth_divergence": "加權與市場廣度背離",
+        "main7_concentration": "Main-7 權值集中",
+        "sector_diffusion": "產業擴散不足",
+        "small_mid_weakness": "OTC／中小型股弱勢",
+        "turnover_concentration": "Top-N 成交集中且參與不足",
+    }.get(name, name)
+
+
+def _breadth_history_from_row(row: Mapping[str, Any]) -> tuple[BreadthBar, ...]:
+    raw = row.get("breadth_history") or row.get("advancing_declining_history")
+    if isinstance(raw, str) and raw.strip():
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            return ()
+    if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
+        return ()
+    bars: list[BreadthBar] = []
+    for item in raw:
+        if not isinstance(item, Mapping):
+            continue
+        adv = item.get("advancing_issues") or item.get("advancers")
+        dec = item.get("declining_issues") or item.get("decliners")
+        if adv in {None, ""} or dec in {None, ""}:
+            continue
+        bars.append(BreadthBar(advancing_issues=int(float(adv)), declining_issues=int(float(dec)), taiex_return_pct=_optional_number(item.get("taiex_return_pct")), trade_date=str(item.get("trade_date") or item.get("date") or "") or None))
+    return tuple(bars)
+
+
+def _small_mid_breadth_from_row(row: Mapping[str, Any]) -> BreadthBar | None:
+    adv = row.get("small_mid_advancing_issues")
+    dec = row.get("small_mid_declining_issues")
+    if adv in {None, ""} or dec in {None, ""}:
+        return None
+    return BreadthBar(advancing_issues=int(float(adv)), declining_issues=int(float(dec)), taiex_return_pct=_optional_number(row.get("small_mid_return_pct")), trade_date=str(row.get("observed_at") or row.get("trade_date") or "") or None)
+
+
+def _mapping_of_float(value: Any) -> dict[str, float]:
+    if isinstance(value, str) and value.strip():
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+    if not isinstance(value, Mapping):
+        return {}
+    out: dict[str, float] = {}
+    for key, item in value.items():
+        parsed = _optional_number(item)
+        if parsed is not None:
+            out[str(key)] = parsed
+    return out
+
+
+def _mapping_of_bool(value: Any) -> dict[str, bool]:
+    if isinstance(value, str) and value.strip():
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+    if not isinstance(value, Mapping):
+        return {}
+    return {str(key): str(item).strip().lower() in {"true", "1", "yes", "y"} if isinstance(item, str) else bool(item) for key, item in value.items()}
+
+
+def _int_or_zero(value: Any) -> int:
+    parsed = _optional_number(value)
+    return 0 if parsed is None else int(parsed)
+
+
+def _bcd_threshold_descriptions() -> dict[str, str]:
+    return {
+        "index_breadth_divergence": "TAIEX up with weak advancing/declining breadth or breadth below history",
+        "main7_concentration": "Main-7 outperformance with weak broad participation",
+        "sector_diffusion": "Majority of sectors weak or below MA20",
+        "small_mid_weakness": "OTC/small-mid participation weaker than TAIEX",
+        "turnover_concentration": "Top-N turnover share high while broad participation weak",
+    }
+
+
+def _bcd_component_raw_value(component: str, raw_inputs: Mapping[str, Any]) -> Any:
+    keys = {
+        "index_breadth_divergence": ("taiex_return_pct", "advancing_issues", "declining_issues", "breadth_history"),
+        "main7_concentration": ("taiex_return_pct", "advancing_issues", "declining_issues", "main7_returns", "main7_weights"),
+        "sector_diffusion": ("sector_returns", "sector_above_ma20"),
+        "small_mid_weakness": ("otc_return_pct", "small_mid_breadth"),
+        "turnover_concentration": ("turnover_concentration_topn", "advancing_issues", "declining_issues"),
+    }.get(component, ())
+    return {key: raw_inputs.get(key) for key in keys}
+
+
+def _bcd_source_for_component(component: str, source_fields: Mapping[str, Any]) -> str:
+    keys = _bcd_component_raw_value(component, source_fields)
+    return "; ".join(f"{key}={value}" for key, value in keys.items() if value)
+
+
+def _missing_belongs_to_component(missing: str, component: str) -> bool:
+    membership = {
+        "index_breadth_divergence": {"breadth_history", "advancing_declining_issues"},
+        "main7_concentration": {"main7_returns", "main7_weights", "advancing_declining_issues"},
+        "sector_diffusion": {"sector_breadth", "sector_returns", "sector_above_ma20"},
+        "small_mid_weakness": {"otc_return_pct", "small_mid_breadth"},
+        "turnover_concentration": {"turnover_concentration_topn", "advancing_declining_issues"},
+    }
+    return missing in membership.get(component, set())
 
 
 def _month_starts_desc(as_of: date, count: int) -> Iterable[date]:

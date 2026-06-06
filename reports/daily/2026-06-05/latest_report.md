@@ -1,70 +1,57 @@
-# TDT-RM Final Operator Report — 2026-06-05
+2026/06/05 台股雙溫度計風控報告
+作者：Dr. Yen
+模型：TDT-RM V5.1.4 Backtest Calibration Patch
+資料日期：2026/06/05
+產出時間：2026/06/06 10:54
+資料狀態：正式版
+今日燈號：黃燈
+市場狀態：觀察
+TCWRS：12
+MHS：100
+ETI-5：1
+Tail Risk：53.95
+BCD：4
+資料限制：
+１、缺少 sector breadth
+２、缺少 Top-N turnover concentration
+３、缺少 Main-7 returns
+４、此分數為 partial BCD，不得視為完整拉積盤判斷
+Crash Probability：21.99%
+股票曝險上限：60-80%
 
-## Production Status
+■ 核心結論
+１、MHS達高檔過熱區，代表市場情緒與價格動能偏熱；這是過熱提醒，不等於崩盤訊號。
+２、TCWRS仍低，代表目前結構性破壞尚未明確出現。
+３、ETI-5為1，僅有早期警訊，表示風險尚未全面落地。
+４、今日操作應以持有、停止追價、不使用槓桿、等待風險是否擴散為主。
 
-* Trade Date: 2026-06-05
-* Latest Bar Date: 2026-06-05
-* Pipeline Validation Status: passed
-* Data Status: enriched_snapshot
-* Production Report Quality: PASS
-* Source Production Artifact: outputs/daily/2026-06-05/tdt_rm_daily_2026-06-05.json
-* Source Manifest: outputs/daily/2026-06-05/tdt_rm_daily_2026-06-05_manifest.json
+■ ETI-5明細
+１、ETI-1 加權指數跌破20日線：未觸發，指數仍守在短期均線附近，價格結構尚未破壞。
+２、ETI-2 外資連續賣超：未觸發，外資賣壓尚未形成連續確認。
+３、ETI-3 新台幣轉貶：未觸發，匯率尚未出現明確資金外流壓力。
+４、ETI-4 市場廣度惡化：觸發，市場廣度惡化，上漲結構變窄。
+５、ETI-5 主流七標的失靈：未觸發，主流族群尚未同步失靈。
 
-## Required Operator Fields
+■ 今日動作
+１、持股：維持核心持股，單日不因高檔震盪而情緒化出清。
+２、加碼：暫停追高，等待拉回或風險指標降溫。
+３、減碼：目前不需要強制減碼，但不應新增短線追高部位。
+４、槓桿：不融資、不加槓桿。
+５、現金部位：保留調節空間，使股票曝險不高於60-80%。
 
-| Field | Value |
-| --- | --- |
-| Signal | Yellow |
-| Regime State | watch |
-| TCWRS | 12 |
-| MHS | 100.0 |
-| ETI-5 | 1 |
-| Tail Risk | 53.95 |
-| BCD | 53.95 |
-| Crash Probability | 26.98% |
-| Exposure Limit | 60-80% |
-| Recommended Action | Hold. Do not chase. Do not use leverage. |
-| Conclusion | TDT-RM closes the latest available market date with a Yellow signal and crash probability 26.98%. The operator should follow the recommended action within the approved 60-80% equity exposure band. |
+■ 優先減碼順序
+目前不需要強制減碼；若後續升燈，減碼順序如下：
+１、高波動科技ETF或主題ETF
+２、短線追高部位
+３、槓桿或融資部位
+４、核心長期ETF
 
-## Operator Disclosure
+■ 警報解除條件
+１、MHS降溫。
+２、TCWRS維持低檔。
+３、ETI-5降至0或1。
+４、Tail Risk未升高。
+５、BCD未出現明顯假強勢。
 
-* Production Report Quality: `PASS`
-* Acceptable for Real-World Daily Use: `YES`
-
-### Blocking Quality Failures
-* No blocking quality-control reasons detected.
-
-### Non-Blocking Module Warnings
-* module=ETF Exit; status=not_integrated; notes=Reserved for future ETF Exit integration; no ETF exit logic applied.
-
-### Data-Source Warnings
-#### Fallback Provider Datasets
-* none reported
-
-#### Fallback-Dependent Operator Fields
-* none reported
-
-#### Placeholder / Default-Like Fields
-* none reported
-
-### Official Provider Datasets
-* source_id=breadth_csv; provider_source=TWSE_OFFICIAL:twse_mi_index_breadth; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/breadth.csv
-* source_id=foreign_flow_csv; provider_source=TWSE_OFFICIAL:twse_t86_foreign_flow; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/foreign_flow.csv
-* source_id=futures_csv; provider_source=TAIFEX_OFFICIAL:taifex_txf_futures; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/futures.csv
-* source_id=fx_csv; provider_source=TAIFEX_OFFICIAL:taifex_daily_fx; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/fx.csv
-* source_id=leadership_csv; provider_source=TWSE_OFFICIAL:twse_main7_leadership; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/leadership.csv
-* source_id=margin_csv; provider_source=TWSE_OFFICIAL:twse_margin; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/margin.csv
-* source_id=options_csv; provider_source=FINMIND_FALLBACK:TaiwanOptionDaily:TXO; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/options.csv
-* source_id=taiex_price; provider_source=TWSE_OFFICIAL:twse_fmtqik_price; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/price.csv
-
-## Data Quality Notes
-
-* Available ETI Components: ETI-1, ETI-2, ETI-3, ETI-4, ETI-5
-* Fallback Proxies: {}
-* Provider Warnings: field conflict for index_5d_return_pct: kept/updated between taiex_price=0.7555953174551044 and margin_csv=0.0; kept taiex_price by precedence rule
-* Validation Errors: 0
-* Validation Warnings: 0
-
-## Final Assessment
-
-TDT-RM closes the latest available market date with a Yellow signal and crash probability 26.98%. The operator should follow the recommended action within the approved 60-80% equity exposure band.
+■ 結論
+目前市場屬於強勢多頭後期的偏熱狀態，而不是結構性崩盤狀態。操作上應維持核心持股，但停止追價與槓桿，等待TCWRS與ETI-5是否同步升高。真正需要大幅降曝險的條件，是價格破壞、外資賣超、台幣轉貶與主流股失靈同時出現。
