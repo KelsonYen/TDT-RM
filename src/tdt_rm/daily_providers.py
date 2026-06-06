@@ -42,7 +42,7 @@ _PRICE_FIELDS = {
 _TCWRS_FIELDS = {item.name for item in fields(TCWRSInput)}
 _ETI5_FIELDS = {item.name for item in fields(ETI5Input)}
 _EXTRA_PROVIDER_FIELDS = {"usd_twd", "main_7_symbols", "main_7_below_ma20_symbols", "breadth_history", "main7_returns", "main7_weights", "sector_returns", "sector_above_ma20", "otc_return_pct", "small_mid_advancing_issues", "small_mid_declining_issues", "small_mid_return_pct", "turnover_concentration_topn"}
-_CANONICAL_FIELDS = _TCWRS_FIELDS | _ETI5_FIELDS | _EXTRA_PROVIDER_FIELDS | {"observed_at", "tail_risk", "bcd", "mhs", "return_60d_pct", "previous_ma60"}
+_CANONICAL_FIELDS = _TCWRS_FIELDS | _ETI5_FIELDS | _EXTRA_PROVIDER_FIELDS | {"observed_at", "tail_risk", "mhs", "return_60d_pct", "previous_ma60"}
 _DEFAULT_ALIASES: dict[str, tuple[str, ...]] = {
     "observed_at": ("observed_at", "trade_date", "date", "日期", "資料日期"),
     "close": ("close", "taiex_close", "index_close", "收盤價", "closing_index"),
@@ -51,7 +51,6 @@ _DEFAULT_ALIASES: dict[str, tuple[str, ...]] = {
     "ma60": ("ma60", "taiex_ma60", "index_ma60"),
     "ma20_slope": ("ma20_slope", "taiex_ma20_slope", "index_ma20_slope"),
     "tail_risk": ("tail_risk", "tail_risk_score", "formal_tail_risk"),
-    "bcd": ("bcd", "bcd_score", "formal_bcd"),
     "mhs": ("mhs", "mhs_score"),
     "foreign_spot_net_sell_consecutive_days": ("foreign_spot_net_sell_consecutive_days",),
     "foreign_large_sell": ("foreign_large_sell",),
@@ -82,9 +81,9 @@ _CATEGORY_FIELDS: dict[str, tuple[str, ...]] = {
     "breadth": ("index_down", "advancing_issues", "declining_issues", "declining_issues_significantly_expand", "declining_issues_significantly_gt_advancing", "declining_gt_advancing_consecutive_days", "breadth_weakens_for_2_days", "breadth_history", "small_mid_advancing_issues", "small_mid_declining_issues", "small_mid_return_pct", "otc_return_pct", "count_main_7_below_ma20", "count_main_7_below_ma60"),
     "leadership": ("count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols", "main7_returns", "main7_weights", "mhs"),
     "futures": ("futures_hedging_increases", "futures_hedging_significant", "futures_net_short_increases", "futures_net_short_decreases"),
-    "options": ("pcr_stable", "pcr_rises", "vix_stable", "vix_rises", "tail_risk", "bcd"),
+    "options": ("pcr_stable", "pcr_rises", "vix_stable", "vix_rises", "tail_risk"),
     "margin": ("margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "index_5d_return_pct", "margin_balance_5d_decline_pct", "margin_not_retreating", "turnover_concentration_topn"),
-    "scores": ("tail_risk", "bcd", "mhs"),
+    "scores": ("tail_risk", "mhs"),
 }
 
 
@@ -356,20 +355,20 @@ class TAIEXPriceProvider:
 
 @dataclass(frozen=True)
 class ManualScoreProvider:
-    """Provider for formal/manual Tail Risk, BCD, and optional MHS values."""
+    """Provider for formal/manual Tail Risk and optional MHS values; BCD is computed only."""
 
     provider_id: str
     provider_name: str
     row: Mapping[str, Any]
     field_map: Mapping[str, str] = field(default_factory=dict)
     capabilities: tuple[DailyProviderCapability, ...] = (
-        DailyProviderCapability("scores", ("tail_risk", "bcd", "mhs"), "formal", 100),
+        DailyProviderCapability("scores", ("tail_risk", "mhs"), "formal", 100),
     )
 
     def fetch_or_load(self, context: DailyProviderContext) -> DailyProviderResult:
         field_map = dict(context.field_map_for(self.provider_id, "scores"))
         field_map.update(self.field_map)
-        canonical = {key: value for key, value in _canonicalize_row(self.row, field_map=field_map).items() if key in {"observed_at", "tail_risk", "bcd", "mhs"}}
+        canonical = {key: value for key, value in _canonicalize_row(self.row, field_map=field_map).items() if key in {"observed_at", "tail_risk", "mhs"}}
         return _provider_result(self, canonical, notes="Manual/formal score row")
 
 
@@ -600,7 +599,7 @@ def _coerce_value(name: str, value: Any) -> Any:
         return _coerce_bool(value)
     if name in _INT_FIELDS:
         return int(float(value))
-    if name in (_TCWRS_FIELDS | _ETI5_FIELDS | {"tail_risk", "bcd", "mhs", "return_60d_pct", "previous_ma60", "otc_return_pct", "small_mid_advancing_issues", "small_mid_declining_issues", "small_mid_return_pct", "turnover_concentration_topn"}) and name != "observed_at":
+    if name in (_TCWRS_FIELDS | _ETI5_FIELDS | {"tail_risk", "mhs", "return_60d_pct", "previous_ma60", "otc_return_pct", "small_mid_advancing_issues", "small_mid_declining_issues", "small_mid_return_pct", "turnover_concentration_topn"}) and name != "observed_at":
         if isinstance(value, str):
             stripped = value.replace(",", "").strip()
             if stripped == "":

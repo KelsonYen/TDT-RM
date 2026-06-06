@@ -36,7 +36,7 @@ class DecisionMatrixInput:
     tcwrs: float
     eti5_total: int
     tail_risk: float
-    bcd: float
+    bcd: float | None
     taiex: float
     ma20: float
     consecutive_down_days: int
@@ -237,7 +237,7 @@ def resolve_five_light_signal(
         (61 <= data.tcwrs <= 75 and data.eti5_total >= 2, "61 <= TCWRS <= 75 AND ETI5_total >= 2"),
         (data.eti5_total >= 3 and data.tcwrs >= 41, "ETI5_total >= 3 AND TCWRS >= 41"),
         (data.tcwrs >= 41 and data.tail_risk >= 61 and data.eti5_total >= 2, "TCWRS >= 41 AND TailRisk >= 61 AND ETI5_total >= 2"),
-        (data.bcd >= 61 and data.tcwrs >= 41 and data.eti5_total >= 2, "BCD >= 61 AND TCWRS >= 41 AND ETI5_total >= 2"),
+        (data.bcd is not None and data.bcd >= 61 and data.tcwrs >= 41 and data.eti5_total >= 2, "BCD >= 61 AND TCWRS >= 41 AND ETI5_total >= 2"),
         (data.eti5_total >= 4 and data.tcwrs < 41, "ETI5_total >= 4 AND TCWRS < 41; downgraded to Orange"),
     )
     for matched, rule in orange_rules:
@@ -250,7 +250,7 @@ def resolve_five_light_signal(
         (data.mhs >= 86 and data.tcwrs >= 30, "MHS >= 86 AND TCWRS >= 30"),
         (data.eti5_total >= 2 and data.tcwrs >= 21, "ETI5_total >= 2 AND TCWRS >= 21"),
         (data.tail_risk >= 61 and data.tcwrs >= 21, "TailRisk >= 61 AND TCWRS >= 21"),
-        (data.bcd >= 61 and data.tcwrs >= 21, "BCD >= 61 AND TCWRS >= 21"),
+        (data.bcd is not None and data.bcd >= 61 and data.tcwrs >= 21, "BCD >= 61 AND TCWRS >= 21"),
     )
     for matched, rule in strengthened_yellow_rules:
         if matched:
@@ -262,7 +262,7 @@ def resolve_five_light_signal(
         (data.mhs >= 71, "MHS >= 71"),
         (data.eti5_total >= 1, "ETI5_total >= 1"),
         (data.tail_risk >= 41, "TailRisk >= 41"),
-        (data.bcd >= 41, "BCD >= 41"),
+        (data.bcd is not None and data.bcd >= 41, "BCD >= 41"),
     )
     for matched, rule in yellow_rules:
         if matched:

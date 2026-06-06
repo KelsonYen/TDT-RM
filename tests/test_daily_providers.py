@@ -124,7 +124,7 @@ def test_manual_formal_scores_override_proxy_fields():
     result = DailySnapshotAssembler(providers).assemble(DailyProviderContext(as_of=date(2026, 5, 29)))
 
     assert result.snapshot.canonical_row["tail_risk"] == 42.5
-    assert result.snapshot.canonical_row["bcd"] == 38.0
+    assert "bcd" not in result.snapshot.canonical_row
     assert result.snapshot.field_sources["tail_risk"] == "manual_scores"
 
 

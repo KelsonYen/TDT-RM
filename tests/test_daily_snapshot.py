@@ -125,15 +125,16 @@ def test_missing_required_price_fields_fails():
     assert any(issue.code == "missing_required_field" and issue.field == "canonical_row.close" for issue in validation.issues)
 
 
-def test_formal_tail_risk_bcd_are_used_when_present():
+def test_formal_tail_risk_is_used_but_bcd_is_computed_only():
     payload = build_daily_payload_from_snapshot(
         snapshot(tail_risk=12.25, bcd=8.75),
         timestamp=datetime(2026, 3, 31, 9, 0, tzinfo=UTC),
     )
 
     assert payload["tail_risk"] == 12.25
-    assert payload["bcd"] == 8.75
-    assert payload["data"]["fallback_proxies"] == {}
+    assert payload["bcd"] is None
+    assert payload["bcd_status"] == "INCOMPLETE"
+    assert payload["data"]["fallback_proxies"]["bcd"]["status"] == "incomplete_bcd"
 
 
 def test_price_only_proxy_fallback_is_recorded_when_tail_risk_bcd_absent():

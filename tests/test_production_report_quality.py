@@ -165,4 +165,4 @@ def test_production_report_explains_bcd_or_data_limits(tmp_path: Path):
     assert "BCD：" in report
     assert "主要原因：" in report or "資料限制：" in report
     if "資料限制：" in report:
-        assert "partial BCD" in report
+        assert "INCOMPLETE" in report
