@@ -20,7 +20,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Protocol, Sequence
 
-from .bcd import BCDInput, BCDResult, BreadthBar, score_bcd
+from .bcd import BCDInput, BCDResult, BreadthBar, assert_bcd_tail_risk_independence, score_bcd
 from .crash_probability import CrashProbabilityInput, score_crash_probability
 from .decision_matrix import (
     BearTrendInput,
@@ -308,7 +308,12 @@ def build_daily_payload(
         "mhs": mhs,
         "eti_5": eti5.eti_score,
         "tail_risk": round(tail_risk, 2),
-        "bcd": round(bcd, 2),
+        "bcd": _round_optional(bcd),
+        "bcd_status": bcd_result.data_quality_status,
+        "bcd_data_completeness": bcd_result.data_completeness,
+        "bcd_missing_components": list(bcd_result.missing_components),
+        "bcd_source_dependencies": list(bcd_result.source_dependencies),
+        "bcd_calculation_version": bcd_result.calculation_version,
         "cp": round(cp.cp_score, 2),
         "cp_level": cp.cp_level,
         "signal": decision.signal,
@@ -331,7 +336,7 @@ def build_daily_payload(
             "MHS": mhs,
             "ETI-5": eti5.eti_score,
             "Tail Risk": round(tail_risk, 2),
-            "BCD": round(bcd, 2),
+            "BCD": _round_optional(bcd),
             "CP": round(cp.cp_score, 2),
         },
         "traces": {
@@ -349,7 +354,7 @@ def build_daily_payload(
             "status": "price_only_provisional",
             "limitations": [
                 "ETI-5 is limited to the available ETI-1 price component.",
-                "BCD is partial: price-only run lacks breadth history, Main-7 returns/weights, sector breadth, OTC/small-mid breadth, and Top-N turnover concentration.",
+                "BCD is INCOMPLETE and null: price-only run lacks required independent BCD inputs; no Tail Risk/options proxy is used.",
                 "MHS has no standalone scorer in this repository and is set to 0.0.",
             ],
         },
@@ -407,10 +412,10 @@ def build_daily_payload_from_snapshot(
         tail_risk = float(observation.tail_risk)
     bcd_result = _bcd_result_from_snapshot(snapshot, taiex_return_pct=one_day_return)
     bcd = bcd_result.final_score
-    if bcd_result.data_quality_status != "complete":
+    if bcd_result.data_quality_status != "COMPLETE":
         proxy_info["bcd"] = {
-            "status": "partial_bcd",
-            "reason": "BCD source fields are incomplete; see traces.bcd.missing_components",
+            "status": "incomplete_bcd",
+            "reason": "Required independent BCD inputs are incomplete; BCD is null and no proxy is used",
             "missing_components": list(bcd_result.missing_components),
         }
 
@@ -458,8 +463,11 @@ def build_daily_payload_from_snapshot(
     latest_bar_date = str(_coerce_date(snapshot.price_bars[-1].observed_at)) if snapshot.price_bars else str(snapshot.trade_date)
     limitations = list(snapshot.limitations)
     limitations.append("MHS uses snapshot field mhs when supplied; no formal MHS scorer is implemented.")
-    if proxy_info:
-        limitations.append("Tail Risk and/or BCD use documented price-only fallback proxies because formal snapshot values are absent.")
+    if "tail_risk" in proxy_info:
+        limitations.append("Tail Risk uses a documented price-only fallback because formal snapshot values are absent.")
+    if "bcd" in proxy_info:
+        limitations.append("BCD is INCOMPLETE and null when required independent inputs are missing; no Tail Risk/options proxy is used.")
+    _assert_snapshot_bcd_tail_risk_independence(snapshot, bcd, tail_risk)
 
     return {
         "timestamp": _iso_timestamp(run_timestamp),
@@ -470,7 +478,12 @@ def build_daily_payload_from_snapshot(
         "mhs": mhs,
         "eti_5": eti5.eti_score,
         "tail_risk": round(tail_risk, 2),
-        "bcd": round(bcd, 2),
+        "bcd": _round_optional(bcd),
+        "bcd_status": bcd_result.data_quality_status,
+        "bcd_data_completeness": bcd_result.data_completeness,
+        "bcd_missing_components": list(bcd_result.missing_components),
+        "bcd_source_dependencies": list(bcd_result.source_dependencies),
+        "bcd_calculation_version": bcd_result.calculation_version,
         "cp": round(cp.cp_score, 2),
         "cp_level": cp.cp_level,
         "signal": decision.signal,
@@ -493,7 +506,7 @@ def build_daily_payload_from_snapshot(
             "MHS": mhs,
             "ETI-5": eti5.eti_score,
             "Tail Risk": round(tail_risk, 2),
-            "BCD": round(bcd, 2),
+            "BCD": _round_optional(bcd),
             "CP": round(cp.cp_score, 2),
         },
         "traces": {
@@ -525,6 +538,25 @@ def build_daily_payload_from_snapshot(
         },
         "etf_exit": etf_hook.as_dict(),
     }
+
+
+
+def _round_optional(value: float | None, ndigits: int = 2) -> float | None:
+    return None if value is None else round(float(value), ndigits)
+
+
+def _assert_snapshot_bcd_tail_risk_independence(snapshot: DailyMarketSnapshot, bcd: float | None, tail_risk: float) -> None:
+    raw_history = snapshot.canonical_row.get("bcd_tail_risk_history") or snapshot.canonical_row.get("bcd_tail_risk_comparison_history")
+    rows: list[Mapping[str, Any]] = []
+    if isinstance(raw_history, str) and raw_history.strip():
+        try:
+            raw_history = json.loads(raw_history)
+        except json.JSONDecodeError:
+            raw_history = []
+    if isinstance(raw_history, Sequence) and not isinstance(raw_history, (str, bytes)):
+        rows.extend(item for item in raw_history if isinstance(item, Mapping))
+    rows.append({"trade_date": snapshot.trade_date.isoformat(), "bcd": bcd, "tail_risk": tail_risk})
+    assert_bcd_tail_risk_independence(rows)
 
 
 def _unavailable_global_risk_fields(snapshot: DailyMarketSnapshot) -> list[str]:
@@ -604,6 +636,7 @@ def render_user_daily_report(payload: Mapping[str, Any], *, generated_at: str | 
         f"ETI-5：{_format_value(eti5)}",
         f"Tail Risk：{_format_value(tail_risk)}",
         f"BCD：{_format_value(bcd)}",
+        *_bcd_status_disclosure_lines(payload),
         *_bcd_explanation_lines(payload),
         f"Crash Probability：{_format_probability(cp)}",
         f"股票曝險上限：{exposure_limit}",
@@ -777,6 +810,19 @@ def _de_risk_action(signal: Any) -> str:
     if normalized in {"orange", "red", "deep red"}:
         return "依升燈規則分批降低高波動與槓桿部位。"
     return "目前不需要強制減碼，但不應新增短線追高部位。"
+
+
+
+def _bcd_status_disclosure_lines(payload: Mapping[str, Any]) -> list[str]:
+    trace = _mapping(_mapping(payload.get("traces")).get("bcd"))
+    status = str(payload.get("bcd_status") or trace.get("bcd_status") or trace.get("data_quality_status") or "INCOMPLETE")
+    missing = payload.get("bcd_missing_components") or trace.get("bcd_missing_components") or trace.get("missing_components") or []
+    if not isinstance(missing, Sequence) or isinstance(missing, (str, bytes)):
+        missing = []
+    return [
+        f"BCD Status: {status}",
+        "Missing Inputs: " + json.dumps([str(item) for item in missing], ensure_ascii=False),
+    ]
 
 
 def _forced_de_risk_sentence(signal: Any) -> str:
@@ -979,7 +1025,61 @@ def write_bcd_audit_artifacts(payload: Mapping[str, Any], output_dir: str | Path
                     "missing_reason": "; ".join(item for item in sorted(missing) if item == component or item.startswith(component) or _missing_belongs_to_component(item, component)),
                 }
             )
-    return {"bcd_audit_trace_json": json_path, "bcd_audit_trace_csv": csv_path}
+    independence_path = _write_bcd_independence_audit_markdown(payload, trace)
+    return {"bcd_audit_trace_json": json_path, "bcd_audit_trace_csv": csv_path, "bcd_independence_audit_md": independence_path}
+
+
+
+def _write_bcd_independence_audit_markdown(payload: Mapping[str, Any], trace: Mapping[str, Any]) -> Path:
+    destination = Path("reports/audit")
+    destination.mkdir(parents=True, exist_ok=True)
+    path = destination / "bcd_independence_audit.md"
+    source_fields = _mapping(trace.get("source_fields"))
+    missing = [str(item) for item in trace.get("missing_components", []) or []]
+    dependencies = [str(item) for item in trace.get("bcd_source_dependencies", []) or trace.get("source_dependencies", []) or []]
+    tail_risk = payload.get("tail_risk")
+    bcd = payload.get("bcd")
+    comparison = "not comparable (BCD incomplete/null)" if bcd is None or tail_risk is None else f"abs(bcd - tail_risk) = {abs(float(bcd) - float(tail_risk)):.6f}"
+    lines = [
+        "# BCD Independence Audit",
+        "",
+        f"Trade date: {payload.get('trade_date')}",
+        f"Calculation version: {trace.get('bcd_calculation_version', 'BCD-INDEPENDENT-V1')}",
+        f"BCD Status: {trace.get('bcd_status') or trace.get('data_quality_status')}",
+        f"Completeness score: {trace.get('bcd_data_completeness')}",
+        f"Missing Inputs: {json.dumps(missing, ensure_ascii=False)}",
+        "",
+        "## Input sources",
+        *[f"- {key}: {value}" for key, value in sorted(source_fields.items())],
+        "",
+        "## Calculation path",
+        "- `src/tdt_rm/daily_runner.py::build_daily_payload_from_snapshot` calls `_bcd_result_from_snapshot` and writes BCD payload/audit fields.",
+        "- `src/tdt_rm/daily_runner.py::_bcd_result_from_snapshot` maps independent snapshot breadth, leadership, sector, OTC/small-mid, and turnover fields into `BCDInput`.",
+        "- `src/tdt_rm/bcd.py::score_bcd` validates completeness and returns `final_score=None` unless all required independent inputs are present.",
+        "",
+        "## Dependency graph",
+        "```",
+        "breadth_history ─┐",
+        "main7_returns ──┤",
+        "main7_weights ──┤",
+        "sector_diffusion ├─> BCDInput -> score_bcd -> bcd",
+        "otc_return_pct ─┤",
+        "small_mid_breadth ─┤",
+        "turnover_concentration_topn ─┘",
+        "tail_risk ─X (forbidden dependency)",
+        "options_csv.bcd ─X (forbidden dependency)",
+        "```",
+        "",
+        "## Source dependencies",
+        *[f"- {item}" for item in dependencies],
+        "",
+        "## Comparison against tail_risk",
+        f"- Tail Risk: {tail_risk}",
+        f"- BCD: {bcd}",
+        f"- {comparison}",
+    ]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
 
 
 def _bcd_explanation_lines(payload: Mapping[str, Any]) -> list[str]:
@@ -996,7 +1096,7 @@ def _bcd_explanation_lines(payload: Mapping[str, Any]) -> list[str]:
         return [
             "資料限制：",
             *[f"{_FULLWIDTH_NUMBERS.get(index, str(index))}、缺少 {_bcd_missing_label(item)}" for index, item in enumerate(shown, start=1)],
-            f"{_FULLWIDTH_NUMBERS.get(len(shown) + 1, str(len(shown) + 1))}、此分數為 partial BCD，不得視為完整拉積盤判斷",
+            f"{_FULLWIDTH_NUMBERS.get(len(shown) + 1, str(len(shown) + 1))}、BCD 狀態為 INCOMPLETE，分數為 null，不得視為完整拉積盤判斷",
         ]
     ranked = sorted(component_scores.items(), key=lambda item: float(item[1]), reverse=True)
     if not ranked:

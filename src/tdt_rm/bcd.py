@@ -52,13 +52,16 @@ class BCDInput:
 class BCDResult:
     """Fully explainable BCD output."""
 
-    final_score: float
+    final_score: float | None
     component_scores: Mapping[str, float]
     raw_inputs: Mapping[str, Any]
     threshold_hits: Mapping[str, bool]
     missing_components: tuple[str, ...]
     source_fields: Mapping[str, str]
-    data_quality_status: str = "complete"
+    data_quality_status: str = "COMPLETE"
+    data_completeness: float = 1.0
+    source_dependencies: tuple[str, ...] = ()
+    calculation_version: str = "BCD-INDEPENDENT-V1"
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -69,8 +72,94 @@ class BCDResult:
             "missing_components": list(self.missing_components),
             "source_fields": dict(self.source_fields),
             "data_quality_status": self.data_quality_status,
+            "bcd_status": self.data_quality_status,
+            "bcd_data_completeness": self.data_completeness,
+            "bcd_missing_components": list(self.missing_components),
+            "bcd_source_dependencies": list(self.source_dependencies),
+            "bcd_calculation_version": self.calculation_version,
         }
 
+
+_REQUIRED_BCD_INPUTS = (
+    "breadth_history",
+    "main7_returns",
+    "main7_weights",
+    "sector_diffusion",
+    "otc_return_pct",
+    "small_mid_breadth",
+    "turnover_concentration_topn",
+)
+
+
+def _missing_required_inputs(inputs: BCDInput) -> tuple[str, ...]:
+    missing: list[str] = []
+    if not inputs.breadth_history:
+        missing.append("breadth_history")
+    if not inputs.main7_returns:
+        missing.append("main7_returns")
+    if not inputs.main7_weights:
+        missing.append("main7_weights")
+    if not inputs.sector_returns or not inputs.sector_above_ma20:
+        missing.append("sector_diffusion")
+    if inputs.otc_return_pct is None:
+        missing.append("otc_return_pct")
+    if inputs.small_mid_breadth is None:
+        missing.append("small_mid_breadth")
+    if inputs.turnover_concentration_topn is None:
+        missing.append("turnover_concentration_topn")
+    return tuple(missing)
+
+
+def _bcd_completeness_score(inputs: BCDInput) -> float:
+    missing = set(_missing_required_inputs(inputs))
+    present = len(_REQUIRED_BCD_INPUTS) - len(missing)
+    return round(present / len(_REQUIRED_BCD_INPUTS), 4)
+
+
+def _source_dependencies(source_fields: Mapping[str, str], inputs: BCDInput) -> tuple[str, ...]:
+    dependencies: list[str] = []
+    for key in (
+        "advancing_issues",
+        "declining_issues",
+        "breadth_history",
+        "main7_returns",
+        "main7_weights",
+        "sector_returns",
+        "sector_above_ma20",
+        "otc_return_pct",
+        "small_mid_advancing_issues",
+        "small_mid_declining_issues",
+        "turnover_concentration_topn",
+        "taiex_return_pct",
+    ):
+        value = source_fields.get(key)
+        if value:
+            dependencies.append(f"{key}<-{value}")
+    return tuple(dict.fromkeys(dependencies))
+
+
+def assert_bcd_tail_risk_independence(rows: Sequence[Mapping[str, Any]], *, tolerance: float = 0.0001, max_consecutive: int = 3) -> None:
+    """Fail when BCD shadows Tail Risk for too many consecutive trading days."""
+
+    consecutive = 0
+    latest_dates: list[str] = []
+    for row in sorted(rows, key=lambda item: str(item.get("trade_date") or item.get("observed_at") or item.get("date") or "")):
+        bcd = row.get("bcd")
+        tail_risk = row.get("tail_risk")
+        if bcd is None or tail_risk is None or bcd == "" or tail_risk == "":
+            consecutive = 0
+            latest_dates = []
+            continue
+        if abs(float(bcd) - float(tail_risk)) < tolerance:
+            consecutive += 1
+            latest_dates.append(str(row.get("trade_date") or row.get("observed_at") or row.get("date") or "unknown"))
+        else:
+            consecutive = 0
+            latest_dates = []
+        if consecutive > max_consecutive:
+            raise ValueError(
+                f"BCD independence violation: abs(bcd - tail_risk) < {tolerance} for {consecutive} consecutive trading days ({', '.join(latest_dates[-consecutive:])})"
+            )
 
 _COMPONENTS = (
     "index_breadth_divergence",
@@ -105,8 +194,16 @@ def score_bcd(inputs: BCDInput, *, source_fields: Mapping[str, str] | None = Non
     turnover_score, turnover_hits, turnover_missing = _score_turnover_concentration(inputs)
     _record_component("turnover_concentration", turnover_score, turnover_hits, turnover_missing, component_scores, threshold_hits, missing)
 
-    final_score = round(sum(component_scores.values()), 4)
-    missing_tuple = tuple(dict.fromkeys(missing))
+    missing_tuple = tuple(dict.fromkeys([*missing, *_missing_required_inputs(inputs)]))
+    completeness = _bcd_completeness_score(inputs)
+    status = "COMPLETE" if completeness >= 1.0 and not missing_tuple else "INCOMPLETE"
+    final_score = round(sum(component_scores.values()), 4) if status == "COMPLETE" else None
+    dependencies = _source_dependencies(sources, inputs)
+    forbidden = sorted({dep for dep in dependencies if dep in {"tail_risk", "options_csv.bcd", "options_csv", "options.bcd"} or "tail_risk" in dep or dep.endswith(".bcd")})
+    if forbidden:
+        missing_tuple = tuple(dict.fromkeys([*missing_tuple, *[f"forbidden_dependency:{item}" for item in forbidden]]))
+        status = "INCOMPLETE"
+        final_score = None
     return BCDResult(
         final_score=final_score,
         component_scores=component_scores,
@@ -114,7 +211,9 @@ def score_bcd(inputs: BCDInput, *, source_fields: Mapping[str, str] | None = Non
         threshold_hits=threshold_hits,
         missing_components=missing_tuple,
         source_fields=sources,
-        data_quality_status="complete" if not missing_tuple else "partial",
+        data_quality_status=status,
+        data_completeness=completeness,
+        source_dependencies=dependencies,
     )
 
 
@@ -310,4 +409,4 @@ def _raw_inputs(inputs: BCDInput) -> dict[str, Any]:
     }
 
 
-__all__ = ["BreadthBar", "BCDInput", "BCDResult", "score_bcd"]
+__all__ = ["BreadthBar", "BCDInput", "BCDResult", "score_bcd", "assert_bcd_tail_risk_independence"]

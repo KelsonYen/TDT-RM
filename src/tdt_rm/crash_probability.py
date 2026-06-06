@@ -26,7 +26,7 @@ class CrashProbabilityInput:
     tcwrs: float
     eti5_total: float
     tail_risk: float
-    bcd: float
+    bcd: float | None
 
 
 @dataclass(frozen=True)
@@ -74,7 +74,9 @@ def score_crash_probability(data: CrashProbabilityInput) -> CrashProbabilityResu
     eti5_scaled = data.eti5_total * 20
     eti5_contribution = eti5_scaled * 0.30
     tail_risk_contribution = data.tail_risk * 0.20
-    bcd_contribution = data.bcd * 0.10
+    bcd_available = data.bcd is not None
+    bcd_value = float(data.bcd) if bcd_available else 0.0
+    bcd_contribution = bcd_value * 0.10
     cp_raw = (
         tcwrs_contribution
         + eti5_contribution
@@ -105,6 +107,9 @@ def score_crash_probability(data: CrashProbabilityInput) -> CrashProbabilityResu
             "eti5": eti5_contribution,
             "tail_risk": tail_risk_contribution,
             "bcd": bcd_contribution,
+        },
+        "input_status": {
+            "bcd": "available" if bcd_available else "missing_excluded_from_cp_contribution",
         },
         "cp_raw": cp_raw,
         "cap": 100,

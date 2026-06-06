@@ -18,7 +18,7 @@ def test_sector_breadth_missing_is_disclosed():
         )
     )
     assert "sector_breadth" in result.missing_components
-    assert result.data_quality_status == "partial"
+    assert result.data_quality_status == "INCOMPLETE"
 
 
 def test_turnover_concentration_scores_only_when_broad_participation_weak():

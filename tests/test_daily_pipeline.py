@@ -128,8 +128,10 @@ def test_2026_06_05_canonical_regression_values_and_input_source(tmp_path: Path)
     assert result["scores"]["TCWRS"] == 12
     assert result["scores"]["ETI-5"] == 1
     assert result["scores"]["Tail Risk"] == 53.95
-    assert result["scores"]["BCD"] == 53.95
-    assert result["scores"]["CP"] == 26.98
+    assert result["scores"]["BCD"] is None
+    assert result["scores"]["CP"] == 21.59
+    assert result["fallback_proxies"]["bcd"]["status"] == "incomplete_bcd"
+    
     assert result["signal"] == "Yellow"
     assert result["exposure_limit"] == "60-80%"
     assert payload["operator_disclosure"]["acceptable_for_real_world_daily_use"] is True
@@ -187,7 +189,7 @@ def test_pipeline_runs_from_provider_fixture_csvs_and_writes_artifacts(tmp_path:
     assert "Tail Risk:" in completed.stdout
     assert "BCD:" in completed.stdout
     assert "CP:" in completed.stdout
-    assert "fallback_proxies: {}" in completed.stdout
+    assert "incomplete_bcd" in completed.stdout
     assert "provider_warnings:" in completed.stdout
     assert "validation_status: passed" in completed.stdout
     assert (output_dir / "tdt_rm_daily_2026-05-29.json").exists()
@@ -240,7 +242,7 @@ def test_snapshot_out_and_summary_surface_available_eti_and_no_fallbacks(tmp_pat
 
     assert snapshot_out.exists()
     assert result["assembled_snapshot_path"] == str(snapshot_out)
-    assert result["fallback_proxies"] == {}
+    assert result["fallback_proxies"]["bcd"]["status"] == "incomplete_bcd"
     assert set(result["available_eti_components"]) == {"ETI-1", "ETI-2", "ETI-3", "ETI-4", "ETI-5"}
     assert result["validation_status"] == "passed"
 
@@ -278,7 +280,7 @@ def test_json_summary_writes_machine_readable_summary(tmp_path: Path):
     assert summary["trade_date"] == AS_OF
     assert summary["validation_status"] == "passed"
     assert summary["artifact_paths"]["json"] == str(output_dir / "tdt_rm_daily_2026-05-29.json")
-    assert summary["fallback_proxies"] == {}
+    assert summary["fallback_proxies"]["bcd"]["status"] == "incomplete_bcd"
     assert set(summary["available_eti_components"]) == {"ETI-1", "ETI-2", "ETI-3", "ETI-4", "ETI-5"}
 
 
