@@ -11,7 +11,7 @@ TRADE_DATE = date(2026, 6, 5)
 INPUT_DIR = Path("inputs/daily/2026-06-05")
 
 
-def test_2026_06_05_fallback_options_and_disclosures_fail_operator_quality(tmp_path: Path):
+def test_2026_06_05_confirmed_finmind_and_unavailable_global_risk_pass_operator_quality(tmp_path: Path):
     result = run_daily_pipeline(
         as_of=TRADE_DATE,
         output_dir=tmp_path,
@@ -34,26 +34,30 @@ def test_2026_06_05_fallback_options_and_disclosures_fail_operator_quality(tmp_p
 
     assert validation.status == "passed"
     assert result["validation_status"] == "passed"
-    assert payload["production_report_quality"] == "FAIL_FOR_OPERATOR_USE"
-    assert result["production_report_quality"] == "FAIL_FOR_OPERATOR_USE"
-    assert disclosure["acceptable_for_real_world_daily_use"] is False
-    assert any(item["provider_source"] == "FINMIND_FALLBACK:TaiwanOptionDaily:TXO" for item in disclosure["fallback_provider_datasets"])
-    assert {item["operator_field"] for item in disclosure["fallback_operator_dependencies"]} >= {"Tail Risk", "BCD", "Crash Probability"}
-    assert {item["field"] for item in disclosure["placeholder_default_like_fields"]} >= {"nasdaq", "sox"}
+    assert payload["production_report_quality"] == "PASS"
+    assert result["production_report_quality"] == "PASS"
+    assert disclosure["acceptable_for_real_world_daily_use"] is True
+    assert disclosure["blocking_reasons"] == []
+    assert disclosure["fallback_provider_datasets"] == []
+    assert disclosure["fallback_operator_dependencies"] == []
+    assert disclosure["placeholder_default_like_fields"] == []
+    assert set(payload["data"]["unavailable_global_risk_fields"]) >= {"nasdaq", "sox"}
+    assert payload["data"]["global_risk_calculation_status"] == "unavailable_source_fields_excluded"
     assert "required module(s) not integrated: ETF Exit" not in disclosure["blocking_reasons"]
     assert any(item["module"] == "ETF Exit" and item["status"] == "not_integrated" for item in disclosure["non_integrated_modules"])
     assert any(item["module"] == "ETF Exit" and item["status"] == "not_integrated" for item in disclosure["non_blocking_module_warnings"])
 
     report = render_final_operator_report(result)
     assert "## Operator Disclosure" in report
-    assert "Production Report Quality: `FAIL_FOR_OPERATOR_USE`" in report
-    assert "Acceptable for Real-World Daily Use: `NO`" in report
+    assert "Production Report Quality: `PASS`" in report
+    assert "Acceptable for Real-World Daily Use: `YES`" in report
     assert "FINMIND_FALLBACK:TaiwanOptionDaily:TXO" in report
     assert "### Blocking Quality Failures" in report
     assert "### Non-Blocking Module Warnings" in report
     assert "### Data-Source Warnings" in report
-    assert "field=nasdaq" in report
-    assert "field=sox" in report
+    assert "No blocking quality-control reasons detected" in report
+    assert "field=nasdaq" not in report
+    assert "field=sox" not in report
     assert "module=ETF Exit; status=not_integrated" in report
     assert "required module(s) not integrated: ETF Exit" not in report
 
@@ -63,7 +67,7 @@ def test_etf_exit_not_integrated_only_passes_with_non_blocking_disclosure():
 
     disclosure = assess_production_report_quality(payload)
 
-    assert disclosure["production_report_quality"] == "PASS_WITH_DISCLOSURE"
+    assert disclosure["production_report_quality"] == "PASS"
     assert disclosure["acceptable_for_real_world_daily_use"] is True
     assert disclosure["blocking_reasons"] == []
     assert disclosure["non_integrated_modules"] == [
@@ -77,3 +81,70 @@ def test_etf_exit_not_integrated_only_passes_with_non_blocking_disclosure():
     assert "required module(s) not integrated: ETF Exit" not in rendered
     assert "module=ETF Exit; status=not_integrated" not in blocking_section
     assert "module=ETF Exit; status=not_integrated" in module_section
+
+
+def test_confirmed_finmind_fallback_named_provider_is_not_fallback_blocking():
+    payload = {
+        "data": {
+            "field_sources": {"tail_risk": "options_csv", "bcd": "options_csv"},
+            "source_metadata": {
+                "options_csv": {
+                    "provider_source": "FINMIND_FALLBACK:TaiwanOptionDaily:TXO",
+                    "source_type": "REAL_PROVIDER",
+                    "name": "Local options CSV",
+                }
+            },
+        }
+    }
+
+    disclosure = assess_production_report_quality(payload)
+
+    assert disclosure["production_report_quality"] == "PASS"
+    assert disclosure["blocking_reasons"] == []
+    assert disclosure["fallback_provider_datasets"] == []
+    assert disclosure["fallback_operator_dependencies"] == []
+
+
+def test_nasdaq_sox_zero_without_source_fails():
+    payload = {
+        "data": {"field_sources": {}, "source_metadata": {}},
+        "traces": {"tcwrs": {"factors": {"G": {"conditions": {"raw": {"nasdaq": 0.0, "sox": 0.0}}}}}},
+    }
+
+    disclosure = assess_production_report_quality(payload)
+
+    assert disclosure["production_report_quality"] == "FAIL_FOR_OPERATOR_USE"
+    assert disclosure["acceptable_for_real_world_daily_use"] is False
+    assert {item["field"] for item in disclosure["placeholder_default_like_fields"]} == {"nasdaq", "sox"}
+    assert disclosure["blocking_reasons"] == ["default-like global-risk field(s) without confirmed source: nasdaq, sox"]
+
+
+def test_nasdaq_sox_unavailable_without_operator_calculation_is_acceptable():
+    payload = {
+        "data": {
+            "field_sources": {},
+            "source_metadata": {},
+            "unavailable_global_risk_fields": ["nasdaq", "sox"],
+            "global_risk_calculation_status": "unavailable_source_fields_excluded",
+        },
+        "traces": {"tcwrs": {"factors": {"G": {"conditions": {"raw": {"nasdaq": 0.0, "sox": 0.0}}}}}},
+    }
+
+    disclosure = assess_production_report_quality(payload)
+
+    assert disclosure["production_report_quality"] == "PASS"
+    assert disclosure["acceptable_for_real_world_daily_use"] is True
+    assert disclosure["placeholder_default_like_fields"] == []
+    assert disclosure["blocking_reasons"] == []
+
+
+def test_production_report_quality_fails_only_with_blocking_reasons():
+    clean = assess_production_report_quality({"data": {}})
+    blocked = assess_production_report_quality(
+        {"data": {"field_sources": {}, "source_metadata": {}}, "inputs": {"nasdaq": 0.0, "sox": 0.0}}
+    )
+
+    assert clean["blocking_reasons"] == []
+    assert clean["production_report_quality"] == "PASS"
+    assert blocked["blocking_reasons"]
+    assert blocked["production_report_quality"] == "FAIL_FOR_OPERATOR_USE"

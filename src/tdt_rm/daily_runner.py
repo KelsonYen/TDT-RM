@@ -369,6 +369,7 @@ def build_daily_payload_from_snapshot(
     coverage = build_source_coverage(snapshot)
     available_components = derive_eti_available_components(snapshot)
     tcwrs = score_tcwrs(observation.tcwrs_input)
+    global_risk_unavailable_fields = _unavailable_global_risk_fields(snapshot)
     eti_input = observation.eti5_input or ETI5Input(
         close=observation.tcwrs_input.close,
         ma20=observation.tcwrs_input.ma20,
@@ -512,9 +513,30 @@ def build_daily_payload_from_snapshot(
             "available_eti_components": list(coverage.available_eti_components),
             "data_status": coverage.data_status,
             "snapshot_validation": validation.as_dict(),
+            "unavailable_global_risk_fields": global_risk_unavailable_fields,
+            "global_risk_calculation_status": (
+                "unavailable_source_fields_excluded" if global_risk_unavailable_fields else "confirmed_source_fields"
+            ),
         },
         "etf_exit": etf_hook.as_dict(),
     }
+
+
+def _unavailable_global_risk_fields(snapshot: DailyMarketSnapshot) -> list[str]:
+    """Return global-risk fields that are intentionally unavailable, not defaults.
+
+    Nasdaq and SOX are optional external-pressure inputs.  When no provider
+    source supplies them, keep the run non-blocking but disclose that those
+    operator-facing global-risk values are unavailable rather than treating
+    TCWRS dataclass defaults as confirmed market data.
+    """
+
+    row = dict(snapshot.canonical_row)
+    unavailable: list[str] = []
+    for field in ("nasdaq", "sox"):
+        if field not in snapshot.field_sources and field not in row:
+            unavailable.append(field)
+    return unavailable
 
 
 def _eti_input_with_available_components(data: ETI5Input, available_components: set[str]) -> ETI5Input:
