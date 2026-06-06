@@ -23,6 +23,126 @@
   "exposure_limit": "60-80%",
   "fallback_proxies": {},
   "latest_bar_date": "2026-06-05",
+  "operator_disclosure": {
+    "acceptable_for_real_world_daily_use": false,
+    "blocking_reasons": [
+      "fallback provider data feeds top-level operator field(s): Tail Risk, BCD, Crash Probability",
+      "default-like global-risk field(s) without confirmed source: nasdaq, sox",
+      "required module(s) not integrated: ETF Exit"
+    ],
+    "fallback_operator_dependencies": [
+      {
+        "canonical_field": "tail_risk",
+        "operator_field": "Tail Risk",
+        "provider_source": "FINMIND_FALLBACK:TaiwanOptionDaily:TXO",
+        "source_id": "options_csv",
+        "source_type": "REAL_PROVIDER"
+      },
+      {
+        "canonical_field": "bcd",
+        "operator_field": "BCD",
+        "provider_source": "FINMIND_FALLBACK:TaiwanOptionDaily:TXO",
+        "source_id": "options_csv",
+        "source_type": "REAL_PROVIDER"
+      },
+      {
+        "canonical_field": "tail_risk",
+        "operator_field": "Crash Probability",
+        "provider_source": "FINMIND_FALLBACK:TaiwanOptionDaily:TXO",
+        "source_id": "options_csv",
+        "source_type": "REAL_PROVIDER"
+      }
+    ],
+    "fallback_provider_datasets": [
+      {
+        "category": "options",
+        "name": "Local options CSV",
+        "notes": "inputs/daily/2026-06-05/options.csv",
+        "provider_source": "FINMIND_FALLBACK:TaiwanOptionDaily:TXO",
+        "source_id": "options_csv",
+        "source_type": "REAL_PROVIDER"
+      }
+    ],
+    "non_integrated_modules": [
+      {
+        "module": "ETF Exit",
+        "notes": "Reserved for future ETF Exit integration; no ETF exit logic applied.",
+        "status": "not_integrated"
+      }
+    ],
+    "official_provider_datasets": [
+      {
+        "category": "breadth",
+        "name": "Local breadth CSV",
+        "notes": "inputs/daily/2026-06-05/breadth.csv",
+        "provider_source": "TWSE_OFFICIAL:twse_mi_index_breadth",
+        "source_id": "breadth_csv",
+        "source_type": "REAL_PROVIDER"
+      },
+      {
+        "category": "foreign_flow",
+        "name": "Local foreign-flow CSV",
+        "notes": "inputs/daily/2026-06-05/foreign_flow.csv",
+        "provider_source": "TWSE_OFFICIAL:twse_t86_foreign_flow",
+        "source_id": "foreign_flow_csv",
+        "source_type": "REAL_PROVIDER"
+      },
+      {
+        "category": "futures",
+        "name": "Local futures CSV",
+        "notes": "inputs/daily/2026-06-05/futures.csv",
+        "provider_source": "TAIFEX_OFFICIAL:taifex_txf_futures",
+        "source_id": "futures_csv",
+        "source_type": "REAL_PROVIDER"
+      },
+      {
+        "category": "fx",
+        "name": "Local FX CSV",
+        "notes": "inputs/daily/2026-06-05/fx.csv",
+        "provider_source": "TAIFEX_OFFICIAL:taifex_daily_fx",
+        "source_id": "fx_csv",
+        "source_type": "REAL_PROVIDER"
+      },
+      {
+        "category": "leadership",
+        "name": "Local leadership CSV",
+        "notes": "inputs/daily/2026-06-05/leadership.csv",
+        "provider_source": "TWSE_OFFICIAL:twse_main7_leadership",
+        "source_id": "leadership_csv",
+        "source_type": "REAL_PROVIDER"
+      },
+      {
+        "category": "margin",
+        "name": "Local margin CSV",
+        "notes": "inputs/daily/2026-06-05/margin.csv",
+        "provider_source": "TWSE_OFFICIAL:twse_margin",
+        "source_id": "margin_csv",
+        "source_type": "REAL_PROVIDER"
+      },
+      {
+        "category": "price",
+        "name": "TAIEX price provider",
+        "notes": "inputs/daily/2026-06-05/price.csv",
+        "provider_source": "TWSE_OFFICIAL:twse_fmtqik_price",
+        "source_id": "taiex_price",
+        "source_type": "REAL_PROVIDER"
+      }
+    ],
+    "placeholder_default_like_fields": [
+      {
+        "field": "nasdaq",
+        "reason": "0.0 default-like value and no confirmed source",
+        "value": 0.0
+      },
+      {
+        "field": "sox",
+        "reason": "0.0 default-like value and no confirmed source",
+        "value": 0.0
+      }
+    ],
+    "production_report_quality": "FAIL_FOR_OPERATOR_USE"
+  },
+  "production_report_quality": "FAIL_FOR_OPERATOR_USE",
   "provider_warnings": [
     "field conflict for index_5d_return_pct: kept/updated between taiex_price=0.7555953174551044 and margin_csv=0.0; kept taiex_price by precedence rule"
   ],
