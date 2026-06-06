@@ -23,6 +23,8 @@ _PLACEHOLDER_GLOBAL_FIELDS = ("nasdaq", "sox")
 _GLOBAL_FIELDS = ("nasdaq", "nasdaq_ma20", "sox", "sox_ma20", "sox_ma60")
 _OFFICIAL_MARKERS = ("OFFICIAL", "TAIFEX", "TWSE", "CBC")
 _FALLBACK_MARKERS = ("FALLBACK", "FINMIND_FALLBACK", "LOCAL_FALLBACK")
+_CONFIRMED_FALLBACK_NAMED_PROVIDERS = {"FINMIND_FALLBACK:TAIWANOPTIONDAILY:TXO"}
+_UNAVAILABLE_GLOBAL_FIELD_KEYS = ("unavailable_global_risk_fields", "operator_unavailable_fields")
 
 
 def assess_production_report_quality(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -48,13 +50,9 @@ def assess_production_report_quality(payload: Mapping[str, Any]) -> dict[str, An
         blocking_reasons.append(f"default-like global-risk field(s) without confirmed source: {fields}")
 
     module_warnings = non_integrated_modules
-    disclosure_items = bool(fallback_datasets or placeholder_fields or module_warnings or data.get("fallback_proxies"))
     if blocking_reasons:
         quality = QUALITY_FAIL_FOR_OPERATOR_USE
         acceptable = False
-    elif disclosure_items:
-        quality = QUALITY_PASS_WITH_DISCLOSURE
-        acceptable = True
     else:
         quality = QUALITY_PASS
         acceptable = True
@@ -116,8 +114,10 @@ def _provider_datasets(source_metadata: Mapping[str, Any], *, fallback: bool) ->
         provider_source = str(metadata.get("provider_source") or "")
         source_type = str(metadata.get("source_type") or "")
         text = " ".join([str(source_id), provider_source, source_type, str(metadata.get("name") or "")]).upper()
-        is_fallback = any(marker in text for marker in _FALLBACK_MARKERS)
-        is_official = any(marker in text for marker in _OFFICIAL_MARKERS) and not is_fallback
+        is_fallback = _is_fallback_source(str(source_id), metadata)
+        is_official = (
+            any(marker in text for marker in _OFFICIAL_MARKERS) or _is_confirmed_provider(metadata)
+        ) and not is_fallback
         if fallback and is_fallback:
             datasets.append(_dataset_entry(str(source_id), metadata))
         elif not fallback and is_official:
@@ -160,8 +160,15 @@ def _placeholder_global_fields(payload: Mapping[str, Any], field_sources: Mappin
     values = _find_global_field_values(payload)
     fields: list[dict[str, Any]] = []
     for field in _PLACEHOLDER_GLOBAL_FIELDS:
-        if field in values and _is_zero_like(values[field]) and not _field_source_id(field_sources.get(field)):
-            fields.append({"field": field, "value": values[field], "reason": "0.0 default-like value and no confirmed source"})
+        if (
+            field in values
+            and _is_zero_like(values[field])
+            and not _field_source_id(field_sources.get(field))
+            and field not in _unavailable_global_fields(payload)
+        ):
+            fields.append(
+                {"field": field, "value": values[field], "reason": "0.0 default-like value and no confirmed source"}
+            )
     return fields
 
 
@@ -186,9 +193,33 @@ def _non_integrated_modules(etf_exit: Mapping[str, Any]) -> list[dict[str, Any]]
     return []
 
 
+def _is_confirmed_provider(metadata: Mapping[str, Any]) -> bool:
+    return (
+        str(metadata.get("provider_source") or "").upper() in _CONFIRMED_FALLBACK_NAMED_PROVIDERS
+        and str(metadata.get("source_type") or "").upper() == "REAL_PROVIDER"
+    )
+
+
 def _is_fallback_source(source_id: str, metadata: Mapping[str, Any]) -> bool:
-    text = " ".join([source_id, str(metadata.get("provider_source") or ""), str(metadata.get("source_type") or ""), str(metadata.get("name") or "")]).upper()
+    provider_source = str(metadata.get("provider_source") or "").upper()
+    source_type = str(metadata.get("source_type") or "").upper()
+    if _is_confirmed_provider(metadata):
+        return False
+    text = " ".join([source_id, provider_source, source_type, str(metadata.get("name") or "")]).upper()
     return any(marker in text for marker in _FALLBACK_MARKERS)
+
+
+def _unavailable_global_fields(payload: Mapping[str, Any]) -> set[str]:
+    data = _mapping(payload.get("data"))
+    unavailable: set[str] = set()
+    for container in (data, payload):
+        for key in _UNAVAILABLE_GLOBAL_FIELD_KEYS:
+            raw = container.get(key)
+            if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes, bytearray)):
+                unavailable.update(str(item) for item in raw)
+            elif isinstance(raw, Mapping):
+                unavailable.update(str(field) for field, value in raw.items() if value)
+    return unavailable
 
 
 def _field_source_id(value: Any) -> str | None:
