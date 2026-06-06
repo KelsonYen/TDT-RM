@@ -77,7 +77,7 @@ def test_render_daily_markdown_contains_required_report_sections():
     assert "今日燈號：" in report
     assert "股票曝險上限：" in report
     assert "■ 核心結論" in report
-    assert "■ ETI-5明細" in report
+    assert "■ ETI-5 明細" in report
     assert "■ 今日動作" in report
     assert "|" not in report
 

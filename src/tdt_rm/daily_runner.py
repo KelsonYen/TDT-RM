@@ -639,19 +639,20 @@ def render_user_daily_report(payload: Mapping[str, Any], *, generated_at: str | 
         f"MHS：{_format_value(mhs)}",
         f"ETI-5：{_format_value(eti5)}",
         f"Tail Risk：{_format_value(tail_risk)}",
-        f"BCD：{_format_value(bcd)}",
-        *_bcd_status_disclosure_lines(payload),
-        *_bcd_explanation_lines(payload),
+        f"BCD：{_format_bcd_value(bcd, payload)}",
+        *_bcd_short_disclosure_lines(payload),
         f"Crash Probability：{_format_probability(cp)}",
-        f"股票曝險上限：{exposure_limit}",
+        f"股票曝險上限：{_display_exposure_limit(exposure_limit)}",
         "",
         "■ 核心結論",
         f"１、MHS{_heat_language(mhs)}，{_heat_meaning(mhs)}",
         f"２、TCWRS{_structure_language(tcwrs)}，代表目前結構性破壞{_structure_result(tcwrs)}。",
         f"３、ETI-5為{_format_value(eti5)}，{_eti_summary_language(eti5)}",
-        f"４、今日操作應以{('持有、停止追價、不使用槓桿、等待風險是否擴散' if yellow_tone else _action_phrase(signal))}為主。",
+        f"４、{_mhs_reason_summary(mhs, payload)}",
+        f"５、{_tail_risk_reason_summary(tail_risk, payload)}",
+        f"６、今日操作應以{('持有、停止追價、不使用槓桿、等待風險是否擴散' if yellow_tone else _action_phrase(signal))}為主。",
         "",
-        "■ ETI-5明細",
+        "■ ETI-5 明細",
         *eti_items,
         "",
         "■ 今日動作",
@@ -659,7 +660,7 @@ def render_user_daily_report(payload: Mapping[str, Any], *, generated_at: str | 
         f"２、加碼：{('暫停追高，等待拉回或風險指標降溫' if yellow_tone else '僅在符合原有配置紀律時小幅執行')}。",
         f"３、減碼：{_de_risk_action(signal)}",
         f"４、槓桿：{('不融資、不加槓桿' if yellow_tone else '不新增槓桿，既有槓桿需受曝險上限約束')}。",
-        f"５、現金部位：保留調節空間，使股票曝險不高於{exposure_limit}。",
+        f"５、現金部位：保留調節空間，使股票曝險不高於{_display_exposure_limit(exposure_limit)}。",
         "",
         "■ 優先減碼順序",
         f"目前{_forced_de_risk_sentence(signal)}；若後續升燈，減碼順序如下：",
@@ -726,6 +727,49 @@ def _format_value(value: Any) -> str:
     if isinstance(value, float) and value.is_integer():
         return str(int(value))
     return str(value)
+
+
+def _display_exposure_limit(value: Any) -> str:
+    text = str(value or "")
+    return text.replace("60-80%", "60–80%")
+
+
+def _format_bcd_value(value: Any, payload: Mapping[str, Any]) -> str:
+    if value is not None:
+        return _format_value(value)
+    status = _bcd_status(payload)
+    return f"資料不足／{status}" if status else "資料不足"
+
+
+def _bcd_status(payload: Mapping[str, Any]) -> str:
+    trace = _mapping(_mapping(payload.get("traces")).get("bcd"))
+    status = str(payload.get("bcd_status") or trace.get("bcd_status") or trace.get("data_quality_status") or "INCOMPLETE").strip()
+    return status or "INCOMPLETE"
+
+
+def _bcd_short_disclosure_lines(payload: Mapping[str, Any]) -> list[str]:
+    if _format_bcd_value(_mapping(payload.get("scores")).get("BCD", payload.get("bcd")), payload).startswith("資料不足"):
+        return ["BCD 資料不足，未納入升燈判斷，不影響 TCWRS、ETI-5、Tail Risk 與今日燈號。"]
+    return []
+
+
+def _mhs_reason_summary(value: Any, payload: Mapping[str, Any]) -> str:
+    trace = _mapping(_mapping(payload.get("traces")).get("mhs"))
+    components = trace.get("components") or trace.get("component_scores")
+    if not components:
+        return "MHS 分項資料未完整揭露，因此僅能判定為市場過熱訊號，不可單獨解讀為崩盤風險。"
+    return "MHS 升高代表情緒與動能偏熱，需搭配 TCWRS、ETI-5 與 Tail Risk 判讀，不可單獨解讀為崩盤風險。"
+
+
+def _tail_risk_reason_summary(value: Any, payload: Mapping[str, Any]) -> str:
+    trace = _mapping(_mapping(payload.get("traces")).get("tail_risk"))
+    components = trace.get("components") or trace.get("component_scores")
+    number = _number(value)
+    if not components and number is not None and 40 <= number < 70:
+        return "Tail Risk 為中度偏高，但尚未達高風險區，不能單獨升燈。"
+    if number is not None and number >= 70:
+        return "Tail Risk 已進入高風險區，需等待其他風控指標共同確認是否升燈。"
+    return "Tail Risk 尚未形成可單獨升燈的極端尾部風險訊號。"
 
 
 def _format_probability(value: Any) -> str:

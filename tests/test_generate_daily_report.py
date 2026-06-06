@@ -218,7 +218,7 @@ def test_generated_report_includes_all_required_sections(tmp_path: Path):
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
     report = (output_dir / "daily_report.md").read_text(encoding="utf-8")
-    for section in ["核心結論", "ETI-5明細", "今日動作", "優先減碼順序", "警報解除條件", "結論"]:
+    for section in ["核心結論", "ETI-5 明細", "今日動作", "優先減碼順序", "警報解除條件", "結論"]:
         assert f"■ {section}" in report
 
 
@@ -259,7 +259,7 @@ def test_user_report_format_quality_requirements(tmp_path: Path):
     ]
     assert all(term not in report for term in forbidden)
     assert report.splitlines()[0] == "2026/06/03 台股雙溫度計風控報告"
-    assert all(f"■ {section}" in report for section in ["核心結論", "ETI-5明細", "今日動作", "優先減碼順序", "警報解除條件", "結論"])
+    assert all(f"■ {section}" in report for section in ["核心結論", "ETI-5 明細", "今日動作", "優先減碼順序", "警報解除條件", "結論"])
     assert "|" not in report
     assert "今日燈號" in report
     assert "股票曝險上限" in report

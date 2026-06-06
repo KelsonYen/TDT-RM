@@ -10,24 +10,20 @@ TCWRS：12
 MHS：100
 ETI-5：1
 Tail Risk：53.95
-BCD：資料不足
-BCD Status: INCOMPLETE
-Missing Inputs: ["breadth_history", "main7_returns", "main7_weights", "main7_concentration", "sector_breadth", "sector_diffusion", "otc_return_pct", "small_mid_breadth", "small_mid_weakness", "turnover_concentration_topn", "turnover_concentration"]
-資料限制：
-１、缺少 sector breadth
-２、缺少 Top-N turnover concentration
-３、缺少 Main-7 returns
-４、BCD 狀態為 INCOMPLETE，分數為 null，不得視為完整拉積盤判斷
+BCD：資料不足／INCOMPLETE
+BCD 資料不足，未納入升燈判斷，不影響 TCWRS、ETI-5、Tail Risk 與今日燈號。
 Crash Probability：21.59%
-股票曝險上限：60-80%
+股票曝險上限：60–80%
 
 ■ 核心結論
 １、MHS達高檔過熱區，代表市場情緒與價格動能偏熱；這是過熱提醒，不等於崩盤訊號。
 ２、TCWRS仍低，代表目前結構性破壞尚未明確出現。
 ３、ETI-5為1，僅有早期警訊，表示風險尚未全面落地。
-４、今日操作應以持有、停止追價、不使用槓桿、等待風險是否擴散為主。
+４、MHS 分項資料未完整揭露，因此僅能判定為市場過熱訊號，不可單獨解讀為崩盤風險。
+５、Tail Risk 為中度偏高，但尚未達高風險區，不能單獨升燈。
+６、今日操作應以持有、停止追價、不使用槓桿、等待風險是否擴散為主。
 
-■ ETI-5明細
+■ ETI-5 明細
 １、ETI-1 加權指數跌破20日線：未觸發，指數仍守在短期均線附近，價格結構尚未破壞。
 ２、ETI-2 外資連續賣超：未觸發，外資賣壓尚未形成連續確認。
 ３、ETI-3 新台幣轉貶：未觸發，匯率尚未出現明確資金外流壓力。
@@ -39,7 +35,7 @@ Crash Probability：21.59%
 ２、加碼：暫停追高，等待拉回或風險指標降溫。
 ３、減碼：目前不需要強制減碼，但不應新增短線追高部位。
 ４、槓桿：不融資、不加槓桿。
-５、現金部位：保留調節空間，使股票曝險不高於60-80%。
+５、現金部位：保留調節空間，使股票曝險不高於60–80%。
 
 ■ 優先減碼順序
 目前不需要強制減碼；若後續升燈，減碼順序如下：
