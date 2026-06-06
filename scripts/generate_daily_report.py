@@ -211,7 +211,7 @@ def _validate_bundle(bundle: Mapping[str, Any]) -> None:
         raise ReportGenerationError("validation_passed is false")
 
     for label, paths in REQUIRED_CORE_OUTPUTS.items():
-        if _first_present(model_output, paths) is None:
+        if _core_output_missing(model_output, label, paths):
             raise ReportGenerationError(f"model output missing required field: {label}")
 
     required_providers = _required_provider_names(fetch_manifest, provider_health)
@@ -237,6 +237,14 @@ def _validate_bundle(bundle: Mapping[str, Any]) -> None:
     if pipeline_status and pipeline_status not in {"passed", "warning", "success"}:
         raise ReportGenerationError(f"pipeline summary status is blocking: {pipeline_status}")
 
+
+def _core_output_missing(model_output: Mapping[str, Any], label: str, paths: Sequence[str]) -> bool:
+    value = _first_present(model_output, paths)
+    if value is not None:
+        return False
+    if label == "BCD" and str(model_output.get("bcd_status") or "").upper() == "INCOMPLETE":
+        return False
+    return True
 
 def _legacy_bundle(fetch_manifest: Mapping[str, Any], pipeline_summary: Mapping[str, Any] | None = None) -> dict[str, Any]:
     pipeline = _pipeline_payload(pipeline_summary or {})

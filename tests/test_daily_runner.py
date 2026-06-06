@@ -8,6 +8,7 @@ from tdt_rm.daily_runner import (
     build_daily_payload,
     parse_twse_taiex_payload,
     render_daily_markdown,
+    render_user_daily_report,
     run_daily_production,
 )
 
@@ -120,3 +121,22 @@ def test_run_daily_production_optionally_writes_manifest(tmp_path: Path):
     assert manifest["validation_status"] == "warning"
     assert manifest["command"] == "pytest daily runner"
     assert manifest["git_sha"] == "abc123"
+
+
+def test_render_user_daily_report_uses_taipei_generation_time_not_payload_timestamp():
+    payload = {
+        "trade_date": "2026-06-05",
+        "timestamp": "2026-06-06T05:11:00+00:00",
+        "data": {"latest_bar_date": "2026-06-05", "data_status": "official"},
+        "scores": {"TCWRS": 12, "MHS": 100, "ETI-5": 1, "Tail Risk": 53.95, "BCD": None, "CP": 21.59},
+        "signal": "Yellow",
+        "market_regime": "watch",
+        "equity_exposure_limit": "60-80%",
+        "bcd_status": "incomplete",
+    }
+
+    report = render_user_daily_report(payload, generated_at="2026-06-06T08:34:00+00:00")
+
+    assert "資料日期：2026/06/05" in report
+    assert "產出時間：2026/06/06 16:34" in report
+    assert "產出時間：2026/06/06 13:11" not in report

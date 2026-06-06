@@ -274,3 +274,22 @@ def test_user_report_format_quality_requirements(tmp_path: Path):
     assert "產出時間：" in report
     assert __import__("re").search(r"產出時間：\d{4}/\d{2}/\d{2} \d{2}:\d{2}", report)
     assert __import__("re").search(r"資料狀態：(正式版|暫估版)", report)
+
+
+def test_incomplete_bcd_output_generates_report_without_recomputing_scores(tmp_path: Path):
+    output_dir = _valid_artifacts(tmp_path)
+    model_path = output_dir / f"tdt_rm_daily_{TRADE_DATE}.json"
+    model = json.loads(model_path.read_text(encoding="utf-8"))
+    model["scores"]["BCD"] = None
+    model["bcd"] = None
+    model["bcd_status"] = "INCOMPLETE"
+    model["bcd_data_completeness"] = "INCOMPLETE"
+    model_path.write_text(json.dumps(model, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    proc = _run(output_dir)
+
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    report = (output_dir / "daily_report.md").read_text(encoding="utf-8")
+    assert "BCD：資料不足／INCOMPLETE" in report
+    assert "TCWRS：18" in report
+    assert "Crash Probability：24.8%" in report

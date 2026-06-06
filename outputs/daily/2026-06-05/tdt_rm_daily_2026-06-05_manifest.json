@@ -4,6 +4,12 @@
     "markdown": "outputs/daily/2026-06-05/tdt_rm_daily_2026-06-05.md"
   },
   "command": "scripts/run_daily_production_pipeline.py",
+  "daily_report": {
+    "error_message": "",
+    "generated_at": "2026-06-06T23:21:28.866855+00:00",
+    "report_path": "reports/daily/2026-06-05/2026-06-05_tdt_rm_user_report.md",
+    "status": "passed"
+  },
   "data_quality": {
     "available_eti_components": [
       "ETI-1",
