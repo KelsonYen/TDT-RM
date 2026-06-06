@@ -14,7 +14,7 @@
 | MHS | 5.0 |
 | ETI-5 | 0 |
 | Tail Risk | 12.5 |
-| BCD | 8.0 |
+| BCD | null |
 | CP | 3.3 |
 
 ## Market Inputs

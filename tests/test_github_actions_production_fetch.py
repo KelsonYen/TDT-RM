@@ -38,7 +38,7 @@ def _strict_rows() -> dict[str, dict[str, object]]:
         "fx.csv": {**base, "usd_twd_3d_change_pct": 0.1, "usd_twd_5d_change_pct": 0.2, "twd_appreciates": False, "twd_stable": True, "twd_depreciates_significantly": False},
         "breadth.csv": {**base, "index_down": False, "advancing_issues": 500, "declining_issues": 400, "declining_issues_significantly_expand": False, "declining_issues_significantly_gt_advancing": False, "declining_gt_advancing_consecutive_days": 0, "breadth_weakens_for_2_days": False},
         "futures.csv": {**base, "futures_hedging_increases": False, "futures_hedging_significant": False, "futures_net_short_increases": False, "futures_net_short_decreases": True},
-        "options.csv": {**base, "pcr_stable": True, "pcr_rises": False, "vix_stable": True, "vix_rises": False, "tail_risk": 20, "bcd": 30},
+        "options.csv": {**base, "pcr_stable": True, "pcr_rises": False, "vix_stable": True, "vix_rises": False, "tail_risk": 20},
         "leadership.csv": {**base, "count_main_7_below_ma20": 1, "count_main_7_below_ma60": 0, "majority_main_7_assets_above_ma20": True, "main_7_symbols": "2330,0050", "main_7_below_ma20_symbols": "0050", "mhs": 85},
         "margin.csv": {**base, "margin_balance_5d_flat_or_down": True, "hot_stock_margin_fast_increase": False, "margin_balance_5d_increases": False, "index_5d_return_pct": 1.2, "margin_balance_5d_decline_pct": 0.2, "margin_not_retreating": False},
     }

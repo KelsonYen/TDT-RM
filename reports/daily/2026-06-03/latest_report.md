@@ -19,7 +19,7 @@
 | MHS | 5.0 |
 | ETI-5 | 0 |
 | Tail Risk | 12.5 |
-| BCD | 8.0 |
+| BCD | null |
 | Crash Probability | 3.3% |
 | Exposure Limit | 80-100% |
 | Recommended Action | Operate within the approved exposure limit (80-100%); no leverage beyond policy. |

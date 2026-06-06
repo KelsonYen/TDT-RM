@@ -1,4 +1,5 @@
 import json
+import pytest
 import subprocess
 import sys
 from datetime import UTC, date, datetime
@@ -40,7 +41,6 @@ def complete_row(**overrides):
         "breadth_weakens_for_2_days": True,
         "count_main_7_below_ma20": 5,
         "tail_risk": 42.5,
-        "bcd": 38.0,
         "mhs": 12.0,
     }
     row.update(overrides)
@@ -90,8 +90,8 @@ def test_local_json_provider_maps_source_json_to_canonical_fields(tmp_path: Path
 def test_daily_snapshot_assembler_merges_outputs_and_populates_sources():
     context = DailyProviderContext(as_of=date(2026, 5, 29))
     providers = [
-        StaticMappingProvider("price", "Price", complete_row(tail_risk="", bcd="", mhs=""), category="price", source_kind="price"),
-        StaticMappingProvider("scores", "Scores", {"observed_at": "2026-05-29", "tail_risk": 40.0, "bcd": 35.0}, category="scores", source_kind="formal"),
+        StaticMappingProvider("price", "Price", complete_row(tail_risk="", mhs=""), category="price", source_kind="price"),
+        StaticMappingProvider("scores", "Scores", {"observed_at": "2026-05-29", "tail_risk": 40.0}, category="scores", source_kind="formal"),
     ]
 
     result = DailySnapshotAssembler(providers).assemble(context)
@@ -108,19 +108,31 @@ def test_provider_field_map_cannot_supply_bcd():
     provider = StaticMappingProvider(
         "options_csv",
         "Options CSV",
+        {"trade_date": "2026-05-29", "tail_risk": 40.0},
+        category="options",
+    )
+
+    with pytest.raises(ValueError, match="Provider-supplied BCD is forbidden"):
+        provider.fetch_or_load(
+            DailyProviderContext(
+                as_of=date(2026, 5, 29),
+                provider_field_maps={"options_csv": {"bcd": "bcd_score"}},
+            )
+        )
+
+
+def test_provider_row_cannot_supply_bcd():
+    provider = StaticMappingProvider(
+        "options_csv",
+        "Options CSV",
         {"trade_date": "2026-05-29", "bcd_score": 35.0, "tail_risk": 40.0},
         category="options",
     )
 
-    result = provider.fetch_or_load(
-        DailyProviderContext(
-            as_of=date(2026, 5, 29),
-            provider_field_maps={"options_csv": {"bcd": "bcd_score"}},
-        )
-    )
+    result = provider.fetch_or_load(DailyProviderContext(as_of=date(2026, 5, 29)))
 
-    assert "bcd" not in result.canonical_fields
-    assert result.canonical_fields["tail_risk"] == 40.0
+    assert not result.canonical_fields
+    assert any("Provider-supplied BCD is forbidden" in error for error in result.errors)
 
 
 def test_field_conflicts_are_detected_and_reported():
@@ -138,8 +150,8 @@ def test_field_conflicts_are_detected_and_reported():
 
 def test_manual_formal_scores_override_proxy_fields():
     providers = [
-        StaticMappingProvider("proxy", "Proxy", complete_row(tail_risk=10.0, bcd=11.0), category="scores", source_kind="proxy"),
-        ManualScoreProvider("manual_scores", "Manual scores", {"trade_date": "2026-05-29", "tail_risk": 42.5, "bcd": 38.0, "mhs": 12.0}),
+        StaticMappingProvider("proxy", "Proxy", complete_row(tail_risk=10.0), category="scores", source_kind="proxy"),
+        ManualScoreProvider("manual_scores", "Manual scores", {"trade_date": "2026-05-29", "tail_risk": 42.5, "mhs": 12.0}),
     ]
 
     result = DailySnapshotAssembler(providers).assemble(DailyProviderContext(as_of=date(2026, 5, 29)))

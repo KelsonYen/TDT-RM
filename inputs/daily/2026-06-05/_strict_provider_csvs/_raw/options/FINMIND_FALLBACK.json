@@ -7,7 +7,6 @@
   },
   "raw_source": "TaiwanOptionDaily:TXO",
   "row": {
-    "bcd": 53.94564644925195,
     "fetched_at": "2026-06-05T23:41:20Z",
     "pcr_rises": false,
     "pcr_stable": true,

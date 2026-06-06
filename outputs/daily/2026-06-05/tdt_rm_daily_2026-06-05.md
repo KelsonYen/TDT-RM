@@ -1,87 +1,59 @@
-# TDT-RM Daily Report — 2026-06-05
+2026/06/05 台股雙溫度計風控報告
+作者：Dr. Yen
+模型：TDT-RM V5.1.4 Backtest Calibration Patch
+資料日期：2026/06/05
+產出時間：2026/06/06 13:11
+資料狀態：正式版
+今日燈號：黃燈
+市場狀態：觀察
+TCWRS：12
+MHS：100
+ETI-5：1
+Tail Risk：53.95
+BCD：資料不足
+BCD Status: INCOMPLETE
+Missing Inputs: ["breadth_history", "main7_returns", "main7_weights", "main7_concentration", "sector_breadth", "sector_diffusion", "otc_return_pct", "small_mid_breadth", "small_mid_weakness", "turnover_concentration_topn", "turnover_concentration"]
+資料限制：
+１、缺少 sector breadth
+２、缺少 Top-N turnover concentration
+３、缺少 Main-7 returns
+４、BCD 狀態為 INCOMPLETE，分數為 null，不得視為完整拉積盤判斷
+Crash Probability：21.59%
+股票曝險上限：60-80%
 
-- Timestamp: `2026-06-06T01:25:01.158516Z`
-- Model: `TDT-RM V5.1.4`
-- Market regime: **watch**
-- Signal: **Yellow**
-- Equity exposure limit: **60-80%**
-- Production report quality: **PASS**
+■ 核心結論
+１、MHS達高檔過熱區，代表市場情緒與價格動能偏熱；這是過熱提醒，不等於崩盤訊號。
+２、TCWRS仍低，代表目前結構性破壞尚未明確出現。
+３、ETI-5為1，僅有早期警訊，表示風險尚未全面落地。
+４、今日操作應以持有、停止追價、不使用槓桿、等待風險是否擴散為主。
 
-## Scores
+■ ETI-5明細
+１、ETI-1 加權指數跌破20日線：未觸發，指數仍守在短期均線附近，價格結構尚未破壞。
+２、ETI-2 外資連續賣超：未觸發，外資賣壓尚未形成連續確認。
+３、ETI-3 新台幣轉貶：未觸發，匯率尚未出現明確資金外流壓力。
+４、ETI-4 市場廣度惡化：觸發，市場廣度惡化，上漲結構變窄。
+５、ETI-5 主流七標的失靈：未觸發，主流族群尚未同步失靈。
 
-| Metric | Value |
-| --- | ---: |
-| TCWRS | 12 |
-| MHS | 100.0 |
-| ETI-5 | 1 |
-| Tail Risk | 53.95 |
-| BCD | 53.95 |
-| CP | 26.98 |
+■ 今日動作
+１、持股：維持核心持股，單日不因高檔震盪而情緒化出清。
+２、加碼：暫停追高，等待拉回或風險指標降溫。
+３、減碼：目前不需要強制減碼，但不應新增短線追高部位。
+４、槓桿：不融資、不加槓桿。
+５、現金部位：保留調節空間，使股票曝險不高於60-80%。
 
-## Market Inputs
+■ 優先減碼順序
+目前不需要強制減碼；若後續升燈，減碼順序如下：
+１、高波動科技ETF或主題ETF
+２、短線追高部位
+３、槓桿或融資部位
+４、核心長期ETF
 
-| Input | Value |
-| --- | ---: |
-| Close | 45070.94 |
-| MA5 | 45620.56 |
-| MA20 | 43030.51 |
-| MA60 | 38316.18 |
-| MA20 slope | 173.35 |
-| 1D return % | -1.3278 |
-| 2D return % | -2.988 |
-| 5D return % | 0.7556 |
-| 60D return % | 37.5294 |
-| Consecutive down days | 1 |
-| Consecutive closes below MA20 | 0 |
+■ 警報解除條件
+１、MHS降溫。
+２、TCWRS維持低檔。
+３、ETI-5降至0或1。
+４、Tail Risk未升高。
+５、BCD未出現明顯假強勢。
 
-## Data Notes
-
-- Source: Daily enriched market snapshot
-- Latest bar date: 2026-06-05
-- Bar count: 61
-- Data status: `enriched_snapshot`
-- MHS uses snapshot field mhs when supplied; no formal MHS scorer is implemented.
-
-## Source Coverage and Fallbacks
-
-- Available ETI components: `ETI-1, ETI-2, ETI-3, ETI-4, ETI-5`
-- Missing fields: `none reported`
-- Fallback proxies: `{}`
-- Field source count: `50`
-
-## Operator Disclosure
-
-* Production Report Quality: `PASS`
-* Acceptable for Real-World Daily Use: `YES`
-
-### Blocking Quality Failures
-* No blocking quality-control reasons detected.
-
-### Non-Blocking Module Warnings
-* module=ETF Exit; status=not_integrated; notes=Reserved for future ETF Exit integration; no ETF exit logic applied.
-
-### Data-Source Warnings
-#### Fallback Provider Datasets
-* none reported
-
-#### Fallback-Dependent Operator Fields
-* none reported
-
-#### Placeholder / Default-Like Fields
-* none reported
-
-### Official Provider Datasets
-* source_id=breadth_csv; provider_source=TWSE_OFFICIAL:twse_mi_index_breadth; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/breadth.csv
-* source_id=foreign_flow_csv; provider_source=TWSE_OFFICIAL:twse_t86_foreign_flow; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/foreign_flow.csv
-* source_id=futures_csv; provider_source=TAIFEX_OFFICIAL:taifex_txf_futures; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/futures.csv
-* source_id=fx_csv; provider_source=TAIFEX_OFFICIAL:taifex_daily_fx; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/fx.csv
-* source_id=leadership_csv; provider_source=TWSE_OFFICIAL:twse_main7_leadership; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/leadership.csv
-* source_id=margin_csv; provider_source=TWSE_OFFICIAL:twse_margin; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/margin.csv
-* source_id=options_csv; provider_source=FINMIND_FALLBACK:TaiwanOptionDaily:TXO; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/options.csv
-* source_id=taiex_price; provider_source=TWSE_OFFICIAL:twse_fmtqik_price; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/price.csv
-
-## Future ETF Exit Integration
-
-- Enabled: `False`
-- Status: `not_integrated`
-- Notes: Reserved for future ETF Exit integration; no ETF exit logic applied.
+■ 結論
+目前市場屬於強勢多頭後期的偏熱狀態，而不是結構性崩盤狀態。操作上應維持核心持股，但停止追價與槓桿，等待TCWRS與ETI-5是否同步升高。真正需要大幅降曝險的條件，是價格破壞、外資賣超、台幣轉貶與主流股失靈同時出現。

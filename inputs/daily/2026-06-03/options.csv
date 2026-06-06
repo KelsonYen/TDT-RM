@@ -1,2 +1,2 @@
-trade_date,provider_source,source_type,pcr_stable,pcr_rises,vix_stable,vix_rises,tail_risk,bcd
-2026-06-03,TAIFEX_options_manual_import,official_manual,true,false,true,false,12.5,8.0
+trade_date,provider_source,source_type,pcr_stable,pcr_rises,vix_stable,vix_rises,tail_risk
+2026-06-03,TAIFEX_options_manual_import,official_manual,true,false,true,false,12.5

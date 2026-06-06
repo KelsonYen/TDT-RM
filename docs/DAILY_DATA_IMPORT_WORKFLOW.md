@@ -103,9 +103,9 @@ Example row: see `inputs/templates/daily_csv_schema/futures.csv`.
 
 ### `options.csv`
 
-Required columns: `trade_date`, `provider_source`, `source_type`, `pcr_stable`, `pcr_rises`, `vix_stable`, `vix_rises`, `tail_risk`, `bcd`.
+Required columns: `trade_date`, `provider_source`, `source_type`, `pcr_stable`, `pcr_rises`, `vix_stable`, `vix_rises`, `tail_risk`.
 
-Numeric fields: `tail_risk`, `bcd`. Boolean fields: `pcr_stable`, `pcr_rises`, `vix_stable`, `vix_rises`.
+Numeric fields: `tail_risk`. Boolean fields: `pcr_stable`, `pcr_rises`, `vix_stable`, `vix_rises`.
 
 Example row: see `inputs/templates/daily_csv_schema/options.csv`.
 

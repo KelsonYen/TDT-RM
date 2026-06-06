@@ -25,7 +25,7 @@ A production enriched snapshot should include:
 - `trade_date` and `observed_at`.
 - `canonical_row.close`, `canonical_row.ma5`, `canonical_row.ma20`, `canonical_row.ma60`, and `canonical_row.ma20_slope`.
 - Optional but recommended TCWRS/ETI fields for foreign flow, USD/TWD movement, market breadth, and leadership breakdown.
-- Formal `tail_risk` and `bcd` values when available. If either is absent, daily production records a price-only fallback proxy in `data.fallback_proxies`.
+- Formal `tail_risk` values when available. BCD is computed internally only; missing independent BCD inputs produce `bcd=null` and `bcd_status=INCOMPLETE`.
 - Optional `mhs`. The runner uses this value when supplied; otherwise it defaults to `0.0` because no formal MHS scorer is implemented in this repository.
 - `field_sources` mapping each supplied canonical field to a source identifier.
 - `source_metadata` describing local data collection jobs, timestamps, and notes.
@@ -109,7 +109,7 @@ The manifest records the run and validation context:
 - `data_source` and `data_status`: whether the run used price-only public data or an enriched snapshot.
 - `artifact_paths`: JSON and Markdown artifact paths.
 - `validation_status` and `validation`: gate outcome, warning count, error count, and issue details.
-- `data_quality.fallback_proxies`: formal Tail Risk/BCD fallback proxy usage. This should be `{}` when formal `tail_risk` and `bcd` are supplied.
+- `data_quality.fallback_proxies`: formal Tail Risk fallback usage and BCD incomplete status. Provider BCD must never be supplied.
 - `data_quality.available_eti_components`: ETI components with source fields present in the snapshot.
 - `data_quality.field_sources` and `source_metadata`: source attribution preserved from the snapshot.
 
@@ -117,7 +117,7 @@ The manifest records the run and validation context:
 
 A default run without `--snapshot-path` downloads public TAIEX price bars and marks `data.status` as `price_only_provisional`. In that mode, only ETI-1 price data is available, Tail Risk and BCD use documented price-only fallback proxies, and MHS is `0.0`.
 
-An enriched snapshot run marks `data.status` from the snapshot, usually `enriched_snapshot`. ETI availability is derived from supplied source fields. When formal `tail_risk` and `bcd` are present, `data.fallback_proxies` should be empty; if either is absent, the runner records the fallback proxy used without changing the model formulas.
+An enriched snapshot run marks `data.status` from the snapshot, usually `enriched_snapshot`. ETI availability is derived from supplied source fields. When formal `tail_risk` is present and independent BCD inputs are complete, `data.fallback_proxies` should be empty; if BCD inputs are incomplete, the runner records `incomplete_bcd` without using a provider fallback.
 
 ## Current limitations
 

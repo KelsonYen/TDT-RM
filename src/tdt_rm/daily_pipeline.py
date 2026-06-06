@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .daily_providers import (
+    FORBIDDEN_PROVIDER_BCD_FIELDS,
+    PROVIDER_BCD_FORBIDDEN_MESSAGE,
     DailyProviderContext,
     DailySnapshotAssembler,
     LocalCsvProvider,
@@ -571,8 +573,16 @@ def _load_field_maps(path: str | Path | None) -> tuple[dict[str, str], dict[str,
         if isinstance(group, dict):
             for key, value in group.items():
                 if isinstance(value, dict):
+                    _fail_if_forbidden_bcd_field_map(value)
                     scoped[str(key)] = {str(k): str(v) for k, v in value.items()}
+    _fail_if_forbidden_bcd_field_map(global_map)
     return {str(key): str(value) for key, value in global_map.items()}, scoped
+
+
+def _fail_if_forbidden_bcd_field_map(field_map: Mapping[str, Any]) -> None:
+    offenders = [f"{left}->{right}" for left, right in field_map.items() if str(left) in FORBIDDEN_PROVIDER_BCD_FIELDS or str(right) in FORBIDDEN_PROVIDER_BCD_FIELDS]
+    if offenders:
+        raise ValueError(f"forbidden provider BCD field_map entry(ies): {', '.join(offenders)}. {PROVIDER_BCD_FORBIDDEN_MESSAGE}")
 
 
 def _load_score_row(path: str | Path, as_of: date) -> Mapping[str, Any]:

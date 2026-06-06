@@ -1,12 +1,15 @@
 {
-  "BCD": 53.95,
-  "CP": 26.98,
+  "BCD": null,
+  "CP": 21.59,
   "ETI-5": 1,
   "MHS": 100.0,
   "TCWRS": 12,
   "Tail Risk": 53.95,
   "artifact_paths": {
     "assembled_snapshot": "outputs/daily/2026-06-05/assembled_daily_snapshot_2026-06-05.json",
+    "bcd_audit_trace_csv": "outputs/daily/2026-06-05/bcd_audit_trace.csv",
+    "bcd_audit_trace_json": "outputs/daily/2026-06-05/bcd_audit_trace.json",
+    "bcd_independence_audit_md": "reports/audit/bcd_independence_audit.md",
     "json": "outputs/daily/2026-06-05/tdt_rm_daily_2026-06-05.json",
     "manifest": "outputs/daily/2026-06-05/tdt_rm_daily_2026-06-05_manifest.json",
     "markdown": "outputs/daily/2026-06-05/tdt_rm_daily_2026-06-05.md"
@@ -21,10 +24,29 @@
   ],
   "data_status": "enriched_snapshot",
   "exposure_limit": "60-80%",
-  "fallback_proxies": {},
+  "fallback_proxies": {
+    "bcd": {
+      "missing_components": [
+        "breadth_history",
+        "main7_returns",
+        "main7_weights",
+        "main7_concentration",
+        "sector_breadth",
+        "sector_diffusion",
+        "otc_return_pct",
+        "small_mid_breadth",
+        "small_mid_weakness",
+        "turnover_concentration_topn",
+        "turnover_concentration"
+      ],
+      "reason": "Required independent BCD inputs are incomplete; BCD is null and no proxy is used",
+      "status": "incomplete_bcd"
+    }
+  },
   "latest_bar_date": "2026-06-05",
   "operator_disclosure": {
     "acceptable_for_real_world_daily_use": true,
+    "bcd_provider_violations": [],
     "blocking_reasons": [],
     "fallback_operator_dependencies": [],
     "fallback_provider_datasets": [],
@@ -117,8 +139,8 @@
   ],
   "regime_state": "watch",
   "scores": {
-    "BCD": 53.95,
-    "CP": 26.98,
+    "BCD": null,
+    "CP": 21.59,
     "ETI-5": 1,
     "MHS": 100.0,
     "TCWRS": 12,

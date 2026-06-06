@@ -481,7 +481,7 @@
             },
             {
               "details": {},
-              "message": "tail_risk/bcd must be in [0, 100]",
+              "message": "tail_risk must be in [0, 100]; provider BCD is forbidden",
               "name": "scores_range",
               "status": "passed"
             }
@@ -535,7 +535,7 @@
         },
         {
           "details": {},
-          "message": "tail_risk/bcd must be in [0, 100]",
+          "message": "tail_risk must be in [0, 100]; provider BCD is forbidden",
           "name": "scores_range",
           "status": "passed"
         }

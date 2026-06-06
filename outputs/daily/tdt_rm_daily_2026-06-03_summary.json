@@ -1,5 +1,5 @@
 {
-  "BCD": 8.0,
+  "BCD": null,
   "CP": 3.3,
   "ETI-5": 0,
   "MHS": 5.0,
@@ -26,7 +26,7 @@
   "provider_warnings": [],
   "regime_state": "risk-on",
   "scores": {
-    "BCD": 8.0,
+    "BCD": null,
     "CP": 3.3,
     "ETI-5": 0,
     "MHS": 5.0,
