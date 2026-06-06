@@ -1,0 +1,13 @@
+trade_date,component,raw_value,threshold,threshold_hit,score,source_field,missing_reason
+2026-06-05,breadth_history,{},,False,,,breadth_history
+2026-06-05,index_breadth_divergence,"{""advancing_issues"": 3144, ""breadth_history"": [], ""declining_issues"": 9578, ""taiex_return_pct"": -1.3278321517877676}",index_breadth_divergence.taiex_up; index_breadth_divergence.advancing_ratio_below_45pct; index_breadth_divergence.decliners_gt_advancers; index_breadth_divergence.below_history_mean_10pp; index_breadth_divergence.down_day_broad_weakness,True,4.0,taiex_return_pct=taiex_price; advancing_issues=breadth_csv; declining_issues=breadth_csv,breadth_history
+2026-06-05,main7_concentration,"{""advancing_issues"": 3144, ""declining_issues"": 9578, ""main7_returns"": {}, ""main7_weights"": {}, ""taiex_return_pct"": -1.3278321517877676}",Main-7 outperformance with weak broad participation,False,,taiex_return_pct=taiex_price; advancing_issues=breadth_csv; declining_issues=breadth_csv,main7_concentration; main7_returns; main7_weights
+2026-06-05,main7_returns,{},,False,,,main7_returns
+2026-06-05,main7_weights,{},,False,,,main7_weights
+2026-06-05,otc_return_pct,{},,False,,,otc_return_pct
+2026-06-05,sector_breadth,{},,False,,,sector_breadth
+2026-06-05,sector_diffusion,"{""sector_above_ma20"": {}, ""sector_returns"": {}}",Majority of sectors weak or below MA20,False,,,sector_breadth; sector_diffusion
+2026-06-05,small_mid_breadth,{},,False,,,small_mid_breadth
+2026-06-05,small_mid_weakness,"{""otc_return_pct"": null, ""small_mid_breadth"": null}",OTC/small-mid participation weaker than TAIEX,False,,,otc_return_pct; small_mid_breadth; small_mid_weakness
+2026-06-05,turnover_concentration,"{""advancing_issues"": 3144, ""declining_issues"": 9578, ""turnover_concentration_topn"": null}",Top-N turnover share high while broad participation weak,False,,advancing_issues=breadth_csv; declining_issues=breadth_csv,turnover_concentration; turnover_concentration_topn
+2026-06-05,turnover_concentration_topn,{},,False,,,turnover_concentration_topn
