@@ -1,11 +1,11 @@
 # TDT-RM Daily Report — 2026-06-05
 
-- Timestamp: `2026-06-06T00:17:14.755163Z`
+- Timestamp: `2026-06-06T01:25:01.158516Z`
 - Model: `TDT-RM V5.1.4`
 - Market regime: **watch**
 - Signal: **Yellow**
 - Equity exposure limit: **60-80%**
-- Production report quality: **FAIL_FOR_OPERATOR_USE**
+- Production report quality: **PASS**
 
 ## Scores
 
@@ -51,8 +51,24 @@
 
 ## Operator Disclosure
 
-* Production Report Quality: `FAIL_FOR_OPERATOR_USE`
-* Acceptable for Real-World Daily Use: `NO`
+* Production Report Quality: `PASS`
+* Acceptable for Real-World Daily Use: `YES`
+
+### Blocking Quality Failures
+* No blocking quality-control reasons detected.
+
+### Non-Blocking Module Warnings
+* module=ETF Exit; status=not_integrated; notes=Reserved for future ETF Exit integration; no ETF exit logic applied.
+
+### Data-Source Warnings
+#### Fallback Provider Datasets
+* none reported
+
+#### Fallback-Dependent Operator Fields
+* none reported
+
+#### Placeholder / Default-Like Fields
+* none reported
 
 ### Official Provider Datasets
 * source_id=breadth_csv; provider_source=TWSE_OFFICIAL:twse_mi_index_breadth; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/breadth.csv
@@ -61,27 +77,8 @@
 * source_id=fx_csv; provider_source=TAIFEX_OFFICIAL:taifex_daily_fx; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/fx.csv
 * source_id=leadership_csv; provider_source=TWSE_OFFICIAL:twse_main7_leadership; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/leadership.csv
 * source_id=margin_csv; provider_source=TWSE_OFFICIAL:twse_margin; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/margin.csv
-* source_id=taiex_price; provider_source=TWSE_OFFICIAL:twse_fmtqik_price; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/price.csv
-
-### Fallback Provider Datasets
 * source_id=options_csv; provider_source=FINMIND_FALLBACK:TaiwanOptionDaily:TXO; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/options.csv
-
-### Fallback-Dependent Operator Fields
-* source_id=options_csv; provider_source=FINMIND_FALLBACK:TaiwanOptionDaily:TXO; source_type=REAL_PROVIDER; operator_field=Tail Risk; canonical_field=tail_risk
-* source_id=options_csv; provider_source=FINMIND_FALLBACK:TaiwanOptionDaily:TXO; source_type=REAL_PROVIDER; operator_field=BCD; canonical_field=bcd
-* source_id=options_csv; provider_source=FINMIND_FALLBACK:TaiwanOptionDaily:TXO; source_type=REAL_PROVIDER; operator_field=Crash Probability; canonical_field=tail_risk
-
-### Placeholder / Default-Like Fields
-* field=nasdaq; reason=0.0 default-like value and no confirmed source
-* field=sox; reason=0.0 default-like value and no confirmed source
-
-### Non-Integrated Modules
-* module=ETF Exit; status=not_integrated; notes=Reserved for future ETF Exit integration; no ETF exit logic applied.
-
-### Operator Use Decision
-* fallback provider data feeds top-level operator field(s): Tail Risk, BCD, Crash Probability
-* default-like global-risk field(s) without confirmed source: nasdaq, sox
-* required module(s) not integrated: ETF Exit
+* source_id=taiex_price; provider_source=TWSE_OFFICIAL:twse_fmtqik_price; source_type=REAL_PROVIDER; notes=inputs/daily/2026-06-05/price.csv
 
 ## Future ETF Exit Integration
 

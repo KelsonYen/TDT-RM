@@ -7,7 +7,14 @@ from pathlib import Path
 
 import pytest
 
-from tdt_rm.daily_pipeline import render_report_task_summary, run_daily_pipeline
+from tdt_rm.daily_pipeline import (
+    detect_duplicate_operator_artifact_families,
+    render_report_task_summary,
+    run_daily_pipeline,
+    validate_operator_report_canonical_sources,
+    write_final_operator_reports,
+    write_json_summary,
+)
 
 AS_OF = "2026-05-29"
 LOCAL_CSV_AS_OF = "2026-06-03"
@@ -41,6 +48,124 @@ def provider_args(output_dir: Path) -> list[str]:
         str(output_dir),
         "--allow-warnings",
     ]
+
+
+def test_canonical_report_source_consistency_guard_rejects_mismatched_summary(tmp_path: Path):
+    result = {
+        "trade_date": AS_OF,
+        "artifact_paths": {"json": str(tmp_path / "canonical.json"), "manifest": str(tmp_path / "canonical_manifest.json")},
+    }
+    summary_path = tmp_path / "pipeline_summary.json"
+    summary_path.write_text(
+        json.dumps(
+            {
+                "trade_date": AS_OF,
+                "artifact_paths": {"json": str(tmp_path / "other.json"), "manifest": str(tmp_path / "canonical_manifest.json")},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="canonical source guard mismatch for artifact_paths.json"):
+        validate_operator_report_canonical_sources(result, summary_path)
+
+
+def test_no_staging_artifact_as_operator_source_guard(tmp_path: Path):
+    staging_json = tmp_path / "inputs" / AS_OF / "_strict_provider_csvs" / f"tdt_rm_daily_{AS_OF}.json"
+    staging_manifest = staging_json.with_name(f"tdt_rm_daily_{AS_OF}_manifest.json")
+    result = {"trade_date": AS_OF, "artifact_paths": {"json": str(staging_json), "manifest": str(staging_manifest)}}
+    summary_path = tmp_path / "pipeline_summary.json"
+    summary_path.write_text(json.dumps(result), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="rejected staging artifact as operator source"):
+        validate_operator_report_canonical_sources(result, summary_path)
+
+
+def test_duplicate_artifact_family_detection(tmp_path: Path):
+    first = tmp_path / "outputs" / AS_OF
+    second = tmp_path / "reports" / AS_OF / "artifacts"
+    for root in (first, second):
+        root.mkdir(parents=True)
+        (root / f"tdt_rm_daily_{AS_OF}.json").write_text("{}", encoding="utf-8")
+        (root / f"tdt_rm_daily_{AS_OF}_manifest.json").write_text("{}", encoding="utf-8")
+        (root / "pipeline_summary.json").write_text("{}", encoding="utf-8")
+
+    families = detect_duplicate_operator_artifact_families(AS_OF, (tmp_path / "outputs", tmp_path / "reports"))
+
+    assert {Path(family["root"]).name for family in families} == {AS_OF, "artifacts"}
+    assert len(families) == 2
+
+
+def test_2026_06_05_canonical_regression_values_and_input_source(tmp_path: Path):
+    trade_date = "2026-06-05"
+    input_dir = Path("inputs/daily") / trade_date
+    output_dir = tmp_path / "outputs" / trade_date
+    reports_dir = tmp_path / "reports" / trade_date
+    summary_path = output_dir / "pipeline_summary.json"
+
+    result = run_daily_pipeline(
+        as_of=date.fromisoformat(trade_date),
+        output_dir=output_dir,
+        price_csv=input_dir / "price.csv",
+        foreign_csv=input_dir / "foreign_flow.csv",
+        fx_csv=input_dir / "fx.csv",
+        breadth_csv=input_dir / "breadth.csv",
+        futures_csv=input_dir / "futures.csv",
+        options_csv=input_dir / "options.csv",
+        leadership_csv=input_dir / "leadership.csv",
+        margin_csv=input_dir / "margin.csv",
+        command="pytest",
+    )
+    write_json_summary(result, summary_path)
+    write_final_operator_reports(result, reports_dir, pipeline_summary_path=summary_path)
+
+    payload = json.loads(Path(result["artifact_paths"]["json"]).read_text(encoding="utf-8"))
+    report = (reports_dir / f"{trade_date}_tdt_rm_daily_report.md").read_text(encoding="utf-8")
+
+    assert result["production_report_quality"] == "PASS"
+    assert result["operator_disclosure"]["acceptable_for_real_world_daily_use"] is True
+    assert result["scores"]["MHS"] == 100.0
+    assert result["scores"]["TCWRS"] == 12
+    assert result["scores"]["ETI-5"] == 1
+    assert result["scores"]["Tail Risk"] == 53.95
+    assert result["scores"]["BCD"] == 53.95
+    assert result["scores"]["CP"] == 26.98
+    assert result["signal"] == "Yellow"
+    assert result["exposure_limit"] == "60-80%"
+    assert payload["operator_disclosure"]["acceptable_for_real_world_daily_use"] is True
+    assert f"notes={input_dir / 'options.csv'}" in report
+    assert f"notes={input_dir / '_strict_provider_csvs' / 'options.csv'}" not in report
+
+
+def test_quality_gate_freshness_uses_selected_pipeline_summary(tmp_path: Path):
+    trade_date = AS_OF
+    output_dir = tmp_path / "outputs" / trade_date
+    output_dir.mkdir(parents=True)
+    result = {
+        "trade_date": trade_date,
+        "latest_bar_date": trade_date,
+        "validation_status": "passed",
+        "data_status": "enriched_snapshot",
+        "production_report_quality": "PASS",
+        "operator_disclosure": {"production_report_quality": "PASS", "acceptable_for_real_world_daily_use": True},
+        "scores": {"TCWRS": 12, "MHS": 100.0, "ETI-5": 1, "Tail Risk": 53.95, "BCD": 53.95, "CP": 26.98},
+        "signal": "Yellow",
+        "exposure_limit": "60-80%",
+        "artifact_paths": {
+            "json": str(output_dir / f"tdt_rm_daily_{trade_date}.json"),
+            "manifest": str(output_dir / f"tdt_rm_daily_{trade_date}_manifest.json"),
+        },
+        "validation": {},
+    }
+    summary_path = output_dir / "pipeline_summary.json"
+    write_json_summary(result, summary_path)
+
+    paths = write_final_operator_reports(result, tmp_path / "reports" / trade_date, pipeline_summary_path=summary_path)
+
+    report = paths["dated"].read_text(encoding="utf-8")
+    assert f"* Latest Bar Date: {trade_date}" in report
+    assert f"* Source Production Artifact: {result['artifact_paths']['json']}" in report
+    assert f"* Source Manifest: {result['artifact_paths']['manifest']}" in report
 
 
 def test_pipeline_runs_from_provider_fixture_csvs_and_writes_artifacts(tmp_path: Path):

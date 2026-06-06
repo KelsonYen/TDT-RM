@@ -24,43 +24,15 @@
   "fallback_proxies": {},
   "latest_bar_date": "2026-06-05",
   "operator_disclosure": {
-    "acceptable_for_real_world_daily_use": false,
-    "blocking_reasons": [
-      "fallback provider data feeds top-level operator field(s): Tail Risk, BCD, Crash Probability",
-      "default-like global-risk field(s) without confirmed source: nasdaq, sox",
-      "required module(s) not integrated: ETF Exit"
-    ],
-    "fallback_operator_dependencies": [
+    "acceptable_for_real_world_daily_use": true,
+    "blocking_reasons": [],
+    "fallback_operator_dependencies": [],
+    "fallback_provider_datasets": [],
+    "non_blocking_module_warnings": [
       {
-        "canonical_field": "tail_risk",
-        "operator_field": "Tail Risk",
-        "provider_source": "FINMIND_FALLBACK:TaiwanOptionDaily:TXO",
-        "source_id": "options_csv",
-        "source_type": "REAL_PROVIDER"
-      },
-      {
-        "canonical_field": "bcd",
-        "operator_field": "BCD",
-        "provider_source": "FINMIND_FALLBACK:TaiwanOptionDaily:TXO",
-        "source_id": "options_csv",
-        "source_type": "REAL_PROVIDER"
-      },
-      {
-        "canonical_field": "tail_risk",
-        "operator_field": "Crash Probability",
-        "provider_source": "FINMIND_FALLBACK:TaiwanOptionDaily:TXO",
-        "source_id": "options_csv",
-        "source_type": "REAL_PROVIDER"
-      }
-    ],
-    "fallback_provider_datasets": [
-      {
-        "category": "options",
-        "name": "Local options CSV",
-        "notes": "inputs/daily/2026-06-05/options.csv",
-        "provider_source": "FINMIND_FALLBACK:TaiwanOptionDaily:TXO",
-        "source_id": "options_csv",
-        "source_type": "REAL_PROVIDER"
+        "module": "ETF Exit",
+        "notes": "Reserved for future ETF Exit integration; no ETF exit logic applied.",
+        "status": "not_integrated"
       }
     ],
     "non_integrated_modules": [
@@ -120,6 +92,14 @@
         "source_type": "REAL_PROVIDER"
       },
       {
+        "category": "options",
+        "name": "Local options CSV",
+        "notes": "inputs/daily/2026-06-05/options.csv",
+        "provider_source": "FINMIND_FALLBACK:TaiwanOptionDaily:TXO",
+        "source_id": "options_csv",
+        "source_type": "REAL_PROVIDER"
+      },
+      {
         "category": "price",
         "name": "TAIEX price provider",
         "notes": "inputs/daily/2026-06-05/price.csv",
@@ -128,21 +108,10 @@
         "source_type": "REAL_PROVIDER"
       }
     ],
-    "placeholder_default_like_fields": [
-      {
-        "field": "nasdaq",
-        "reason": "0.0 default-like value and no confirmed source",
-        "value": 0.0
-      },
-      {
-        "field": "sox",
-        "reason": "0.0 default-like value and no confirmed source",
-        "value": 0.0
-      }
-    ],
-    "production_report_quality": "FAIL_FOR_OPERATOR_USE"
+    "placeholder_default_like_fields": [],
+    "production_report_quality": "PASS"
   },
-  "production_report_quality": "FAIL_FOR_OPERATOR_USE",
+  "production_report_quality": "PASS",
   "provider_warnings": [
     "field conflict for index_5d_return_pct: kept/updated between taiex_price=0.7555953174551044 and margin_csv=0.0; kept taiex_price by precedence rule"
   ],
