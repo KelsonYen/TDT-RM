@@ -1,2 +1,2 @@
 trade_date,provider_source,source_type,pcr_stable,pcr_rises,vix_stable,vix_rises,tail_risk,bcd
-2026-06-05,FINMIND_FALLBACK:TaiwanOptionDaily:TXO,REAL_PROVIDER,true,false,true,false,53.94564644925195,53.94564644925195
+2026-06-05,TAIFEX_OFFICIAL:taifex_txo_options,REAL_PROVIDER,false,true,true,false,100.0,100.0

@@ -2,7 +2,7 @@
   "artifact_digest": "not available before upload",
   "artifact_name": "tdt-rm-production-fetch-2026-06-05",
   "as_of": "2026-06-05",
-  "commit_sha": "9ecfd83bb4f9842a265d0e489d82008371ff3292",
+  "commit_sha": "67d2deb1207b8a9a6a98614124a9d680f34929a7",
   "dataset_audit_matrix": [
     {
       "dataset": "price",
@@ -71,14 +71,14 @@
     },
     {
       "dataset": "options",
-      "endpoint_attempted": "https://openapi.taifex.com.tw/v1/TAIFEXVIX -> not captured by provider adapter",
-      "exception_message": "status=unavailable; no usable TAIFEX options row at https://openapi.taifex.com.tw/v1/PutCallRatio; no usable TAIFEX options row at https://openapi.taifex.com.tw/v1/TAIFEXVIX; no TAIFEX PCR/VIX row for 2026-06-05",
+      "endpoint_attempted": "https://openapi.taifex.com.tw/v1/TAIFEXVIX",
+      "exception_message": "none",
       "failure_happened_at": "unknown",
       "http_status": "200",
       "output_csv_written": "YES",
       "parser_executed": "YES",
-      "provider_attempted": "TAIFEX_OFFICIAL -> FINMIND_FALLBACK",
-      "provider_chain": "TAIFEX_OFFICIAL -> FINMIND_FALLBACK",
+      "provider_attempted": "TAIFEX_OFFICIAL",
+      "provider_chain": "TAIFEX_OFFICIAL",
       "root_cause_classification": "none",
       "validation_executed": "YES"
     },
@@ -467,54 +467,9 @@
       "validation_errors": []
     },
     "options": {
-      "failed_providers": [
-        {
-          "message": "status=unavailable; no usable TAIFEX options row at https://openapi.taifex.com.tw/v1/PutCallRatio; no usable TAIFEX options row at https://openapi.taifex.com.tw/v1/TAIFEXVIX; no TAIFEX PCR/VIX row for 2026-06-05",
-          "provider": "TAIFEX_OFFICIAL"
-        }
-      ],
+      "failed_providers": [],
       "output_path": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-05/_strict_provider_csvs/options.csv",
       "provider_health": [
-        {
-          "attempted": true,
-          "checks": [],
-          "dataset": "options",
-          "failure_reason": "status=unavailable; no usable TAIFEX options row at https://openapi.taifex.com.tw/v1/PutCallRatio; no usable TAIFEX options row at https://openapi.taifex.com.tw/v1/TAIFEXVIX; no TAIFEX PCR/VIX row for 2026-06-05",
-          "metadata": {
-            "endpoint": "",
-            "endpoints": [
-              {
-                "endpoint": "https://openapi.taifex.com.tw/v1/PutCallRatio",
-                "status": "unavailable",
-                "usable_fields": []
-              },
-              {
-                "endpoint": "https://openapi.taifex.com.tw/v1/TAIFEXVIX",
-                "status": "unavailable",
-                "usable_fields": []
-              }
-            ],
-            "error": "status=unavailable; no usable TAIFEX options row at https://openapi.taifex.com.tw/v1/PutCallRatio; no usable TAIFEX options row at https://openapi.taifex.com.tw/v1/TAIFEXVIX; no TAIFEX PCR/VIX row for 2026-06-05",
-            "exception_class": "ProviderFetchError",
-            "official_source": "TAIFEX PutCallRatio/TAIFEXVIX",
-            "source_type": "taifex_official_json",
-            "traceback": "Traceback (most recent call last):\n  File \"/home/runner/work/TDT-RM/TDT-RM/scripts/fetch_daily_data_multi_provider.py\", line 183, in _fetch_dataset\n    result = provider.fetch(dataset, context)  # type: ignore[attr-defined]\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/TDT-RM/TDT-RM/src/tdt_rm/data_providers/taifex.py\", line 35, in fetch\n    raise ProviderFetchError(f\"status={result.status}\" + (f\"; {messages}\" if messages else \"\"), result.raw_metadata)\ntdt_rm.data_providers.base.ProviderFetchError: status=unavailable; no usable TAIFEX options row at https://openapi.taifex.com.tw/v1/PutCallRatio; no usable TAIFEX options row at https://openapi.taifex.com.tw/v1/TAIFEXVIX; no TAIFEX PCR/VIX row for 2026-06-05\n",
-            "url_fetch": {
-              "attempts": 1,
-              "errors": [],
-              "final_url": "https://openapi.taifex.com.tw/v1/TAIFEXVIX",
-              "initial_url": "https://openapi.taifex.com.tw/v1/TAIFEXVIX",
-              "max_attempts": 3,
-              "redirects": [],
-              "status": 200,
-              "success": true
-            }
-          },
-          "output_path": null,
-          "provider": "TAIFEX_OFFICIAL",
-          "selected": false,
-          "status": "failed"
-        },
         {
           "attempted": true,
           "checks": [
@@ -534,16 +489,43 @@
           "dataset": "options",
           "failure_reason": "",
           "metadata": {
-            "finmind_token_present": true,
-            "network_requirement": "external-network-required"
+            "endpoint": "",
+            "endpoints": [
+              {
+                "endpoint": "https://openapi.taifex.com.tw/v1/PutCallRatio",
+                "status": "success",
+                "usable_fields": [
+                  "txo_call_volume",
+                  "txo_put_call_ratio",
+                  "txo_put_volume"
+                ]
+              },
+              {
+                "endpoint": "https://openapi.taifex.com.tw/v1/TAIFEXVIX",
+                "status": "unavailable",
+                "usable_fields": []
+              }
+            ],
+            "official_source": "TAIFEX PutCallRatio/TAIFEXVIX",
+            "source_type": "taifex_official_json",
+            "url_fetch": {
+              "attempts": 1,
+              "errors": [],
+              "final_url": "https://openapi.taifex.com.tw/v1/TAIFEXVIX",
+              "initial_url": "https://openapi.taifex.com.tw/v1/TAIFEXVIX",
+              "max_attempts": 3,
+              "redirects": [],
+              "status": 200,
+              "success": true
+            }
           },
           "output_path": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-05/_strict_provider_csvs/options.csv",
-          "provider": "FINMIND_FALLBACK",
+          "provider": "TAIFEX_OFFICIAL",
           "selected": true,
           "status": "healthy"
         }
       ],
-      "provider_used": "FINMIND_FALLBACK:TaiwanOptionDaily:TXO",
+      "provider_used": "TAIFEX_OFFICIAL:taifex_txo_options",
       "reconciliation_checks": [
         {
           "details": {},
@@ -636,7 +618,7 @@
       "validation_errors": []
     }
   },
-  "fetched_at": "2026-06-05T23:41:20Z",
+  "fetched_at": "2026-06-06T00:16:24Z",
   "finmind_fallback": {
     "allow_finmind": true,
     "finmind_api_token_present": false,
@@ -676,7 +658,7 @@
     "STOOQ",
     "FINMIND_FALLBACK"
   ],
-  "run_id": "27045860522",
+  "run_id": "27046917025",
   "trade_date": "2026-06-05",
   "validation_errors": []
 }

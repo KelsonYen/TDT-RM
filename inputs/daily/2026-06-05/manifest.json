@@ -11,7 +11,7 @@
     "synthetic",
     "test"
   ],
-  "generated_at": "2026-06-05T23:42:40Z",
+  "generated_at": "2026-06-06T00:17:14Z",
   "materialized_files": {
     "fx_usdtwd.csv": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-05/fx_usdtwd.csv",
     "taiex_price.csv": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-05/taiex_price.csv",

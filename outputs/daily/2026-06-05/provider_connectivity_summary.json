@@ -9,7 +9,7 @@
     "provider_health": "reports/daily/2026-06-05/artifacts/provider_health.json"
   },
   "as_of": "2026-06-05",
-  "commit_sha": "9ecfd83bb4f9842a265d0e489d82008371ff3292",
+  "commit_sha": "67d2deb1207b8a9a6a98614124a9d680f34929a7",
   "dataset_audit_matrix": [
     {
       "dataset": "price",
@@ -78,14 +78,14 @@
     },
     {
       "dataset": "options",
-      "endpoint_attempted": "https://openapi.taifex.com.tw/v1/TAIFEXVIX -> not captured by provider adapter",
-      "exception_message": "status=unavailable; no usable TAIFEX options row at https://openapi.taifex.com.tw/v1/PutCallRatio; no usable TAIFEX options row at https://openapi.taifex.com.tw/v1/TAIFEXVIX; no TAIFEX PCR/VIX row for 2026-06-05",
+      "endpoint_attempted": "https://openapi.taifex.com.tw/v1/TAIFEXVIX",
+      "exception_message": "none",
       "failure_happened_at": "unknown",
       "http_status": "200",
       "output_csv_written": "YES",
       "parser_executed": "YES",
-      "provider_attempted": "TAIFEX_OFFICIAL -> FINMIND_FALLBACK",
-      "provider_chain": "TAIFEX_OFFICIAL -> FINMIND_FALLBACK",
+      "provider_attempted": "TAIFEX_OFFICIAL",
+      "provider_chain": "TAIFEX_OFFICIAL",
       "root_cause_classification": "none",
       "validation_executed": "YES"
     },
@@ -104,12 +104,11 @@
     }
   ],
   "failure_classes": {
-    "no-row": 1,
     "none": 8
   },
   "manifest_status": "READY",
   "missing_datasets": [],
   "production_ready": true,
-  "run_id": "27045860522",
+  "run_id": "27046917025",
   "trade_date": "2026-06-05"
 }

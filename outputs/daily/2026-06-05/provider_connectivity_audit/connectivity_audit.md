@@ -1,6 +1,6 @@
 # Production Data Provider Connectivity Audit
 
-- Generated at: `2026-06-05T23:41:20Z`
+- Generated at: `2026-06-06T00:16:24Z`
 - Probe as-of date: `2026-06-05`
 - Runtime context: `github_actions_runner`
 - Scope: connectivity/sample-payload audit only; no scoring model, ETF Exit model, or manual fallback changes.

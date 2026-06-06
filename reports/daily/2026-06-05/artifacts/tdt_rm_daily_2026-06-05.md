@@ -1,10 +1,11 @@
 # TDT-RM Daily Report — 2026-06-05
 
-- Timestamp: `2026-06-05T23:42:40.564846Z`
+- Timestamp: `2026-06-06T00:17:14.595232Z`
 - Model: `TDT-RM V5.1.4`
 - Market regime: **watch**
 - Signal: **Yellow**
 - Equity exposure limit: **60-80%**
+- Production report quality: **FAIL_FOR_OPERATOR_USE**
 
 ## Scores
 
@@ -13,9 +14,9 @@
 | TCWRS | 12 |
 | MHS | 100.0 |
 | ETI-5 | 1 |
-| Tail Risk | 53.95 |
-| BCD | 53.95 |
-| CP | 26.98 |
+| Tail Risk | 100.0 |
+| BCD | 100.0 |
+| CP | 40.8 |
 
 ## Market Inputs
 
@@ -47,6 +48,38 @@
 - Missing fields: `none reported`
 - Fallback proxies: `{}`
 - Field source count: `50`
+
+## Operator Disclosure
+
+* Production Report Quality: `FAIL_FOR_OPERATOR_USE`
+* Acceptable for Real-World Daily Use: `NO`
+
+### Official Provider Datasets
+* source_id=breadth_csv; provider_source=TWSE_OFFICIAL:twse_mi_index_breadth; source_type=REAL_PROVIDER; notes=/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-05/_strict_provider_csvs/breadth.csv
+* source_id=foreign_flow_csv; provider_source=TWSE_OFFICIAL:twse_t86_foreign_flow; source_type=REAL_PROVIDER; notes=/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-05/_strict_provider_csvs/foreign_flow.csv
+* source_id=futures_csv; provider_source=TAIFEX_OFFICIAL:taifex_txf_futures; source_type=REAL_PROVIDER; notes=/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-05/_strict_provider_csvs/futures.csv
+* source_id=fx_csv; provider_source=TAIFEX_OFFICIAL:taifex_daily_fx; source_type=REAL_PROVIDER; notes=/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-05/_strict_provider_csvs/fx.csv
+* source_id=leadership_csv; provider_source=TWSE_OFFICIAL:twse_main7_leadership; source_type=REAL_PROVIDER; notes=/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-05/_strict_provider_csvs/leadership.csv
+* source_id=margin_csv; provider_source=TWSE_OFFICIAL:twse_margin; source_type=REAL_PROVIDER; notes=/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-05/_strict_provider_csvs/margin.csv
+* source_id=options_csv; provider_source=TAIFEX_OFFICIAL:taifex_txo_options; source_type=REAL_PROVIDER; notes=/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-05/_strict_provider_csvs/options.csv
+* source_id=taiex_price; provider_source=TWSE_OFFICIAL:twse_fmtqik_price; source_type=REAL_PROVIDER; notes=/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-05/_strict_provider_csvs/price.csv
+
+### Fallback Provider Datasets
+* none reported
+
+### Fallback-Dependent Operator Fields
+* none reported
+
+### Placeholder / Default-Like Fields
+* field=nasdaq; reason=0.0 default-like value and no confirmed source
+* field=sox; reason=0.0 default-like value and no confirmed source
+
+### Non-Integrated Modules
+* module=ETF Exit; status=not_integrated; notes=Reserved for future ETF Exit integration; no ETF exit logic applied.
+
+### Operator Use Decision
+* default-like global-risk field(s) without confirmed source: nasdaq, sox
+* required module(s) not integrated: ETF Exit
 
 ## Future ETF Exit Integration
 
