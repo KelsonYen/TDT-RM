@@ -560,77 +560,263 @@ def _return_60d_from_snapshot(snapshot: DailyMarketSnapshot, close: float) -> fl
 
 
 def render_daily_markdown(payload: Mapping[str, Any]) -> str:
-    """Render the daily JSON payload as an operator-friendly Markdown report."""
+    """Render the daily JSON payload as Dr. Yen's user-facing risk report."""
 
-    scores = payload["scores"]
-    inputs = payload["inputs"]
-    data = payload["data"]
-    etf_exit = payload["etf_exit"]
-    return "\n".join(
-        [
-            f"# TDT-RM Daily Report — {payload['trade_date']}",
-            "",
-            f"- Timestamp: `{payload['timestamp']}`",
-            f"- Model: `{payload['model_version']}`",
-            f"- Market regime: **{payload['market_regime']}**",
-            f"- Signal: **{payload['signal']}**",
-            f"- Equity exposure limit: **{payload['equity_exposure_limit']}**",
-            f"- Production report quality: **{payload.get('production_report_quality', 'PASS')}**",
-            "",
-            "## Scores",
-            "",
-            "| Metric | Value |",
-            "| --- | ---: |",
-            f"| TCWRS | {scores['TCWRS']} |",
-            f"| MHS | {scores['MHS']} |",
-            f"| ETI-5 | {scores['ETI-5']} |",
-            f"| Tail Risk | {scores['Tail Risk']} |",
-            f"| BCD | {scores['BCD']} |",
-            f"| CP | {scores['CP']} |",
-            "",
-            "## Market Inputs",
-            "",
-            "| Input | Value |",
-            "| --- | ---: |",
-            f"| Close | {inputs['close']} |",
-            f"| MA5 | {inputs['ma5']} |",
-            f"| MA20 | {inputs['ma20']} |",
-            f"| MA60 | {inputs['ma60']} |",
-            f"| MA20 slope | {inputs['ma20_slope']} |",
-            f"| 1D return % | {inputs['one_day_return_pct']} |",
-            f"| 2D return % | {inputs['two_day_return_pct']} |",
-            f"| 5D return % | {inputs['five_day_return_pct']} |",
-            f"| 60D return % | {inputs['return_60d_pct']} |",
-            f"| Consecutive down days | {inputs['consecutive_down_days']} |",
-            f"| Consecutive closes below MA20 | {inputs['close_below_ma20_consecutive_days']} |",
-            "",
-            "## Data Notes",
-            "",
-            f"- Source: {data['source']}",
-            f"- Latest bar date: {data['latest_bar_date']}",
-            f"- Bar count: {data['bar_count']}",
-            f"- Data status: `{data['status']}`",
-            *[f"- {note}" for note in data["limitations"]],
-            "",
-            "## Source Coverage and Fallbacks",
-            "",
-            f"- Available ETI components: `{', '.join(data.get('available_eti_components', [])) or 'not reported'}`",
-            f"- Missing fields: `{', '.join(data.get('missing_fields', [])) or 'none reported'}`",
-            f"- Fallback proxies: `{json.dumps(data.get('fallback_proxies', {}), ensure_ascii=False, sort_keys=True)}`",
-            f"- Field source count: `{len(data.get('field_sources', {}))}`",
-            "",
-            render_operator_disclosure(payload.get("operator_disclosure", {})).rstrip(),
-            "",
-            "## Future ETF Exit Integration",
-            "",
-            f"- Enabled: `{etf_exit['enabled']}`",
-            f"- Status: `{etf_exit['status']}`",
-            f"- Notes: {etf_exit['notes']}",
-            "",
-        ]
-    )
+    return render_user_daily_report(payload)
 
 
+def render_user_daily_report(payload: Mapping[str, Any], *, generated_at: str | datetime | None = None) -> str:
+    """Render the final human-readable daily investment risk-control report."""
+
+    scores = _mapping(payload.get("scores"))
+    data = _mapping(payload.get("data"))
+    trade_date = str(payload.get("trade_date") or data.get("latest_bar_date") or "")
+    signal = str(payload.get("signal") or "")
+    market_state = str(payload.get("market_regime") or payload.get("regime_state") or "watch")
+    exposure_limit = payload.get("equity_exposure_limit") or payload.get("exposure_limit")
+    report_time = _display_report_time(generated_at or payload.get("timestamp") or datetime.now(UTC))
+    data_status = _display_data_status(data.get("data_status") or data.get("status") or payload.get("data_status"))
+    tcwrs = scores.get("TCWRS", payload.get("tcwrs"))
+    mhs = scores.get("MHS", payload.get("mhs"))
+    eti5 = scores.get("ETI-5", payload.get("eti_5"))
+    tail_risk = scores.get("Tail Risk", payload.get("tail_risk"))
+    bcd = scores.get("BCD", payload.get("bcd"))
+    cp = scores.get("CP", payload.get("cp"))
+    eti_items = _eti_detail_lines(payload)
+    yellow_tone = _normalized_signal(signal) == "yellow"
+
+    lines = [
+        f"{_slash_date(trade_date)} 台股雙溫度計風控報告",
+        "作者：Dr. Yen",
+        "模型：TDT-RM V5.1.4 Backtest Calibration Patch",
+        f"資料日期：{_slash_date(trade_date)}",
+        f"產出時間：{report_time}",
+        f"資料狀態：{data_status}",
+        "今日燈號：" + _display_signal(signal),
+        "市場狀態：" + _display_market_state(market_state),
+        f"TCWRS：{_format_value(tcwrs)}",
+        f"MHS：{_format_value(mhs)}",
+        f"ETI-5：{_format_value(eti5)}",
+        f"Tail Risk：{_format_value(tail_risk)}",
+        f"BCD：{_format_value(bcd)}",
+        f"Crash Probability：{_format_probability(cp)}",
+        f"股票曝險上限：{exposure_limit}",
+        "",
+        "■ 核心結論",
+        f"１、MHS{_heat_language(mhs)}，{_heat_meaning(mhs)}",
+        f"２、TCWRS{_structure_language(tcwrs)}，代表目前結構性破壞{_structure_result(tcwrs)}。",
+        f"３、ETI-5為{_format_value(eti5)}，{_eti_summary_language(eti5)}",
+        f"４、今日操作應以{('持有、停止追價、不使用槓桿、等待風險是否擴散' if yellow_tone else _action_phrase(signal))}為主。",
+        "",
+        "■ ETI-5明細",
+        *eti_items,
+        "",
+        "■ 今日動作",
+        "１、持股：維持核心持股，單日不因高檔震盪而情緒化出清。",
+        f"２、加碼：{('暫停追高，等待拉回或風險指標降溫' if yellow_tone else '僅在符合原有配置紀律時小幅執行')}。",
+        f"３、減碼：{_de_risk_action(signal)}",
+        f"４、槓桿：{('不融資、不加槓桿' if yellow_tone else '不新增槓桿，既有槓桿需受曝險上限約束')}。",
+        f"５、現金部位：保留調節空間，使股票曝險不高於{exposure_limit}。",
+        "",
+        "■ 優先減碼順序",
+        f"目前{_forced_de_risk_sentence(signal)}；若後續升燈，減碼順序如下：",
+        "１、高波動科技ETF或主題ETF",
+        "２、短線追高部位",
+        "３、槓桿或融資部位",
+        "４、核心長期ETF",
+        "",
+        "■ 警報解除條件",
+        "１、MHS降溫。",
+        "２、TCWRS維持低檔。",
+        "３、ETI-5降至0或1。",
+        "４、Tail Risk未升高。",
+        "５、BCD未出現明顯假強勢。",
+        "",
+        "■ 結論",
+        _investment_conclusion(signal, tcwrs, mhs, eti5),
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _slash_date(value: Any) -> str:
+    text = str(value or "")[:10]
+    if len(text) == 10 and text[4] == "-" and text[7] == "-":
+        return text.replace("-", "/")
+    return text
+
+
+def _display_report_time(value: str | datetime) -> str:
+    if isinstance(value, datetime):
+        return value.strftime("%Y/%m/%d %H:%M")
+    text = str(value).replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return str(value)[:16].replace("-", "/").replace("T", " ")
+    return parsed.strftime("%Y/%m/%d %H:%M")
+
+
+def _display_data_status(value: Any) -> str:
+    normalized = str(value or "").lower()
+    if normalized in {"official", "formal", "final", "passed", "enriched_snapshot"}:
+        return "正式版"
+    return "暫估版"
+
+
+def _normalized_signal(value: Any) -> str:
+    return str(value or "").strip().lower()
+
+
+def _display_signal(value: Any) -> str:
+    return {"green": "綠燈", "yellow": "黃燈", "strengthened yellow": "強化黃燈", "orange": "橘燈", "red": "紅燈", "deep red": "紅燈"}.get(_normalized_signal(value), str(value or "未定"))
+
+
+def _display_market_state(value: Any) -> str:
+    normalized = str(value or "").strip().lower()
+    return {"risk-on": "多頭偏強", "watch": "觀察", "caution": "謹慎", "risk-off": "風險收縮", "crash-risk": "崩跌風險", "hot": "高檔偏熱"}.get(normalized, str(value or "觀察"))
+
+
+def _format_value(value: Any) -> str:
+    if value is None:
+        return "資料不足"
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
+
+def _format_probability(value: Any) -> str:
+    if value is None:
+        return "資料不足"
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if number <= 1:
+        number *= 100
+    return f"{number:.2f}%".rstrip("0").rstrip(".") + "%" if False else f"{number:g}%"
+
+
+def _number(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _heat_language(value: Any) -> str:
+    number = _number(value)
+    if number is None:
+        return "資料不足"
+    if number >= 80:
+        return "達高檔過熱區"
+    if number >= 60:
+        return "偏熱"
+    return "尚未過熱"
+
+
+
+def _heat_meaning(value: Any) -> str:
+    number = _number(value)
+    if number is None:
+        return "代表情緒溫度仍需補齊資料後判斷。"
+    if number >= 60:
+        return "代表市場情緒與價格動能偏熱；這是過熱提醒，不等於崩盤訊號。"
+    return "代表市場情緒與價格動能尚未過熱，短線風險主要仍看結構指標是否轉弱。"
+
+def _structure_language(value: Any) -> str:
+    number = _number(value)
+    if number is None:
+        return "資料不足"
+    if number >= 60:
+        return "升高"
+    if number >= 30:
+        return "中等"
+    return "仍低"
+
+
+def _structure_result(value: Any) -> str:
+    number = _number(value)
+    if number is None:
+        return "仍需觀察"
+    if number >= 60:
+        return "已明顯升高"
+    if number >= 30:
+        return "開始浮現但尚未全面確認"
+    return "尚未明確出現"
+
+
+def _eti_summary_language(value: Any) -> str:
+    number = _number(value)
+    if number is None:
+        return "代表早期警訊資料仍不完整。"
+    if number <= 1:
+        return "僅有早期警訊，表示風險尚未全面落地。"
+    if number <= 3:
+        return "代表風險正在擴散，需降低追價與槓桿。"
+    return "代表多項風險同步觸發，應優先控管曝險。"
+
+
+def _action_phrase(signal: Any) -> str:
+    normalized = _normalized_signal(signal)
+    if normalized in {"orange", "red", "deep red"}:
+        return "降低曝險、保留現金、不新增風險部位"
+    if normalized == "green":
+        return "依計畫持有、避免過度集中"
+    return "持有、不追高、不使用槓桿"
+
+
+def _de_risk_action(signal: Any) -> str:
+    normalized = _normalized_signal(signal)
+    if normalized in {"orange", "red", "deep red"}:
+        return "依升燈規則分批降低高波動與槓桿部位。"
+    return "目前不需要強制減碼，但不應新增短線追高部位。"
+
+
+def _forced_de_risk_sentence(signal: Any) -> str:
+    return "不需要強制減碼" if _normalized_signal(signal) not in {"orange", "red", "deep red"} else "需要依規則分批減碼"
+
+
+def _eti_detail_lines(payload: Mapping[str, Any]) -> list[str]:
+    trace = _mapping(_mapping(payload.get("traces")).get("eti_5"))
+    trace_output = _mapping(trace.get("trace_output"))
+    labels = [
+        ("ETI-1", "ETI-1 加權指數跌破20日線", "指數仍守在短期均線附近，價格結構尚未破壞。", "指數跌破20日線，短線價格結構轉弱。"),
+        ("ETI-2", "ETI-2 外資連續賣超", "外資賣壓尚未形成連續確認。", "外資賣超延續，籌碼壓力升高。"),
+        ("ETI-3", "ETI-3 新台幣轉貶", "匯率尚未出現明確資金外流壓力。", "新台幣轉貶，資金面壓力升高。"),
+        ("ETI-4", "ETI-4 市場廣度惡化", "市場廣度尚未全面轉弱。", "市場廣度惡化，上漲結構變窄。"),
+        ("ETI-5", "ETI-5 主流七標的失靈", "主流族群尚未同步失靈。", "主流標的轉弱，多頭領導力下降。"),
+    ]
+    lines: list[str] = []
+    for index, (code, label, normal_text, triggered_text) in enumerate(labels, start=1):
+        item = _mapping(trace_output.get(code))
+        if item and item.get("available") is False:
+            status = "資料不足"
+            explanation = "該項資料不足，暫不視為確認警訊。"
+        elif item:
+            triggered = bool(item.get("triggered") or _number(item.get("score")) and _number(item.get("score")) > 0)
+            status = "觸發" if triggered else "未觸發"
+            explanation = triggered_text if triggered else normal_text
+        else:
+            status = "資料不足"
+            explanation = "缺少足夠明細，暫以資料不足處理。"
+        lines.append(f"{_FULLWIDTH_NUMBERS[index]}、{label}：{status}，{explanation}")
+    return lines
+
+
+_FULLWIDTH_NUMBERS = {1: "１", 2: "２", 3: "３", 4: "４", 5: "５"}
+
+
+def _investment_conclusion(signal: Any, tcwrs: Any, mhs: Any, eti5: Any) -> str:
+    if _normalized_signal(signal) in {"orange", "red", "deep red"}:
+        return "目前市場已從單純過熱轉向風險擴散，操作重點不是預測最低點，而是先降低高波動、追高與槓桿部位，讓整體曝險回到可承受範圍。後續只有在價格結構修復、早期警訊下降且情緒降溫後，才適合重新提高風險部位。"
+    return "目前市場屬於強勢多頭後期的偏熱狀態，而不是結構性崩盤狀態。操作上應維持核心持股，但停止追價與槓桿，等待TCWRS與ETI-5是否同步升高。真正需要大幅降曝險的條件，是價格破壞、外資賣超、台幣轉貶與主流股失靈同時出現。"
+
+
+
+
+def _mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
 
 def _payload_with_production_quality(payload: Mapping[str, Any]) -> dict[str, Any]:
     """Attach operator QC disclosure without changing model outputs."""

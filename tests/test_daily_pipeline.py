@@ -120,7 +120,7 @@ def test_2026_06_05_canonical_regression_values_and_input_source(tmp_path: Path)
     write_final_operator_reports(result, reports_dir, pipeline_summary_path=summary_path)
 
     payload = json.loads(Path(result["artifact_paths"]["json"]).read_text(encoding="utf-8"))
-    report = (reports_dir / f"{trade_date}_tdt_rm_daily_report.md").read_text(encoding="utf-8")
+    report = (reports_dir / f"{trade_date}_tdt_rm_user_report.md").read_text(encoding="utf-8")
 
     assert result["production_report_quality"] == "PASS"
     assert result["operator_disclosure"]["acceptable_for_real_world_daily_use"] is True
@@ -133,8 +133,10 @@ def test_2026_06_05_canonical_regression_values_and_input_source(tmp_path: Path)
     assert result["signal"] == "Yellow"
     assert result["exposure_limit"] == "60-80%"
     assert payload["operator_disclosure"]["acceptable_for_real_world_daily_use"] is True
-    assert f"notes={input_dir / 'options.csv'}" in report
-    assert f"notes={input_dir / '_strict_provider_csvs' / 'options.csv'}" not in report
+    assert report.splitlines()[0] == "2026/06/05 台股雙溫度計風控報告"
+    assert "今日燈號：黃燈" in report
+    assert "股票曝險上限：60-80%" in report
+    assert "Audit" not in report and "Pipeline" not in report and "Artifact" not in report
 
 
 def test_quality_gate_freshness_uses_selected_pipeline_summary(tmp_path: Path):
@@ -163,9 +165,10 @@ def test_quality_gate_freshness_uses_selected_pipeline_summary(tmp_path: Path):
     paths = write_final_operator_reports(result, tmp_path / "reports" / trade_date, pipeline_summary_path=summary_path)
 
     report = paths["dated"].read_text(encoding="utf-8")
-    assert f"* Latest Bar Date: {trade_date}" in report
-    assert f"* Source Production Artifact: {result['artifact_paths']['json']}" in report
-    assert f"* Source Manifest: {result['artifact_paths']['manifest']}" in report
+    assert paths["dated"].name == f"{trade_date}_tdt_rm_user_report.md"
+    assert report.splitlines()[0] == f"{trade_date.replace('-', '/')} 台股雙溫度計風控報告"
+    assert "股票曝險上限：60-80%" in report
+    assert "Source" not in report and "Manifest" not in report
 
 
 def test_pipeline_runs_from_provider_fixture_csvs_and_writes_artifacts(tmp_path: Path):
@@ -306,11 +309,11 @@ def test_production_pipeline_writes_latest_report_and_prints_full_task_summary(t
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
     latest_report = reports_dir / "latest_report.md"
-    dated_report = reports_dir / f"{LOCAL_CSV_AS_OF}_tdt_rm_daily_report.md"
+    dated_report = reports_dir / f"{LOCAL_CSV_AS_OF}_tdt_rm_user_report.md"
     assert latest_report.exists()
     assert dated_report.exists()
     report_text = latest_report.read_text(encoding="utf-8")
-    assert completed.stdout.index("TODAY'S TDT-RM MARKET RESULT") < completed.stdout.index("# TDT-RM Final Operator Report")
+    assert completed.stdout.index("TODAY'S TDT-RM MARKET RESULT") < completed.stdout.index(f"{LOCAL_CSV_AS_OF.replace('-', '/')} 台股雙溫度計風控報告")
     assert f"Data Date: {LOCAL_CSV_AS_OF}" in completed.stdout
     assert "Signal:" in completed.stdout
     assert "Regime State:" in completed.stdout

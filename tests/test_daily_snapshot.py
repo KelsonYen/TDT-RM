@@ -168,7 +168,7 @@ def test_run_daily_production_snapshot_path_writes_artifacts(tmp_path: Path):
     assert result.json_path.exists()
     assert result.markdown_path.exists()
     assert result.manifest_path and result.manifest_path.exists()
-    assert "Fallback proxies" in result.markdown_path.read_text(encoding="utf-8")
+    assert "台股雙溫度計風控報告" in result.markdown_path.read_text(encoding="utf-8")
 
 
 def test_default_run_daily_production_behavior_remains_backward_compatible(tmp_path: Path):

@@ -48,17 +48,12 @@ def test_2026_06_05_confirmed_finmind_and_unavailable_global_risk_pass_operator_
     assert any(item["module"] == "ETF Exit" and item["status"] == "not_integrated" for item in disclosure["non_blocking_module_warnings"])
 
     report = render_final_operator_report(result)
-    assert "## Operator Disclosure" in report
-    assert "Production Report Quality: `PASS`" in report
-    assert "Acceptable for Real-World Daily Use: `YES`" in report
-    assert "FINMIND_FALLBACK:TaiwanOptionDaily:TXO" in report
-    assert "### Blocking Quality Failures" in report
-    assert "### Non-Blocking Module Warnings" in report
-    assert "### Data-Source Warnings" in report
-    assert "No blocking quality-control reasons detected" in report
+    assert report.splitlines()[0] == "2026/06/05 台股雙溫度計風控報告"
+    assert "今日燈號：黃燈" in report
+    assert "股票曝險上限：60-80%" in report
+    assert "Audit" not in report and "Pipeline" not in report and "Validation" not in report
     assert "field=nasdaq" not in report
     assert "field=sox" not in report
-    assert "module=ETF Exit; status=not_integrated" in report
     assert "required module(s) not integrated: ETF Exit" not in report
 
 

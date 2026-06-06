@@ -55,6 +55,7 @@ from .daily_runner import (
     classify_market_regime,
     parse_twse_taiex_payload,
     render_daily_markdown,
+    render_user_daily_report,
     run_daily_production,
 )
 from .decision_matrix import (
@@ -165,6 +166,7 @@ __all__ = [
     "classify_market_regime",
     "parse_twse_taiex_payload",
     "render_daily_markdown",
+    "render_user_daily_report",
     "run_daily_production",
     "BacktestConfig",
     "BacktestMetrics",

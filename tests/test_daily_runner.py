@@ -73,12 +73,13 @@ def test_render_daily_markdown_contains_required_report_sections():
 
     report = render_daily_markdown(payload)
 
-    assert "# TDT-RM Daily Report" in report
-    assert "Market regime" in report
-    assert "| TCWRS |" in report
-    assert "| MHS |" in report
-    assert "| ETI-5 |" in report
-    assert "Future ETF Exit Integration" in report
+    assert report.splitlines()[0] == "2026/03/11 台股雙溫度計風控報告"
+    assert "今日燈號：" in report
+    assert "股票曝險上限：" in report
+    assert "■ 核心結論" in report
+    assert "■ ETI-5明細" in report
+    assert "■ 今日動作" in report
+    assert "|" not in report
 
 
 def test_run_daily_production_writes_json_and_markdown(tmp_path: Path):
@@ -95,7 +96,7 @@ def test_run_daily_production_writes_json_and_markdown(tmp_path: Path):
     assert result.json_path.exists()
     assert result.markdown_path.exists()
     assert result.json_path.parent == tmp_path
-    assert result.markdown_path.read_text(encoding="utf-8").startswith("# TDT-RM Daily Report")
+    assert result.markdown_path.read_text(encoding="utf-8").startswith("2026/03/11 台股雙溫度計風控報告")
     assert '"signal"' in result.json_path.read_text(encoding="utf-8")
 
 

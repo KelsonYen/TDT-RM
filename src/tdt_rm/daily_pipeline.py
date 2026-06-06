@@ -22,7 +22,7 @@ from .daily_providers import (
     ManualScoreProvider,
     TAIEXPriceProvider,
 )
-from .daily_runner import DailyRunResult, run_daily_production
+from .daily_runner import DailyRunResult, render_user_daily_report, run_daily_production
 from .daily_snapshot import DailyMarketSnapshot, load_daily_snapshot_json
 from .daily_validation import validate_daily_artifacts
 from .report_quality import assess_production_report_quality, render_operator_disclosure
@@ -234,58 +234,43 @@ def render_market_result_block(result: Mapping[str, Any]) -> str:
 
 
 def render_final_operator_report(result: Mapping[str, Any]) -> str:
-    """Render the complete Markdown report consumed by operator task summaries."""
+    """Render Dr. Yen's final user-facing daily investment risk report."""
 
-    scores = _mapping(result.get("scores"))
+    payload = _payload_for_user_report(result)
+    return render_user_daily_report(payload)
+
+
+def _payload_for_user_report(result: Mapping[str, Any]) -> Mapping[str, Any]:
     artifacts = _mapping(result.get("artifact_paths"))
-    validation = _mapping(result.get("validation"))
-    action = _recommended_action(result)
-    conclusion = _final_conclusion(result)
-    lines = [
-        f"# TDT-RM Final Operator Report — {result.get('trade_date')}",
-        "",
-        "## Production Status",
-        "",
-        f"* Trade Date: {result.get('trade_date')}",
-        f"* Latest Bar Date: {_result_value(result, 'latest_bar_date', default=result.get('trade_date'))}",
-        f"* Pipeline Validation Status: {result.get('validation_status')}",
-        f"* Data Status: {result.get('data_status')}",
-        f"* Production Report Quality: {result.get('production_report_quality')}",
-        f"* Source Production Artifact: {artifacts.get('json')}",
-        f"* Source Manifest: {artifacts.get('manifest')}",
-        "",
-        "## Required Operator Fields",
-        "",
-        "| Field | Value |",
-        "| --- | --- |",
-        f"| Signal | {result.get('signal')} |",
-        f"| Regime State | {_result_value(result, 'regime_state', 'market_regime', default='watch')} |",
-        f"| TCWRS | {scores.get('TCWRS')} |",
-        f"| MHS | {scores.get('MHS')} |",
-        f"| ETI-5 | {scores.get('ETI-5')} |",
-        f"| Tail Risk | {scores.get('Tail Risk')} |",
-        f"| BCD | {scores.get('BCD')} |",
-        f"| Crash Probability | {_format_crash_probability(scores.get('CP'))} |",
-        f"| Exposure Limit | {result.get('exposure_limit')} |",
-        f"| Recommended Action | {action} |",
-        f"| Conclusion | {conclusion} |",
-        "",
-        render_operator_disclosure(_mapping(result.get("operator_disclosure"))).rstrip(),
-        "",
-        "## Data Quality Notes",
-        "",
-        "* Available ETI Components: " + (", ".join(str(item) for item in result.get('available_eti_components', []) or []) or "none"),
-        f"* Fallback Proxies: {json.dumps(result.get('fallback_proxies', {}), ensure_ascii=False, sort_keys=True)}",
-        "* Provider Warnings: " + ("; ".join(str(item) for item in result.get('provider_warnings', []) or []) or "none"),
-        f"* Validation Errors: {validation.get('error_count', 0)}",
-        f"* Validation Warnings: {validation.get('warning_count', 0)}",
-        "",
-        "## Final Assessment",
-        "",
-        conclusion,
-        "",
-    ]
-    return "\n".join(lines)
+    json_path = artifacts.get("json")
+    if json_path:
+        path = Path(str(json_path))
+        if path.exists():
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                payload = {}
+            if isinstance(payload, Mapping):
+                merged = dict(payload)
+                merged.setdefault("trade_date", result.get("trade_date"))
+                merged.setdefault("signal", result.get("signal"))
+                merged.setdefault("equity_exposure_limit", result.get("exposure_limit"))
+                merged.setdefault("market_regime", _result_value(result, "regime_state", "market_regime", default="watch"))
+                if "scores" not in merged and isinstance(result.get("scores"), Mapping):
+                    merged["scores"] = dict(_mapping(result.get("scores")))
+                data = dict(_mapping(merged.get("data")))
+                data.setdefault("status", result.get("data_status"))
+                data.setdefault("latest_bar_date", result.get("latest_bar_date") or result.get("trade_date"))
+                merged["data"] = data
+                return merged
+    return {
+        "trade_date": result.get("trade_date"),
+        "signal": result.get("signal"),
+        "equity_exposure_limit": result.get("exposure_limit"),
+        "market_regime": _result_value(result, "regime_state", "market_regime", default="watch"),
+        "scores": dict(_mapping(result.get("scores"))),
+        "data": {"status": result.get("data_status"), "latest_bar_date": result.get("latest_bar_date") or result.get("trade_date")},
+    }
 
 
 def write_final_operator_reports(
@@ -308,7 +293,7 @@ def write_final_operator_reports(
     destination.mkdir(parents=True, exist_ok=True)
     report = render_final_operator_report(result)
     trade_date = str(result.get("trade_date"))
-    dated_path = destination / f"{trade_date}_tdt_rm_daily_report.md"
+    dated_path = destination / f"{trade_date}_tdt_rm_user_report.md"
     latest_path = destination / "latest_report.md"
     dated_path.write_text(report, encoding="utf-8")
     latest_path.write_text(report, encoding="utf-8")
