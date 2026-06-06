@@ -25,6 +25,7 @@ from .daily_providers import (
 from .daily_runner import DailyRunResult, run_daily_production
 from .daily_snapshot import DailyMarketSnapshot, load_daily_snapshot_json
 from .daily_validation import validate_daily_artifacts
+from .report_quality import assess_production_report_quality, render_operator_disclosure
 
 
 @dataclass(frozen=True)
@@ -65,6 +66,8 @@ class DailyPipelineResult:
     provider_warnings: tuple[str, ...]
     validation: Mapping[str, Any]
     artifact_paths: Mapping[str, str]
+    production_report_quality: str | None = None
+    operator_disclosure: Mapping[str, Any] | None = None
     assembled_snapshot_path: str | None = None
 
     @property
@@ -96,6 +99,8 @@ class DailyPipelineResult:
             "validation_status": self.validation_status,
             "validation": dict(self.validation),
             "artifact_paths": dict(self.artifact_paths),
+            "production_report_quality": self.production_report_quality,
+            "operator_disclosure": dict(self.operator_disclosure or {}),
             "assembled_snapshot_path": self.assembled_snapshot_path,
         }
 
@@ -189,6 +194,7 @@ def render_operator_summary(result: Mapping[str, Any]) -> str:
         f"Tail Risk: {scores.get('Tail Risk')}",
         f"BCD: {scores.get('BCD')}",
         f"CP: {scores.get('CP')}",
+        f"production_report_quality: {result.get('production_report_quality')}",
         f"fallback_proxies: {json.dumps(result.get('fallback_proxies', {}), ensure_ascii=False, sort_keys=True)}",
         "provider_warnings: " + (str(len(result.get("provider_warnings", []) or []))),
     ]
@@ -221,6 +227,7 @@ def render_market_result_block(result: Mapping[str, Any]) -> str:
         f"BCD: {scores.get('BCD')}",
         f"Crash Probability: {_format_crash_probability(cp_value)}",
         f"Exposure Limit: {result.get('exposure_limit')}",
+        f"Production Report Quality: {result.get('production_report_quality')}",
         f"Recommended Action: {action}",
     ]
     return "\n".join(lines)
@@ -243,6 +250,7 @@ def render_final_operator_report(result: Mapping[str, Any]) -> str:
         f"* Latest Bar Date: {_result_value(result, 'latest_bar_date', default=result.get('trade_date'))}",
         f"* Pipeline Validation Status: {result.get('validation_status')}",
         f"* Data Status: {result.get('data_status')}",
+        f"* Production Report Quality: {result.get('production_report_quality')}",
         f"* Source Production Artifact: {artifacts.get('json')}",
         f"* Source Manifest: {artifacts.get('manifest')}",
         "",
@@ -261,6 +269,8 @@ def render_final_operator_report(result: Mapping[str, Any]) -> str:
         f"| Exposure Limit | {result.get('exposure_limit')} |",
         f"| Recommended Action | {action} |",
         f"| Conclusion | {conclusion} |",
+        "",
+        render_operator_disclosure(_mapping(result.get("operator_disclosure"))).rstrip(),
         "",
         "## Data Quality Notes",
         "",
@@ -329,6 +339,13 @@ def _final_conclusion(result: Mapping[str, Any]) -> str:
     signal = result.get("signal")
     cp = _format_crash_probability(_mapping(result.get("scores")).get("CP"))
     exposure_limit = result.get("exposure_limit")
+    quality = result.get("production_report_quality")
+    if quality == "FAIL_FOR_OPERATOR_USE":
+        return (
+            f"TDT-RM closes the latest available market date with a {signal} signal and crash probability {cp}, "
+            "but operator quality control fails. This report is not acceptable for real-world daily use until "
+            "the Operator Disclosure blocking reasons are resolved."
+        )
     return (
         f"TDT-RM closes the latest available market date with a {signal} signal and crash probability {cp}. "
         f"The operator should follow the recommended action within the approved {exposure_limit} equity exposure band."
@@ -441,6 +458,8 @@ def _build_pipeline_result(
     if assembled_snapshot_path is not None:
         artifacts["assembled_snapshot"] = str(assembled_snapshot_path)
 
+    quality = _mapping(payload.get("operator_disclosure")) or assess_production_report_quality(payload)
+
     return DailyPipelineResult(
         trade_date=str(payload.get("trade_date")),
         data_status=str(data.get("status") or data.get("data_status")) if data else None,
@@ -454,6 +473,8 @@ def _build_pipeline_result(
         provider_warnings=provider_warnings,
         validation=validation,
         artifact_paths=artifacts,
+        production_report_quality=str(quality.get("production_report_quality")) if quality.get("production_report_quality") is not None else None,
+        operator_disclosure=quality,
         assembled_snapshot_path=str(assembled_snapshot_path) if assembled_snapshot_path is not None else None,
     )
 

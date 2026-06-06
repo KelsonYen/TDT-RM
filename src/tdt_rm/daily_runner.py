@@ -38,6 +38,7 @@ from .daily_snapshot import (
     validate_daily_snapshot,
 )
 from .daily_validation import build_daily_run_manifest, validate_daily_artifacts
+from .report_quality import assess_production_report_quality, render_operator_disclosure
 
 DEFAULT_OUTPUT_DIR = Path("outputs/daily")
 DEFAULT_TWSE_URL = "https://www.twse.com.tw/rwd/en/TAIEX/MI_5MINS_HIST"
@@ -166,6 +167,7 @@ def run_daily_production(
             timestamp=run_timestamp,
             etf_exit_hook=etf_exit_hook or ETFExitHook(),
         )
+    payload = _payload_with_production_quality(payload)
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=True)
     trade_date = payload["trade_date"]
@@ -551,6 +553,7 @@ def render_daily_markdown(payload: Mapping[str, Any]) -> str:
             f"- Market regime: **{payload['market_regime']}**",
             f"- Signal: **{payload['signal']}**",
             f"- Equity exposure limit: **{payload['equity_exposure_limit']}**",
+            f"- Production report quality: **{payload.get('production_report_quality', 'PASS')}**",
             "",
             "## Scores",
             "",
@@ -594,6 +597,8 @@ def render_daily_markdown(payload: Mapping[str, Any]) -> str:
             f"- Fallback proxies: `{json.dumps(data.get('fallback_proxies', {}), ensure_ascii=False, sort_keys=True)}`",
             f"- Field source count: `{len(data.get('field_sources', {}))}`",
             "",
+            render_operator_disclosure(payload.get("operator_disclosure", {})).rstrip(),
+            "",
             "## Future ETF Exit Integration",
             "",
             f"- Enabled: `{etf_exit['enabled']}`",
@@ -603,6 +608,16 @@ def render_daily_markdown(payload: Mapping[str, Any]) -> str:
         ]
     )
 
+
+
+def _payload_with_production_quality(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Attach operator QC disclosure without changing model outputs."""
+
+    enriched = dict(payload)
+    quality = assess_production_report_quality(enriched)
+    enriched["production_report_quality"] = quality["production_report_quality"]
+    enriched["operator_disclosure"] = quality
+    return enriched
 
 def parse_twse_taiex_payload(payload: Mapping[str, Any]) -> list[MarketPriceBar]:
     """Parse TWSE MI_5MINS_HIST JSON payload into chronological price bars."""

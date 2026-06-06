@@ -259,7 +259,12 @@ class LocalCsvProvider:
         field_map = dict(context.field_map_for(self.provider_id, self.category))
         field_map.update(self.field_map)
         canonical = _canonicalize_row(row, field_map=field_map)
-        return _provider_result(self, canonical, notes=str(self.path))
+        return _provider_result(
+            self,
+            canonical,
+            notes=str(self.path),
+            audit_metadata=_row_audit_metadata(row),
+        )
 
 
 @dataclass(frozen=True)
@@ -302,7 +307,12 @@ class LocalJsonProvider:
         field_map = dict(context.field_map_for(self.provider_id, self.category))
         field_map.update(self.field_map)
         canonical = _canonicalize_row(row, field_map=field_map)
-        return _provider_result(self, canonical, notes=str(self.path))
+        return _provider_result(
+            self,
+            canonical,
+            notes=str(self.path),
+            audit_metadata=_row_audit_metadata(row),
+        )
 
 
 @dataclass(frozen=True)
@@ -451,9 +461,11 @@ def _provider_result(
     price_bars: Sequence[MarketPriceBar] = (),
     notes: str | None = None,
     errors: tuple[str, ...] = (),
+    audit_metadata: Mapping[str, Any] | None = None,
 ) -> DailyProviderResult:
     retrieved_at = _utc_now()
     metadata = {"name": provider.provider_name, "retrieved_at": retrieved_at, "category": getattr(provider, "category", None), "notes": notes}
+    metadata.update(dict(audit_metadata or {}))
     return DailyProviderResult(
         provider_id=provider.provider_id,
         provider_name=provider.provider_name,
@@ -649,3 +661,13 @@ def _same_value(left: Any, right: Any) -> bool:
 
 def _utc_now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _row_audit_metadata(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Preserve non-scoring provider provenance columns for operator QC."""
+
+    return {
+        str(key): row[key]
+        for key in ("trade_date", "provider_source", "source_type", "dataset")
+        if key in row and row[key] not in (None, "")
+    }
