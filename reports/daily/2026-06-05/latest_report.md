@@ -2,7 +2,7 @@
 作者：Dr. Yen
 模型：TDT-RM V5.1.4 Backtest Calibration Patch
 資料日期：2026/06/05
-產出時間：2026/06/06 10:54
+產出時間：2026/06/06 11:25
 資料狀態：正式版
 今日燈號：黃燈
 市場狀態：觀察
@@ -10,13 +10,15 @@ TCWRS：12
 MHS：100
 ETI-5：1
 Tail Risk：53.95
-BCD：4
+BCD：資料不足
+BCD Status: INCOMPLETE
+Missing Inputs: ["breadth_history", "main7_returns", "main7_weights", "main7_concentration", "sector_breadth", "sector_diffusion", "otc_return_pct", "small_mid_breadth", "small_mid_weakness", "turnover_concentration_topn", "turnover_concentration"]
 資料限制：
 １、缺少 sector breadth
 ２、缺少 Top-N turnover concentration
 ３、缺少 Main-7 returns
-４、此分數為 partial BCD，不得視為完整拉積盤判斷
-Crash Probability：21.99%
+４、BCD 狀態為 INCOMPLETE，分數為 null，不得視為完整拉積盤判斷
+Crash Probability：21.59%
 股票曝險上限：60-80%
 
 ■ 核心結論

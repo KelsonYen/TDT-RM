@@ -1,9 +1,30 @@
 {
+  "bcd_calculation_version": "BCD-INDEPENDENT-V1",
+  "bcd_data_completeness": 0.0,
+  "bcd_missing_components": [
+    "breadth_history",
+    "main7_returns",
+    "main7_weights",
+    "main7_concentration",
+    "sector_breadth",
+    "sector_diffusion",
+    "otc_return_pct",
+    "small_mid_breadth",
+    "small_mid_weakness",
+    "turnover_concentration_topn",
+    "turnover_concentration"
+  ],
+  "bcd_source_dependencies": [
+    "advancing_issues<-breadth_csv",
+    "declining_issues<-breadth_csv",
+    "taiex_return_pct<-taiex_price"
+  ],
+  "bcd_status": "INCOMPLETE",
   "component_scores": {
     "index_breadth_divergence": 4.0
   },
-  "data_quality_status": "partial",
-  "final_score": 4.0,
+  "data_quality_status": "INCOMPLETE",
+  "final_score": null,
   "missing_components": [
     "breadth_history",
     "main7_returns",
@@ -32,7 +53,6 @@
   },
   "source_fields": {
     "advancing_issues": "breadth_csv",
-    "bcd": "options_csv",
     "breadth_weakens_for_2_days": "breadth_csv",
     "close": "taiex_price",
     "close_below_ma20_consecutive_days": "taiex_price",

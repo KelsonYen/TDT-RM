@@ -1,6 +1,6 @@
 {
-  "BCD": 4.0,
-  "CP": 21.99,
+  "BCD": null,
+  "CP": 21.59,
   "ETI-5": 1,
   "MHS": 100.0,
   "TCWRS": 12,
@@ -9,6 +9,7 @@
     "assembled_snapshot": "reports/daily/2026-06-05/artifacts/assembled_daily_snapshot_2026-06-05.json",
     "bcd_audit_trace_csv": "reports/daily/2026-06-05/artifacts/bcd_audit_trace.csv",
     "bcd_audit_trace_json": "reports/daily/2026-06-05/artifacts/bcd_audit_trace.json",
+    "bcd_independence_audit_md": "reports/audit/bcd_independence_audit.md",
     "json": "reports/daily/2026-06-05/artifacts/tdt_rm_daily_2026-06-05.json",
     "manifest": "reports/daily/2026-06-05/artifacts/tdt_rm_daily_2026-06-05_manifest.json",
     "markdown": "reports/daily/2026-06-05/artifacts/tdt_rm_daily_2026-06-05.md"
@@ -38,8 +39,8 @@
         "turnover_concentration_topn",
         "turnover_concentration"
       ],
-      "reason": "BCD source fields are incomplete; see traces.bcd.missing_components",
-      "status": "partial_bcd"
+      "reason": "Required independent BCD inputs are incomplete; BCD is null and no proxy is used",
+      "status": "incomplete_bcd"
     }
   },
   "latest_bar_date": "2026-06-05",
@@ -137,8 +138,8 @@
   ],
   "regime_state": "watch",
   "scores": {
-    "BCD": 4.0,
-    "CP": 21.99,
+    "BCD": null,
+    "CP": 21.59,
     "ETI-5": 1,
     "MHS": 100.0,
     "TCWRS": 12,
