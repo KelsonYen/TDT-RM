@@ -130,7 +130,7 @@ jobs:
           printf ' %q' "${args[@]}"
           printf '\n'
 
-          python scripts/run_github_actions_production_fetch.py "${args[@]}"
+          python scripts/run_github_actions_production_fetch.py "${args[@]}" --skip-daily-report
 
       - name: Verify fetch artifact contract
         if: always()

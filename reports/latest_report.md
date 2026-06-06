@@ -7,8 +7,8 @@
 * Pipeline Validation Status: passed
 * Data Status: enriched_snapshot
 * Production Report Quality: PASS
-* Source Production Artifact: reports/artifacts/tdt_rm_daily_2026-06-05.json
-* Source Manifest: reports/artifacts/tdt_rm_daily_2026-06-05_manifest.json
+* Source Production Artifact: outputs/daily/2026-06-05/tdt_rm_daily_2026-06-05.json
+* Source Manifest: outputs/daily/2026-06-05/tdt_rm_daily_2026-06-05_manifest.json
 
 ## Required Operator Fields
 

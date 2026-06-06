@@ -2,9 +2,10 @@
 """GitHub Actions production fetch orchestrator for TDT-RM.
 
 This wrapper runs the live provider fetchers in a normal CI network, materializes
-an auditable production input directory under inputs/daily/YYYY-MM-DD, validates
-that no required production CSV is missing/stale/synthetic, and then runs the
-existing daily production report from the strict provider CSVs.
+an auditable production input directory under inputs/daily/YYYY-MM-DD, and
+validates that no required production CSV is missing/stale/synthetic. It keeps
+fetch/normalization/validation diagnostics but skips operator-facing daily
+reports unless explicitly requested.
 """
 
 from __future__ import annotations
@@ -72,6 +73,8 @@ def main() -> int:
     parser.add_argument("--source-config", default="config/public_data_sources.json", help="Public provider source configuration.")
     parser.add_argument("--allow-finmind-live", action="store_true", help="Allow FinMind only as an explicit token-gated vendor fallback.")
     parser.add_argument("--skip-fetch", action="store_true", help="Testing hook: do not call live providers; consume an existing staging directory.")
+    parser.add_argument("--skip-daily-report", action="store_true", help="Do not generate operator-facing dated/latest daily reports from this fetch helper.")
+    parser.add_argument("--staging-canonical", action="store_true", help="Explicitly allow the strict provider CSV staging directory to be the canonical source for operator reports.")
     parser.add_argument("--staging-dir", help="Strict provider CSV staging dir (default: inputs/daily/<date>/_strict_provider_csvs).")
     args = parser.parse_args()
 
@@ -115,7 +118,9 @@ def main() -> int:
         if production_errors:
             raise RuntimeError("production CSV validation failed: " + "; ".join(production_errors))
 
-        _run_daily_report(trade_date, staging_dir, reports_dir, artifacts_dir)
+        if not args.skip_daily_report:
+            report_input_dir = staging_dir if args.staging_canonical else production_dir
+            _run_daily_report(trade_date, report_input_dir, reports_dir, artifacts_dir)
         _write_run_summary(run_summary, trade_date, "READY", production_dir, reports_dir, artifacts_dir, validation_report, fetch_summary, provider_health)
         _write_fetch_manifest(fetch_manifest, trade_date, "READY", staging_dir, production_dir, reports_dir, artifacts_dir, fetch_summary, provider_health, validation_report, allow_finmind_live=allow_finmind_live)
         validate_fetch_artifact_contract(trade_date=trade_date, outputs_dir=outputs_dir, reports_dir=reports_dir, staging_dir=staging_dir)

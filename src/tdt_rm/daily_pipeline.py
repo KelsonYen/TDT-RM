@@ -13,7 +13,7 @@ import json
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from .daily_providers import (
     DailyProviderContext,
@@ -288,10 +288,23 @@ def render_final_operator_report(result: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def write_final_operator_reports(result: Mapping[str, Any], reports_dir: str | Path = "reports") -> dict[str, Path]:
-    """Write dated and latest operator reports, returning their paths."""
+def write_final_operator_reports(
+    result: Mapping[str, Any],
+    reports_dir: str | Path = "reports",
+    *,
+    pipeline_summary_path: str | Path | None = None,
+) -> dict[str, Path]:
+    """Write dated and latest operator reports, returning their paths.
+
+    When a selected pipeline summary is supplied, fail closed unless the
+    operator-facing report would cite the exact canonical JSON artifact and
+    manifest recorded by that summary.
+    """
 
     destination = Path(reports_dir)
+    if pipeline_summary_path is not None:
+        validate_operator_report_canonical_sources(result, pipeline_summary_path, duplicate_family_roots=(Path(pipeline_summary_path).parent, destination / "artifacts", Path("reports") / "artifacts"))
+
     destination.mkdir(parents=True, exist_ok=True)
     report = render_final_operator_report(result)
     trade_date = str(result.get("trade_date"))
@@ -305,6 +318,77 @@ def write_final_operator_reports(result: Mapping[str, Any], reports_dir: str | P
         root_latest.parent.mkdir(parents=True, exist_ok=True)
         root_latest.write_text(report, encoding="utf-8")
     return {"dated": dated_path, "latest": latest_path}
+
+
+def validate_operator_report_canonical_sources(
+    result: Mapping[str, Any],
+    pipeline_summary_path: str | Path,
+    *,
+    duplicate_family_roots: Sequence[str | Path] | None = None,
+) -> None:
+    """Fail closed when operator-facing source paths differ from the selected summary."""
+
+    summary_path = Path(pipeline_summary_path)
+    summary = _load_summary_object(summary_path)
+    summary_artifacts = _mapping(summary.get("artifact_paths"))
+    result_artifacts = _mapping(result.get("artifact_paths"))
+    trade_date = str(summary.get("trade_date") or result.get("trade_date") or "")
+
+    for key in ("json", "manifest"):
+        expected = summary_artifacts.get(key)
+        actual = result_artifacts.get(key)
+        if not expected or not actual:
+            raise ValueError(f"canonical source guard missing artifact_paths.{key} in selected pipeline summary or report result")
+        if _canonical_path_string(expected) != _canonical_path_string(actual):
+            raise ValueError(
+                f"canonical source guard mismatch for artifact_paths.{key}: "
+                f"selected pipeline_summary.json has {expected!r}, report would cite {actual!r}"
+            )
+        if "_strict_provider_csvs" in Path(str(actual)).parts:
+            raise ValueError(f"canonical source guard rejected staging artifact as operator source: artifact_paths.{key}={actual}")
+
+    duplicate_families = detect_duplicate_operator_artifact_families(trade_date, duplicate_family_roots or (summary_path.parent, Path("reports") / "artifacts"))
+    canonical_json = _canonical_path_string(summary_artifacts["json"])
+    noncanonical = [family for family in duplicate_families if _canonical_path_string(family.get("json", "")) != canonical_json]
+    if noncanonical:
+        locations = ", ".join(str(family.get("root")) for family in noncanonical)
+        raise ValueError(f"canonical source guard detected duplicate operator artifact families for {trade_date}: {locations}")
+
+
+def detect_duplicate_operator_artifact_families(trade_date: str, roots: Sequence[str | Path]) -> list[dict[str, str]]:
+    """Return complete daily JSON/manifest/pipeline-summary families below roots."""
+
+    families: list[dict[str, str]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for raw_root in roots:
+        root = Path(raw_root)
+        if not root.exists():
+            continue
+        for json_path in root.rglob(f"tdt_rm_daily_{trade_date}.json"):
+            manifest_path = json_path.with_name(f"tdt_rm_daily_{trade_date}_manifest.json")
+            summary_path = json_path.parent / "pipeline_summary.json"
+            if not manifest_path.exists() or not summary_path.exists():
+                continue
+            family = {"root": str(json_path.parent), "json": str(json_path), "manifest": str(manifest_path), "pipeline_summary": str(summary_path)}
+            identity = (family["root"], family["json"], family["manifest"])
+            if identity not in seen:
+                seen.add(identity)
+                families.append(family)
+    return families
+
+
+def _load_summary_object(path: Path) -> Mapping[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"cannot read selected pipeline summary {path}: {exc}") from exc
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"selected pipeline summary must be a JSON object: {path}")
+    return payload
+
+
+def _canonical_path_string(value: Any) -> str:
+    return str(Path(str(value)))
 
 
 def render_report_task_summary(report_path: str | Path, result: Mapping[str, Any]) -> str:

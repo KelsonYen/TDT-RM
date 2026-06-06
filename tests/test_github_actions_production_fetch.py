@@ -44,6 +44,52 @@ def _strict_rows() -> dict[str, dict[str, object]]:
     }
 
 
+def test_skip_daily_report_keeps_fetch_helper_diagnostic_only(tmp_path: Path, monkeypatch):
+    staging = tmp_path / "staging"
+    reports_root = tmp_path / "reports"
+    outputs_root = tmp_path / "outputs"
+    inputs_root = tmp_path / "inputs"
+    for filename, row in _strict_rows().items():
+        _write_csv(staging / filename, row)
+    artifacts = reports_root / AS_OF.isoformat() / "artifacts"
+    artifacts.mkdir(parents=True)
+    (artifacts / "production_fetch_summary.json").write_text(
+        json.dumps({"trade_date": AS_OF.isoformat(), "overall_status": "READY", "datasets": {}, "missing_datasets": []}),
+        encoding="utf-8",
+    )
+    (artifacts / "provider_health.json").write_text(
+        json.dumps({"as_of": AS_OF.isoformat(), "providers": {}, "summary": {"fail_closed": False}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_github_actions_production_fetch.py",
+            "--trade-date",
+            AS_OF.isoformat(),
+            "--inputs-root",
+            str(inputs_root),
+            "--reports-root",
+            str(reports_root),
+            "--outputs-root",
+            str(outputs_root),
+            "--staging-dir",
+            str(staging),
+            "--skip-fetch",
+            "--skip-daily-report",
+        ],
+    )
+
+    assert _MODULE.main() == 0
+
+    assert (outputs_root / AS_OF.isoformat() / "fetch_manifest.json").exists()
+    assert (artifacts / "production_fetch_summary.json").exists()
+    assert not (reports_root / AS_OF.isoformat() / f"{AS_OF.isoformat()}_tdt_rm_daily_report.md").exists()
+    assert not (artifacts / "pipeline_summary.json").exists()
+    assert not (artifacts / f"tdt_rm_daily_{AS_OF.isoformat()}.json").exists()
+
+
 def test_manifest_creation_and_required_file_validation(tmp_path: Path):
     staging = tmp_path / "staging"
     production = tmp_path / "inputs" / AS_OF.isoformat()

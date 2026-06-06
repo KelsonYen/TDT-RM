@@ -75,7 +75,7 @@ def main() -> int:
             command="scripts/run_daily_production_pipeline.py",
         )
         write_json_summary(result, summary_path)
-        report_paths = write_final_operator_reports(result, reports_dir)
+        report_paths = write_final_operator_reports(result, reports_dir, pipeline_summary_path=summary_path)
         task_summary = render_report_task_summary(report_paths["latest"], result)
         if not strict_local_import:
             task_summary = task_summary.replace("TODAY\'S TDT-RM MARKET RESULT", "TODAY’S TDT-RM MARKET RESULT", 1)
