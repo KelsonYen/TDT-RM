@@ -222,7 +222,7 @@ def _validate_bundle(bundle: Mapping[str, Any]) -> None:
     for provider_name, provider in provider_health.items():
         item = _mapping(provider)
         status = str(item.get("status") or "").lower()
-        freshness_status = str(item.get("freshness_status") or "").lower()
+        freshness_status = _effective_provider_freshness_status(item)
         as_of = item.get("as_of")
         if provider_name in required_providers and status not in PASSING_PROVIDER_STATUSES:
             raise ReportGenerationError(f"required provider failed: {provider_name} status={item.get('status')}")
@@ -230,7 +230,7 @@ def _validate_bundle(bundle: Mapping[str, Any]) -> None:
             raise ReportGenerationError(f"required provider stale or freshness failed: {provider_name}")
         if as_of is not None:
             _assert_artifact_trade_date(f"provider {provider_name} as_of", as_of, trade_date)
-        if provider_name in required_providers and int(item.get("records_loaded") or 0) <= 0:
+        if provider_name in required_providers and _provider_records_loaded(item) <= 0:
             raise ReportGenerationError(f"required provider has no loaded records: {provider_name}")
 
     pipeline_status = str(pipeline_payload.get("pipeline_status") or pipeline_payload.get("status") or "").lower()
@@ -289,6 +289,73 @@ def _required_provider_names(fetch_manifest: Mapping[str, Any], provider_health:
     if "price_provider" in provider_health:
         return DEFAULT_REQUIRED_PROVIDERS
     return tuple(provider_health)
+
+
+def _effective_provider_freshness_status(provider: Mapping[str, Any]) -> str:
+    raw_freshness_status = provider.get("freshness_status")
+    if raw_freshness_status is not None and str(raw_freshness_status).strip():
+        return str(raw_freshness_status).lower()
+
+    if str(provider.get("status") or "").lower() != "healthy":
+        return ""
+    if not _provider_has_usable_selected_attempt(provider):
+        return ""
+    if not (provider.get("source_selected") or provider.get("provider_used")):
+        return ""
+    if not _provider_checks_passed(provider.get("reconciliation_checks")):
+        return ""
+    return "fresh_or_not_applicable"
+
+
+def _provider_has_usable_selected_attempt(provider: Mapping[str, Any]) -> bool:
+    attempts = provider.get("attempts")
+    if not isinstance(attempts, list):
+        return False
+    for attempt in attempts:
+        item = _mapping(attempt)
+        if item.get("attempted") is False or item.get("selected") is not True:
+            continue
+        if str(item.get("status") or "").lower() not in PASSING_PROVIDER_STATUSES:
+            continue
+        if not (item.get("output_path") or item.get("provider") or item.get("source")):
+            continue
+        if not _provider_checks_passed(item.get("checks")):
+            continue
+        return True
+    return False
+
+
+def _provider_checks_passed(raw_checks: Any) -> bool:
+    if not isinstance(raw_checks, list) or not raw_checks:
+        return False
+    passing_check_statuses = PASSING_VALIDATION_STATUSES | PASSING_FRESHNESS_STATUSES | {"success"}
+    for check in raw_checks:
+        status = str(_mapping(check).get("status") or "").lower()
+        if status not in passing_check_statuses:
+            return False
+    return True
+
+
+def _provider_records_loaded(provider: Mapping[str, Any]) -> int:
+    raw_records_loaded = provider.get("records_loaded")
+    if raw_records_loaded is not None:
+        return int(raw_records_loaded or 0)
+
+    attempts = provider.get("attempts")
+    if not isinstance(attempts, list):
+        return 0
+    for attempt in attempts:
+        item = _mapping(attempt)
+        if item.get("selected") is not True:
+            continue
+        attempt_records = item.get("records_loaded")
+        if attempt_records is not None:
+            return int(attempt_records or 0)
+        metadata = _mapping(item.get("metadata"))
+        bar_count = metadata.get("bar_count")
+        if bar_count is not None:
+            return int(bar_count or 0)
+    return 0
 
 
 def _validation_payload(validation_artifact: Mapping[str, Any]) -> Mapping[str, Any]:
