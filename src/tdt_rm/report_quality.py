@@ -46,11 +46,9 @@ def assess_production_report_quality(payload: Mapping[str, Any]) -> dict[str, An
     if placeholder_fields:
         fields = ", ".join(item["field"] for item in placeholder_fields)
         blocking_reasons.append(f"default-like global-risk field(s) without confirmed source: {fields}")
-    if non_integrated_modules:
-        modules = ", ".join(item["module"] for item in non_integrated_modules)
-        blocking_reasons.append(f"required module(s) not integrated: {modules}")
 
-    disclosure_items = bool(fallback_datasets or placeholder_fields or non_integrated_modules or data.get("fallback_proxies"))
+    module_warnings = non_integrated_modules
+    disclosure_items = bool(fallback_datasets or placeholder_fields or module_warnings or data.get("fallback_proxies"))
     if blocking_reasons:
         quality = QUALITY_FAIL_FOR_OPERATOR_USE
         acceptable = False
@@ -69,6 +67,7 @@ def assess_production_report_quality(payload: Mapping[str, Any]) -> dict[str, An
         "fallback_operator_dependencies": fallback_dependencies,
         "placeholder_default_like_fields": placeholder_fields,
         "non_integrated_modules": non_integrated_modules,
+        "non_blocking_module_warnings": module_warnings,
         "blocking_reasons": blocking_reasons,
     }
 
@@ -82,26 +81,32 @@ def render_operator_disclosure(quality: Mapping[str, Any]) -> str:
         f"* Production Report Quality: `{quality.get('production_report_quality')}`",
         f"* Acceptable for Real-World Daily Use: `{'YES' if quality.get('acceptable_for_real_world_daily_use') else 'NO'}`",
         "",
+        "### Blocking Quality Failures",
+        *(_bullet_lines(quality.get("blocking_reasons"), empty="No blocking quality-control reasons detected.")),
+        "",
+        "### Non-Blocking Module Warnings",
+        *_bullet_lines(_module_warnings(quality), empty="none reported"),
+        "",
+        "### Data-Source Warnings",
+        "#### Fallback Provider Datasets",
+        *_bullet_lines(quality.get("fallback_provider_datasets"), empty="none reported"),
+        "",
+        "#### Fallback-Dependent Operator Fields",
+        *_bullet_lines(quality.get("fallback_operator_dependencies"), empty="none reported"),
+        "",
+        "#### Placeholder / Default-Like Fields",
+        *_bullet_lines(quality.get("placeholder_default_like_fields"), empty="none reported"),
+        "",
         "### Official Provider Datasets",
         *_bullet_lines(quality.get("official_provider_datasets"), empty="none reported"),
         "",
-        "### Fallback Provider Datasets",
-        *_bullet_lines(quality.get("fallback_provider_datasets"), empty="none reported"),
-        "",
-        "### Fallback-Dependent Operator Fields",
-        *_bullet_lines(quality.get("fallback_operator_dependencies"), empty="none reported"),
-        "",
-        "### Placeholder / Default-Like Fields",
-        *_bullet_lines(quality.get("placeholder_default_like_fields"), empty="none reported"),
-        "",
-        "### Non-Integrated Modules",
-        *_bullet_lines(quality.get("non_integrated_modules"), empty="none reported"),
-        "",
-        "### Operator Use Decision",
-        *(_bullet_lines(quality.get("blocking_reasons"), empty="No blocking quality-control reasons detected.")),
-        "",
     ]
     return "\n".join(lines)
+
+
+def _module_warnings(quality: Mapping[str, Any]) -> Any:
+    warnings = quality.get("non_blocking_module_warnings")
+    return warnings if warnings is not None else quality.get("non_integrated_modules")
 
 
 def _provider_datasets(source_metadata: Mapping[str, Any], *, fallback: bool) -> list[dict[str, Any]]:
