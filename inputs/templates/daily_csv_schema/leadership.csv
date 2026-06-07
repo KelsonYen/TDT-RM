@@ -1,2 +1,2 @@
-trade_date,provider_source,source_type,count_main_7_below_ma20,count_main_7_below_ma60,majority_main_7_assets_above_ma20,main_7_symbols,main_7_below_ma20_symbols,mhs
-2026-06-03,Operator_main7_leadership_manual_import,official_manual,1,0,true,"2330;2317;2454;2308;2412;2881;6505",2454,5.0
+trade_date,provider_source,source_type,count_main_7_below_ma20,count_main_7_below_ma60,majority_main_7_assets_above_ma20,main_7_symbols,main_7_below_ma20_symbols,main7_closes,main7_previous_closes,main7_turnover_amounts,mhs
+2026-06-03,Operator_main7_leadership_manual_import,official_manual,1,0,true,2330;2317;2454;2308;2412;2881;6505,2454,,,,5.0

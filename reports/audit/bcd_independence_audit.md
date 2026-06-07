@@ -34,6 +34,9 @@ Missing Inputs: ["main7_returns", "main7_weights", "main7_concentration", "secto
 - ma20_slope: taiex_price
 - ma5: taiex_price
 - ma60: taiex_price
+- main7_closes: leadership_csv
+- main7_previous_closes: leadership_csv
+- main7_turnover_amounts: leadership_csv
 - main_7_symbols: leadership_csv
 - majority_main_7_assets_above_ma20: leadership_csv
 - margin_balance_5d_decline_pct: margin_csv

@@ -43,6 +43,9 @@ _PRODUCTION_PRICE_FIELDS = ("trade_date", "provider_source", "source_type", "clo
 _REQUIRED_PRODUCTION_PRICE_VALUES = tuple(field for field in _PRODUCTION_PRICE_FIELDS if field not in {"trade_date", "provider_source", "source_type"})
 _BCD_RECOVERY_EXTRA_FIELDS = (
     "breadth_history",
+    "main7_closes",
+    "main7_previous_closes",
+    "main7_turnover_amounts",
     "main7_returns",
     "main7_weights",
     "main7_concentration",
@@ -61,7 +64,7 @@ _PROVIDER_FIELDS = {
     "foreign_flow": ("date", "foreign_spot_net_buy", "foreign_spot_net_sell", "foreign_spot_net_sell_consecutive_days", "foreign_large_sell", "foreign_spot_large_sell", "futures_hedging_increases", "futures_hedging_significant"),
     "fx": ("date", "usd_twd", "usd_twd_3d_change_pct", "usd_twd_5d_change_pct", "twd_appreciates", "twd_stable", "twd_depreciates_significantly"),
     "breadth": ("date", "advancing_issues", "declining_issues", "index_down", "declining_issues_significantly_expand", "declining_issues_significantly_gt_advancing", "declining_gt_advancing_consecutive_days", "breadth_weakens_for_2_days", *_BCD_RECOVERY_EXTRA_FIELDS),
-    "leadership": ("date", "count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols", "main7_closes", "main7_previous_closes", "main7_turnover_amounts", *_BCD_RECOVERY_EXTRA_FIELDS),
+    "leadership": ("date", "count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols", *_BCD_RECOVERY_EXTRA_FIELDS),
     "margin": ("date", "margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "index_5d_return_pct", "margin_balance_5d_decline_pct", "margin_not_retreating", *_BCD_RECOVERY_EXTRA_FIELDS),
     "scores": ("date", "tail_risk", "mhs", "score_status", "score_notes"),
     "futures": ("date", "txf_close", "txf_settlement", "txf_volume", "txf_open_interest", "txf_basis", "futures_source_contract"),

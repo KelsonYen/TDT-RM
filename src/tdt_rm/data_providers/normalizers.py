@@ -12,6 +12,9 @@ from .base import REAL_SOURCE_TYPE, ReconciliationCheck
 
 BCD_RECOVERY_EXTRA_COLUMNS = (
     "breadth_history",
+    "main7_closes",
+    "main7_previous_closes",
+    "main7_turnover_amounts",
     "main7_returns",
     "main7_weights",
     "main7_concentration",
