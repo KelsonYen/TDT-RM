@@ -1,0 +1,83 @@
+{
+  "bcd_status_after_enrichment": "INCOMPLETE",
+  "enrichment_status": "GENERATED",
+  "field_derivation_notes": {
+    "breadth_history": "advancing_issues/declining_issues history from local daily breadth artifacts"
+  },
+  "final_fields_passed_to_BCDInput": {
+    "breadth_history": [
+      {
+        "advancing_issues": 620,
+        "declining_issues": 340,
+        "taiex_return_pct": 0.42,
+        "trade_date": "2026-06-03"
+      },
+      {
+        "advancing_issues": 3144,
+        "declining_issues": 9578,
+        "taiex_return_pct": -1.3278321517877676,
+        "trade_date": "2026-06-05"
+      }
+    ]
+  },
+  "generated_fields": [
+    "breadth_history"
+  ],
+  "historical_window_used": {
+    "breadth_history": {
+      "end": "2026-06-05",
+      "minimum_rows": 2,
+      "rows": 2,
+      "start": "2026-06-03"
+    }
+  },
+  "missing_components_after_enrichment": [
+    "main7_returns",
+    "main7_weights",
+    "main7_concentration",
+    "sector_breadth",
+    "sector_diffusion",
+    "otc_return_pct",
+    "small_mid_breadth",
+    "small_mid_weakness",
+    "turnover_concentration_topn",
+    "turnover_concentration"
+  ],
+  "missing_reasons": {
+    "main7_concentration": "requires both main7_returns and main7_weights; no fake equal weights are used",
+    "main7_returns": "requires Main-7 symbol return fields or today's and previous trading-day closes; no previous closes found",
+    "main7_weights": "requires Main-7 market-cap or turnover weights; equal-weight fallback is forbidden",
+    "otc_return_pct": "requires OTC index return provider; no OTC source available",
+    "sector_above_ma20": "requires sector provider MA20 status; nullable interface only until real sector source is supplied",
+    "sector_breadth": "requires sector provider breadth data; no sector source available",
+    "sector_diffusion": "requires sector_returns and sector_above_ma20; no sector provider source available",
+    "sector_returns": "requires sector provider returns; nullable interface only until real sector source is supplied",
+    "small_mid_breadth": "requires small/mid breadth provider; no source available",
+    "small_mid_weakness": "requires otc_return_pct and small_mid_breadth; no source available",
+    "turnover_concentration_topn": "requires symbol-level turnover_amount rows; aggregate market turnover cannot produce Top-N concentration"
+  },
+  "preserved_provider_fields": [],
+  "source_paths_used": [
+    "inputs/daily/2026-06-03/breadth.csv",
+    "inputs/daily/2026-06-03/leadership.csv",
+    "inputs/daily/2026-06-05/breadth.csv",
+    "inputs/daily/2026-06-05/leadership.csv",
+    "inputs/daily/2026-06-05/twse_market_breadth.csv",
+    "inputs/daily/2026-06-05/twse_turnover_or_volume.csv",
+    "reports/daily/2026-06-03/artifacts/assembled_daily_snapshot_2026-06-03.json"
+  ],
+  "trade_date": "2026-06-05",
+  "unavailable_fields": [
+    "main7_concentration",
+    "main7_returns",
+    "main7_weights",
+    "otc_return_pct",
+    "sector_above_ma20",
+    "sector_breadth",
+    "sector_diffusion",
+    "sector_returns",
+    "small_mid_breadth",
+    "small_mid_weakness",
+    "turnover_concentration_topn"
+  ]
+}

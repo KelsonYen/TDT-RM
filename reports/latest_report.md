@@ -2,7 +2,7 @@
 作者：Dr. Yen
 模型：TDT-RM V5.1.4 Backtest Calibration Patch
 資料日期：2026/06/05
-產出時間：2026/06/07 08:57
+產出時間：2026/06/07 09:15
 資料狀態：稽核不完整版
 今日燈號：黃燈
 市場狀態：觀察
@@ -126,23 +126,23 @@ AVAILABLE
 
 ■ BCD Coverage
 Available Components:
-1 / 12
+3 / 12
 
 Coverage Ratio:
-8.3%
+25.0%
 
 Coverage Status:
 INCOMPLETE
 
 Reason:
-11 components unavailable
+9 components unavailable
 
 BCD Coverage Mapping
 - Index Breadth Divergence
   required_inputs: taiex_return_pct, advancing_issues, declining_issues, breadth_history
-  provider: taiex_price + breadth_csv + breadth_csv + taiex_price
-  current_availability: PARTIAL
-  missing_inputs: breadth_history
+  provider: taiex_price + breadth_csv + bcd_feature_builder
+  current_availability: AVAILABLE
+  missing_inputs: none
 - Index Breadth Current
   required_inputs: advancing_issues, declining_issues
   provider: breadth_csv
@@ -150,9 +150,9 @@ BCD Coverage Mapping
   missing_inputs: none
 - Index Breadth History
   required_inputs: breadth_history
-  provider: breadth_csv
-  current_availability: MISSING
-  missing_inputs: breadth_history
+  provider: bcd_feature_builder
+  current_availability: AVAILABLE
+  missing_inputs: none
 - Main7 Returns
   required_inputs: main7_returns
   provider: leadership_csv
@@ -210,7 +210,6 @@ Component Scores
 
 Missing Components
 [
-  "breadth_history",
   "main7_returns",
   "main7_weights",
   "main7_concentration",
@@ -226,7 +225,20 @@ Missing Components
 Raw Inputs
 {
   "advancing_issues": 3144,
-  "breadth_history": [],
+  "breadth_history": [
+    {
+      "advancing_issues": 620,
+      "declining_issues": 340,
+      "taiex_return_pct": 0.42,
+      "trade_date": "2026-06-03"
+    },
+    {
+      "advancing_issues": 3144,
+      "declining_issues": 9578,
+      "taiex_return_pct": -1.3278321517877676,
+      "trade_date": "2026-06-05"
+    }
+  ],
   "declining_issues": 9578,
   "main7_returns": {},
   "main7_weights": {},
@@ -241,6 +253,7 @@ Raw Inputs
 Source Fields
 {
   "advancing_issues": "breadth_csv",
+  "breadth_history": "bcd_feature_builder",
   "breadth_weakens_for_2_days": "breadth_csv",
   "close": "taiex_price",
   "close_below_ma20_consecutive_days": "taiex_price",
