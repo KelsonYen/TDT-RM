@@ -23,14 +23,43 @@
   "generated_fields": [
     "breadth_history"
   ],
+  "generated_from": {
+    "breadth_history": [
+      "inputs/daily/2026-06-03/breadth.csv",
+      "inputs/daily/2026-06-05/breadth.csv",
+      "inputs/daily/2026-06-05/twse_market_breadth.csv",
+      "reports/daily/2026-06-03/artifacts/assembled_daily_snapshot_2026-06-03.json"
+    ]
+  },
   "historical_window_used": {
     "breadth_history": {
       "end": "2026-06-05",
       "minimum_rows": 2,
       "rows": 2,
       "start": "2026-06-03"
+    },
+    "main7": {
+      "requires_previous_close": true,
+      "symbols": [
+        "2330",
+        "0050",
+        "00878",
+        "2454",
+        "2317",
+        "2382",
+        "2308"
+      ]
     }
   },
+  "main7_symbols_used": [
+    "2330",
+    "0050",
+    "00878",
+    "2454",
+    "2317",
+    "2382",
+    "2308"
+  ],
   "missing_components_after_enrichment": [
     "main7_returns",
     "main7_weights",
@@ -66,7 +95,11 @@
     "inputs/daily/2026-06-05/twse_turnover_or_volume.csv",
     "reports/daily/2026-06-03/artifacts/assembled_daily_snapshot_2026-06-03.json"
   ],
+  "source_provider": {
+    "breadth_history": "breadth_csv"
+  },
   "trade_date": "2026-06-05",
+  "turnover_topn_symbols": [],
   "unavailable_fields": [
     "main7_concentration",
     "main7_returns",

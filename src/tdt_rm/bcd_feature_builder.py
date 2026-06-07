@@ -76,6 +76,8 @@ def enrich_bcd_features(snapshot: DailyMarketSnapshot, context: BCDFeatureBuilde
 
     source_paths_used: list[str] = []
     generated_fields: dict[str, Any] = {}
+    generated_from: dict[str, list[str]] = {}
+    source_provider: dict[str, str] = {}
     unavailable_fields: list[str] = []
     missing_reasons: dict[str, str] = {}
     derivation_notes: dict[str, str] = {}
@@ -97,12 +99,17 @@ def enrich_bcd_features(snapshot: DailyMarketSnapshot, context: BCDFeatureBuilde
         unavailable_fields,
         missing_reasons,
         derivation_notes,
+        generated_from,
+        source_provider,
+        breadth_sources,
+        "breadth_csv",
         breadth_reason,
         "advancing_issues/declining_issues history from local daily breadth artifacts",
     )
 
-    main7_returns, main7_weights, main7_sources, main7_reasons = _derive_main7(row, context)
+    main7_returns, main7_weights, main7_sources, main7_reasons, main7_symbols_used = _derive_main7(row, context)
     source_paths_used.extend(main7_sources)
+    historical_window_used["main7"] = {"symbols": main7_symbols_used, "requires_previous_close": True}
     _merge_field(
         "main7_returns",
         main7_returns,
@@ -112,6 +119,10 @@ def enrich_bcd_features(snapshot: DailyMarketSnapshot, context: BCDFeatureBuilde
         unavailable_fields,
         missing_reasons,
         derivation_notes,
+        generated_from,
+        source_provider,
+        main7_sources,
+        "leadership_csv",
         main7_reasons.get("main7_returns"),
         "symbol close vs previous close from leadership/price artifacts",
     )
@@ -124,6 +135,10 @@ def enrich_bcd_features(snapshot: DailyMarketSnapshot, context: BCDFeatureBuilde
         unavailable_fields,
         missing_reasons,
         derivation_notes,
+        generated_from,
+        source_provider,
+        main7_sources,
+        "leadership_csv",
         main7_reasons.get("main7_weights"),
         "market-cap or turnover weights from leadership artifacts",
     )
@@ -138,6 +153,10 @@ def enrich_bcd_features(snapshot: DailyMarketSnapshot, context: BCDFeatureBuilde
             unavailable_fields,
             missing_reasons,
             derivation_notes,
+            generated_from,
+            source_provider,
+            main7_sources,
+            "bcd_feature_builder",
             None,
             "weighted Main-7 return derived from main7_returns and main7_weights",
         )
@@ -145,7 +164,7 @@ def enrich_bcd_features(snapshot: DailyMarketSnapshot, context: BCDFeatureBuilde
         unavailable_fields.append("main7_concentration")
         missing_reasons.setdefault("main7_concentration", "requires both main7_returns and main7_weights; no fake equal weights are used")
 
-    turnover, turnover_sources, turnover_reason = _derive_turnover_concentration(row, context)
+    turnover, turnover_sources, turnover_reason, turnover_topn_symbols = _derive_turnover_concentration(row, context)
     source_paths_used.extend(turnover_sources)
     _merge_field(
         "turnover_concentration_topn",
@@ -156,6 +175,10 @@ def enrich_bcd_features(snapshot: DailyMarketSnapshot, context: BCDFeatureBuilde
         unavailable_fields,
         missing_reasons,
         derivation_notes,
+        generated_from,
+        source_provider,
+        turnover_sources,
+        "turnover_csv",
         turnover_reason,
         f"top {_DEFAULT_TOPN} turnover_amount share from symbol-level turnover artifacts",
     )
@@ -169,6 +192,10 @@ def enrich_bcd_features(snapshot: DailyMarketSnapshot, context: BCDFeatureBuilde
             unavailable_fields,
             missing_reasons,
             derivation_notes,
+            generated_from,
+            source_provider,
+            turnover_sources,
+            "turnover_csv",
             None,
             "alias of turnover_concentration_topn for legacy audit output",
         )
@@ -186,9 +213,13 @@ def enrich_bcd_features(snapshot: DailyMarketSnapshot, context: BCDFeatureBuilde
         "unavailable_fields": sorted(dict.fromkeys(unavailable_fields)),
         "missing_reasons": dict(sorted(missing_reasons.items())),
         "source_paths_used": sorted(dict.fromkeys(source_paths_used)),
+        "generated_from": generated_from,
+        "source_provider": source_provider,
         "historical_window_used": historical_window_used,
         "field_derivation_notes": dict(sorted(derivation_notes.items())),
         "final_fields_passed_to_BCDInput": _final_bcd_fields(row),
+        "main7_symbols_used": main7_symbols_used,
+        "turnover_topn_symbols": turnover_topn_symbols,
     }
 
     enriched = DailyMarketSnapshot(
@@ -223,6 +254,10 @@ def _merge_field(
     unavailable_fields: list[str],
     missing_reasons: dict[str, str],
     derivation_notes: dict[str, str],
+    generated_from: dict[str, list[str]],
+    source_provider: dict[str, str],
+    source_paths: Sequence[str],
+    provider: str,
     missing_reason: str | None,
     note: str,
 ) -> None:
@@ -233,6 +268,8 @@ def _merge_field(
         field_sources[field_name] = _BCD_DERIVED_SOURCE
         generated_fields[field_name] = value
         derivation_notes[field_name] = note
+        generated_from[field_name] = sorted(dict.fromkeys(str(path) for path in source_paths))
+        source_provider[field_name] = provider
         return
     unavailable_fields.append(field_name)
     if missing_reason:
@@ -311,7 +348,7 @@ def _iter_breadth_rows(context: BCDFeatureBuilderContext) -> list[tuple[Mapping[
     return rows
 
 
-def _derive_main7(row: Mapping[str, Any], context: BCDFeatureBuilderContext) -> tuple[dict[str, float] | None, dict[str, float] | None, list[str], dict[str, str]]:
+def _derive_main7(row: Mapping[str, Any], context: BCDFeatureBuilderContext) -> tuple[dict[str, float] | None, dict[str, float] | None, list[str], dict[str, str], list[str]]:
     sources: list[str] = []
     records = _leadership_records(context)
     if records:
@@ -329,7 +366,7 @@ def _derive_main7(row: Mapping[str, Any], context: BCDFeatureBuilderContext) -> 
         reasons["main7_returns"] = "requires Main-7 symbol return fields or today's and previous trading-day closes; no previous closes found"
     if not weights:
         reasons["main7_weights"] = "requires Main-7 market-cap or turnover weights; equal-weight fallback is forbidden"
-    return returns or None, weights or None, sources, reasons
+    return returns or None, weights or None, sources, reasons, list(symbols)
 
 
 def _leadership_records(context: BCDFeatureBuilderContext) -> list[tuple[Mapping[str, Any], Path]]:
@@ -371,14 +408,19 @@ def _weights_from_row(current: Mapping[str, Any], symbols: Sequence[str]) -> dic
     direct = _json_mapping(current.get("main7_weights") or current.get("main_7_weights"))
     if direct:
         return _mapping_of_float(direct)
-    raw = _symbol_values(current, symbols, ("market_cap", "market_value", "turnover", "turnover_amount"), json_keys=("main7_market_caps", "main7_market_values", "main7_turnover", "main7_turnover_amounts"))
+    candidates = (
+        _symbol_values(current, symbols, ("market_cap",), json_keys=("main7_market_caps",)),
+        _symbol_values(current, symbols, ("market_value",), json_keys=("main7_market_values",)),
+        _symbol_values(current, symbols, ("turnover", "turnover_amount"), json_keys=("main7_turnover", "main7_turnover_amounts")),
+    )
+    raw = next((candidate for candidate in candidates if any(value > 0 for value in candidate.values())), {})
     total = sum(value for value in raw.values() if value > 0)
     if total <= 0:
         return {}
     return {symbol: round(value / total, 8) for symbol, value in raw.items() if value > 0}
 
 
-def _derive_turnover_concentration(row: Mapping[str, Any], context: BCDFeatureBuilderContext) -> tuple[float | None, list[str], str | None]:
+def _derive_turnover_concentration(row: Mapping[str, Any], context: BCDFeatureBuilderContext) -> tuple[float | None, list[str], str | None, list[str]]:
     paths = [Path(value) for key, value in context.input_paths.items() if value and "turnover" in key]
     for root in context.historical_roots:
         root_path = Path(root)
@@ -386,7 +428,7 @@ def _derive_turnover_concentration(row: Mapping[str, Any], context: BCDFeatureBu
             paths.extend(root_path.glob(f"{context.trade_date.isoformat()}/*turnover*.csv"))
             paths.extend(root_path.glob(f"{context.trade_date.isoformat()}/*volume*.csv"))
     sources: list[str] = []
-    values: list[float] = []
+    values: list[tuple[str, float]] = []
     for path in sorted(dict.fromkeys(paths)):
         if not path.exists():
             continue
@@ -396,16 +438,18 @@ def _derive_turnover_concentration(row: Mapping[str, Any], context: BCDFeatureBu
             sources.append(str(path))
             continue
         for item in symbol_rows:
-            amount = _optional_float(item.get("turnover_amount") or item.get("turnover") or item.get("成交金額"))
-            if amount is not None and amount > 0:
-                values.append(amount)
+            symbol = str(item.get("symbol") or item.get("stock_id") or item.get("證券代號") or "").strip()
+            amount = _optional_float(item.get("turnover_amount") or item.get("turnover") or item.get("成交金額") or item.get("TradeValue") or item.get("Trading Value"))
+            if symbol and amount is not None and amount > 0:
+                values.append((symbol, amount))
         sources.append(str(path))
     if not values:
-        return None, sources, "requires symbol-level turnover_amount rows; aggregate market turnover cannot produce Top-N concentration"
-    total = sum(values)
+        return None, sources, "requires symbol-level turnover_amount rows; aggregate market turnover cannot produce Top-N concentration", []
+    total = sum(amount for _, amount in values)
     if total <= 0:
-        return None, sources, "symbol-level turnover rows have non-positive total turnover"
-    return round(sum(sorted(values, reverse=True)[:_DEFAULT_TOPN]) / total, 8), sources, None
+        return None, sources, "symbol-level turnover rows have non-positive total turnover", []
+    topn = sorted(values, key=lambda item: item[1], reverse=True)[:_DEFAULT_TOPN]
+    return round(sum(amount for _, amount in topn) / total, 8), sources, None, [symbol for symbol, _ in topn]
 
 
 def _nullable_provider_reasons(row: Mapping[str, Any]) -> dict[str, str]:

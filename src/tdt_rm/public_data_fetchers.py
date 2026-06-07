@@ -61,7 +61,7 @@ _PROVIDER_FIELDS = {
     "foreign_flow": ("date", "foreign_spot_net_buy", "foreign_spot_net_sell", "foreign_spot_net_sell_consecutive_days", "foreign_large_sell", "foreign_spot_large_sell", "futures_hedging_increases", "futures_hedging_significant"),
     "fx": ("date", "usd_twd", "usd_twd_3d_change_pct", "usd_twd_5d_change_pct", "twd_appreciates", "twd_stable", "twd_depreciates_significantly"),
     "breadth": ("date", "advancing_issues", "declining_issues", "index_down", "declining_issues_significantly_expand", "declining_issues_significantly_gt_advancing", "declining_gt_advancing_consecutive_days", "breadth_weakens_for_2_days", *_BCD_RECOVERY_EXTRA_FIELDS),
-    "leadership": ("date", "count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols", *_BCD_RECOVERY_EXTRA_FIELDS),
+    "leadership": ("date", "count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols", "main7_closes", "main7_previous_closes", "main7_turnover_amounts", *_BCD_RECOVERY_EXTRA_FIELDS),
     "margin": ("date", "margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "index_5d_return_pct", "margin_balance_5d_decline_pct", "margin_not_retreating", *_BCD_RECOVERY_EXTRA_FIELDS),
     "scores": ("date", "tail_risk", "mhs", "score_status", "score_notes"),
     "futures": ("date", "txf_close", "txf_settlement", "txf_volume", "txf_open_interest", "txf_basis", "futures_source_contract"),
@@ -1008,15 +1008,27 @@ class TWSEMain7LeadershipSource:
             below20: list[str] = []
             below60: list[str] = []
             missing: list[str] = []
+            closes_by_symbol: dict[str, float] = {}
+            previous_closes_by_symbol: dict[str, float] = {}
+            turnover_by_symbol: dict[str, float] = {}
             for symbol in symbols:
-                bars: list[float] = []
+                bars: list[dict[str, Any]] = []
                 for payload in _fetch_symbol_payloads(self.config, context, symbol):
-                    bars.extend(_parse_stock_closes(payload, context.as_of))
-                closes = [value for value in bars if value is not None]
+                    bars.extend(_parse_stock_bars(payload, context.as_of))
+                bars = sorted(bars, key=lambda item: str(item.get("date") or ""))
+                closes = [float(item["close"]) for item in bars if item.get("close") is not None]
                 if len(closes) < 60:
                     missing.append(symbol)
                     continue
+                latest = bars[-1]
                 close = closes[-1]
+                previous_close = closes[-2] if len(closes) >= 2 else None
+                closes_by_symbol[symbol] = close
+                if previous_close is not None:
+                    previous_closes_by_symbol[symbol] = previous_close
+                turnover = _to_float(latest.get("turnover_amount"))
+                if turnover is not None and turnover > 0:
+                    turnover_by_symbol[symbol] = turnover
                 ma20 = sum(closes[-20:]) / 20
                 ma60 = sum(closes[-60:]) / 60
                 if close < ma20:
@@ -1025,7 +1037,7 @@ class TWSEMain7LeadershipSource:
                     below60.append(symbol)
             if missing:
                 return _result(self, "missing_fields", (_issue(self, "warning", "constituents_missing", "missing 60-day TWSE stock history for: " + ",".join(missing), field="main_7_symbols"),), retrieved_at=retrieved_at)
-            normalized = {"date": context.as_of.isoformat(), "count_main_7_below_ma20": len(below20), "count_main_7_below_ma60": len(below60), "majority_main_7_assets_above_ma20": len(below20) < math.ceil(len(symbols) / 2), "main_7_symbols": ",".join(symbols), "main_7_below_ma20_symbols": ",".join(below20)}
+            normalized = {"date": context.as_of.isoformat(), "count_main_7_below_ma20": len(below20), "count_main_7_below_ma60": len(below60), "majority_main_7_assets_above_ma20": len(below20) < math.ceil(len(symbols) / 2), "main_7_symbols": ",".join(symbols), "main_7_below_ma20_symbols": ",".join(below20), "main7_closes": json.dumps(closes_by_symbol, ensure_ascii=False, sort_keys=True), "main7_previous_closes": json.dumps(previous_closes_by_symbol, ensure_ascii=False, sort_keys=True), "main7_turnover_amounts": json.dumps(turnover_by_symbol, ensure_ascii=False, sort_keys=True)}
             return _result(self, "success", retrieved_at=retrieved_at, rows=(normalized,), canonical=normalized, metadata={"endpoint": _render_url(self.config, context), "official_source": "TWSE STOCK_DAY"})
         except Exception as exc:  # noqa: BLE001
             return _result(self, "failed", (_issue(self, "error", "fetch_failed", str(exc)),), retrieved_at=retrieved_at, metadata={"exception_class": exc.__class__.__name__, "exception_message": str(exc)})
@@ -1776,15 +1788,21 @@ def _parse_taifex_options(payload: Any, as_of: date) -> dict[str, Any]:
 
 
 def _parse_stock_closes(payload: Any, as_of: date) -> list[float]:
-    closes = []
+    return [float(item["close"]) for item in _parse_stock_bars(payload, as_of) if item.get("close") is not None]
+
+
+def _parse_stock_bars(payload: Any, as_of: date) -> list[dict[str, Any]]:
+    bars: list[dict[str, Any]] = []
     for row in _payload_rows(payload):
         observed = _parse_date(_first(row, "日期", "Date", "date", "trade_date"))
         if observed is not None and observed > as_of:
             continue
         close = _to_float(_first(row, "收盤價", "Closing Price", "Close", "close"))
-        if close is not None:
-            closes.append(close)
-    return closes
+        if close is None:
+            continue
+        turnover = _to_float(_first(row, "成交金額", "TradeValue", "Trading Value", "turnover_amount", "turnover"))
+        bars.append({"date": observed.isoformat() if observed else "", "close": close, "turnover_amount": turnover})
+    return bars
 
 
 def _payload_rows(payload: Any) -> list[Mapping[str, Any]]:
