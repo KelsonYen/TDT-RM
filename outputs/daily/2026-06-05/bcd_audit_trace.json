@@ -23,6 +23,170 @@
   "component_scores": {
     "index_breadth_divergence": 4.0
   },
+  "coverage": {
+    "available_components": 1,
+    "coverage_ratio": 0.0833,
+    "coverage_status": "INCOMPLETE",
+    "mapping_table": [
+      {
+        "component": "Index Breadth Divergence",
+        "current_availability": "PARTIAL",
+        "missing_inputs": [
+          "breadth_history"
+        ],
+        "provider": "taiex_price + breadth_csv + breadth_csv + taiex_price",
+        "required_inputs": [
+          "taiex_return_pct",
+          "advancing_issues",
+          "declining_issues",
+          "breadth_history"
+        ]
+      },
+      {
+        "component": "Index Breadth Current",
+        "current_availability": "AVAILABLE",
+        "missing_inputs": [],
+        "provider": "breadth_csv",
+        "required_inputs": [
+          "advancing_issues",
+          "declining_issues"
+        ]
+      },
+      {
+        "component": "Index Breadth History",
+        "current_availability": "MISSING",
+        "missing_inputs": [
+          "breadth_history"
+        ],
+        "provider": "breadth_csv",
+        "required_inputs": [
+          "breadth_history"
+        ]
+      },
+      {
+        "component": "Main7 Returns",
+        "current_availability": "MISSING",
+        "missing_inputs": [
+          "main7_returns"
+        ],
+        "provider": "leadership_csv",
+        "required_inputs": [
+          "main7_returns"
+        ]
+      },
+      {
+        "component": "Main7 Weights",
+        "current_availability": "MISSING",
+        "missing_inputs": [
+          "main7_weights"
+        ],
+        "provider": "leadership_csv",
+        "required_inputs": [
+          "main7_weights"
+        ]
+      },
+      {
+        "component": "Main7 Concentration",
+        "current_availability": "MISSING",
+        "missing_inputs": [
+          "main7_returns",
+          "main7_weights"
+        ],
+        "provider": "leadership_csv",
+        "required_inputs": [
+          "main7_returns",
+          "main7_weights"
+        ]
+      },
+      {
+        "component": "Sector Breadth",
+        "current_availability": "MISSING",
+        "missing_inputs": [
+          "sector_returns",
+          "sector_above_ma20"
+        ],
+        "provider": "sector_breadth_csv",
+        "required_inputs": [
+          "sector_returns",
+          "sector_above_ma20"
+        ]
+      },
+      {
+        "component": "Sector Diffusion",
+        "current_availability": "MISSING",
+        "missing_inputs": [
+          "sector_returns",
+          "sector_above_ma20"
+        ],
+        "provider": "sector_breadth_csv",
+        "required_inputs": [
+          "sector_returns",
+          "sector_above_ma20"
+        ]
+      },
+      {
+        "component": "OTC Return",
+        "current_availability": "MISSING",
+        "missing_inputs": [
+          "otc_return_pct"
+        ],
+        "provider": "otc_csv",
+        "required_inputs": [
+          "otc_return_pct"
+        ]
+      },
+      {
+        "component": "Small/Mid Breadth",
+        "current_availability": "MISSING",
+        "missing_inputs": [
+          "small_mid_breadth"
+        ],
+        "provider": "small_mid_breadth_csv",
+        "required_inputs": [
+          "small_mid_breadth"
+        ]
+      },
+      {
+        "component": "Small/Mid Weakness",
+        "current_availability": "MISSING",
+        "missing_inputs": [
+          "small_mid_breadth",
+          "otc_return_pct"
+        ],
+        "provider": "small_mid_breadth_csv + otc_csv",
+        "required_inputs": [
+          "small_mid_breadth",
+          "otc_return_pct"
+        ]
+      },
+      {
+        "component": "Turnover Concentration",
+        "current_availability": "MISSING",
+        "missing_inputs": [
+          "turnover_concentration_topn"
+        ],
+        "provider": "turnover_csv",
+        "required_inputs": [
+          "turnover_concentration_topn"
+        ]
+      }
+    ],
+    "reason": "11 components unavailable",
+    "total_components": 12,
+    "unavailable_components": [
+      "Index Breadth Divergence",
+      "Index Breadth History",
+      "Main7 Returns",
+      "Main7 Weights",
+      "Main7 Concentration",
+      "Sector Breadth",
+      "Sector Diffusion",
+      "OTC Return",
+      "Small/Mid Breadth",
+      "Small/Mid Weakness",
+      "Turnover Concentration"
+    ]
+  },
   "data_quality_status": "INCOMPLETE",
   "final_score": null,
   "missing_components": [
@@ -41,6 +205,170 @@
   "raw_inputs": {
     "advancing_issues": 3144,
     "breadth_history": [],
+    "coverage": {
+      "available_components": 1,
+      "coverage_ratio": 0.0833,
+      "coverage_status": "INCOMPLETE",
+      "mapping_table": [
+        {
+          "component": "Index Breadth Divergence",
+          "current_availability": "PARTIAL",
+          "missing_inputs": [
+            "breadth_history"
+          ],
+          "provider": "taiex_price + breadth_csv + breadth_csv + taiex_price",
+          "required_inputs": [
+            "taiex_return_pct",
+            "advancing_issues",
+            "declining_issues",
+            "breadth_history"
+          ]
+        },
+        {
+          "component": "Index Breadth Current",
+          "current_availability": "AVAILABLE",
+          "missing_inputs": [],
+          "provider": "breadth_csv",
+          "required_inputs": [
+            "advancing_issues",
+            "declining_issues"
+          ]
+        },
+        {
+          "component": "Index Breadth History",
+          "current_availability": "MISSING",
+          "missing_inputs": [
+            "breadth_history"
+          ],
+          "provider": "breadth_csv",
+          "required_inputs": [
+            "breadth_history"
+          ]
+        },
+        {
+          "component": "Main7 Returns",
+          "current_availability": "MISSING",
+          "missing_inputs": [
+            "main7_returns"
+          ],
+          "provider": "leadership_csv",
+          "required_inputs": [
+            "main7_returns"
+          ]
+        },
+        {
+          "component": "Main7 Weights",
+          "current_availability": "MISSING",
+          "missing_inputs": [
+            "main7_weights"
+          ],
+          "provider": "leadership_csv",
+          "required_inputs": [
+            "main7_weights"
+          ]
+        },
+        {
+          "component": "Main7 Concentration",
+          "current_availability": "MISSING",
+          "missing_inputs": [
+            "main7_returns",
+            "main7_weights"
+          ],
+          "provider": "leadership_csv",
+          "required_inputs": [
+            "main7_returns",
+            "main7_weights"
+          ]
+        },
+        {
+          "component": "Sector Breadth",
+          "current_availability": "MISSING",
+          "missing_inputs": [
+            "sector_returns",
+            "sector_above_ma20"
+          ],
+          "provider": "sector_breadth_csv",
+          "required_inputs": [
+            "sector_returns",
+            "sector_above_ma20"
+          ]
+        },
+        {
+          "component": "Sector Diffusion",
+          "current_availability": "MISSING",
+          "missing_inputs": [
+            "sector_returns",
+            "sector_above_ma20"
+          ],
+          "provider": "sector_breadth_csv",
+          "required_inputs": [
+            "sector_returns",
+            "sector_above_ma20"
+          ]
+        },
+        {
+          "component": "OTC Return",
+          "current_availability": "MISSING",
+          "missing_inputs": [
+            "otc_return_pct"
+          ],
+          "provider": "otc_csv",
+          "required_inputs": [
+            "otc_return_pct"
+          ]
+        },
+        {
+          "component": "Small/Mid Breadth",
+          "current_availability": "MISSING",
+          "missing_inputs": [
+            "small_mid_breadth"
+          ],
+          "provider": "small_mid_breadth_csv",
+          "required_inputs": [
+            "small_mid_breadth"
+          ]
+        },
+        {
+          "component": "Small/Mid Weakness",
+          "current_availability": "MISSING",
+          "missing_inputs": [
+            "small_mid_breadth",
+            "otc_return_pct"
+          ],
+          "provider": "small_mid_breadth_csv + otc_csv",
+          "required_inputs": [
+            "small_mid_breadth",
+            "otc_return_pct"
+          ]
+        },
+        {
+          "component": "Turnover Concentration",
+          "current_availability": "MISSING",
+          "missing_inputs": [
+            "turnover_concentration_topn"
+          ],
+          "provider": "turnover_csv",
+          "required_inputs": [
+            "turnover_concentration_topn"
+          ]
+        }
+      ],
+      "reason": "11 components unavailable",
+      "total_components": 12,
+      "unavailable_components": [
+        "Index Breadth Divergence",
+        "Index Breadth History",
+        "Main7 Returns",
+        "Main7 Weights",
+        "Main7 Concentration",
+        "Sector Breadth",
+        "Sector Diffusion",
+        "OTC Return",
+        "Small/Mid Breadth",
+        "Small/Mid Weakness",
+        "Turnover Concentration"
+      ]
+    },
     "declining_issues": 9578,
     "main7_returns": {},
     "main7_weights": {},

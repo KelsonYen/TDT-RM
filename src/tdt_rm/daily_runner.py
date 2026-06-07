@@ -351,6 +351,7 @@ def build_daily_payload(
             "decision_matrix": decision.as_dict(),
             "bcd": bcd_result.as_dict(),
             "tail_risk": _price_proxy_tail_risk_trace(tail_risk),
+            "mhs": _mhs_trace_from_mapping({"mhs": mhs}, {}, final_score=mhs),
         },
         "data": {
             "source": "TWSE TAIEX MI_5MINS_HIST public monthly index endpoint",
@@ -524,6 +525,7 @@ def build_daily_payload_from_snapshot(
             "decision_matrix": decision.as_dict(),
             "bcd": bcd_result.as_dict(),
             "tail_risk": _tail_risk_trace_from_snapshot(snapshot, tail_risk),
+            "mhs": _mhs_trace_from_snapshot(snapshot, mhs),
         },
         "data": {
             "source": "Daily enriched market snapshot",
@@ -666,6 +668,8 @@ def render_user_daily_report(payload: Mapping[str, Any], *, generated_at: str | 
         "",
         *_tail_risk_audit_lines(payload),
         "",
+        *_mhs_audit_lines(payload),
+        "",
         *_quality_gate_lines(payload),
         "",
         "■ 今日動作",
@@ -709,14 +713,27 @@ def _display_data_status_with_quality_gate(payload: Mapping[str, Any]) -> str:
 def _report_quality_gate(payload: Mapping[str, Any]) -> dict[str, Any]:
     traces = _mapping(payload.get("traces"))
     data = _mapping(payload.get("data"))
+    bcd_trace = _mapping(traces.get("bcd"))
+    tail_trace = _mapping(traces.get("tail_risk"))
+    mhs_trace = _mapping(traces.get("mhs"))
     checks = {
         "ETI Audit Trace Available": bool(_mapping(_mapping(traces.get("eti_5")).get("trace_output"))),
-        "BCD Trace Available": bool(_mapping(traces.get("bcd"))),
-        "Tail Risk Trace Available": bool(_mapping(traces.get("tail_risk"))),
+        "BCD Trace Available": bool(bcd_trace),
+        "BCD Calculation Complete": _coverage_complete(bcd_trace.get("coverage")) and _bcd_status(payload).upper() == "COMPLETE",
+        "Tail Risk Trace Available": bool(tail_trace),
+        "Tail Risk Calculation Complete": _coverage_complete(tail_trace.get("coverage")),
+        "MHS Trace Available": bool(mhs_trace),
+        "MHS Calculation Complete": _number(mhs_trace.get("final_score", payload.get("mhs"))) is not None,
         "Provider Health Available": bool(_mapping(data.get("source_metadata")) or _mapping(data.get("provider_health"))),
         "Field Sources Available": bool(_mapping(data.get("field_sources"))),
     }
-    return {"passed": all(checks.values()), "checks": checks}
+    trace_checks = {name: passed for name, passed in checks.items() if "Trace Available" in name or name in {"Provider Health Available", "Field Sources Available", "ETI Audit Trace Available"}}
+    return {"passed": all(checks.values()), "trace_passed": all(trace_checks.values()), "checks": checks}
+
+
+def _coverage_complete(value: Any) -> bool:
+    coverage = _mapping(value)
+    return str(coverage.get("coverage_status") or "").upper() == "COMPLETE"
 
 
 def _quality_gate_lines(payload: Mapping[str, Any]) -> list[str]:
@@ -812,43 +829,247 @@ def _eti_evidence_lines(code: str, raw: Mapping[str, Any], conditions: Mapping[s
     return [f"Count Main 7 Below MA20 = {_format_value(raw.get('count_main_7_below_ma20'))}", "Threshold: >= 4", "Rule: count_main_7_below_ma20 >= 4", f"Result: {result}"]
 
 
+def _coverage_summary_lines(title: str, coverage: Mapping[str, Any], *, unit: str) -> list[str]:
+    available = int(coverage.get("available_components") or coverage.get("available_factors") or 0)
+    total = int(coverage.get("total_components") or coverage.get("total_factors") or 0)
+    ratio = coverage.get("coverage_ratio")
+    pct = f"{float(ratio) * 100:.1f}%" if ratio is not None else "0.0%"
+    lines = [
+        f"■ {title} Coverage",
+        f"Available {unit}:",
+        f"{available} / {total}",
+        "",
+        "Coverage Ratio:",
+        pct,
+        "",
+        "Coverage Status:",
+        str(coverage.get("coverage_status") or "INCOMPLETE"),
+        "",
+        "Reason:",
+        str(coverage.get("reason") or "coverage unavailable"),
+    ]
+    return lines
+
+
+def _mapping_table_lines(rows: Any, columns: Sequence[str]) -> list[str]:
+    if not isinstance(rows, Sequence) or isinstance(rows, (str, bytes, bytearray)) or not rows:
+        return ["[]"]
+    lines: list[str] = []
+    for row in rows:
+        item = _mapping(row)
+        lines.append("- " + str(item.get(columns[0], "")))
+        for column in columns[1:]:
+            value = item.get(column)
+            if isinstance(value, (list, tuple)):
+                value = ", ".join(str(part) for part in value) or "none"
+            lines.append(f"  {column}: {value}")
+    return lines
+
+
 def _bcd_audit_lines(payload: Mapping[str, Any]) -> list[str]:
     trace = _mapping(_mapping(payload.get("traces")).get("bcd"))
-    return ["■ BCD 稽核資訊", f"Final Score: {_format_value(trace.get('final_score', payload.get('bcd')))}", f"Data Quality Status: {_bcd_status(payload)}", "", "Component Scores", json.dumps(trace.get("component_scores") or {}, ensure_ascii=False, indent=2), "", "Missing Components", json.dumps(trace.get("missing_components") or payload.get("bcd_missing_components") or [], ensure_ascii=False, indent=2), "", "Raw Inputs", json.dumps(trace.get("raw_inputs") or {}, ensure_ascii=False, indent=2), "", "Source Fields", json.dumps(trace.get("source_fields") or {}, ensure_ascii=False, indent=2)]
+    coverage = _mapping(trace.get("coverage") or _mapping(trace.get("raw_inputs")).get("coverage"))
+    raw_inputs = dict(_mapping(trace.get("raw_inputs")))
+    raw_inputs.pop("coverage", None)
+    return [
+        *(_coverage_summary_lines("BCD", coverage, unit="Components") if coverage else ["■ BCD Coverage", "Coverage Status:", "INCOMPLETE", "Reason:", "coverage unavailable"]),
+        "",
+        "BCD Coverage Mapping",
+        *(
+            _mapping_table_lines(coverage.get("mapping_table"), ("component", "required_inputs", "provider", "current_availability", "missing_inputs"))
+            if coverage
+            else []
+        ),
+        "",
+        "■ BCD 稽核資訊",
+        f"Final Score: {_format_value(trace.get('final_score', payload.get('bcd')))}",
+        f"Data Quality Status: {_bcd_status(payload)}",
+        "",
+        "Component Scores",
+        json.dumps(trace.get("component_scores") or {}, ensure_ascii=False, indent=2),
+        "",
+        "Missing Components",
+        json.dumps(trace.get("missing_components") or payload.get("bcd_missing_components") or [], ensure_ascii=False, indent=2),
+        "",
+        "Raw Inputs",
+        json.dumps(raw_inputs, ensure_ascii=False, indent=2),
+        "",
+        "Source Fields",
+        json.dumps(trace.get("source_fields") or {}, ensure_ascii=False, indent=2),
+    ]
 
 
 def _tail_risk_audit_lines(payload: Mapping[str, Any]) -> list[str]:
     trace = _mapping(_mapping(payload.get("traces")).get("tail_risk"))
     components = _mapping(trace.get("component_scores"))
     sources = _mapping(trace.get("source_fields"))
+    coverage = _mapping(trace.get("coverage"))
     missing = trace.get("missing_fields") or []
-    lines = ["■ Tail Risk 稽核資訊", f"Final Score: {_format_value(trace.get('final_score', payload.get('tail_risk')))}"]
+    lines = [*(_coverage_summary_lines("Tail Risk", coverage, unit="Factors") if coverage else ["■ Tail Risk Coverage", "Coverage Status:", "INCOMPLETE", "Reason:", "coverage unavailable"]), "", "Tail Risk Coverage Mapping"]
+    lines.extend(_mapping_table_lines(coverage.get("mapping_table"), ("factor", "required_inputs", "provider", "current_availability", "missing_inputs", "diagnosis")) if coverage else [])
+    lines.extend(["", "■ Tail Risk 稽核資訊", f"Final Score: {_format_value(trace.get('final_score', payload.get('tail_risk')))}"])
     for key, title in (("derivatives", "Derivatives"), ("fx", "FX"), ("global_shock", "Global Shock"), ("liquidity", "Liquidity"), ("correlation", "Correlation")):
         lines.extend([title, f"Sub Score: {_format_value(components.get(key))}", "資料來源: " + json.dumps(sources.get(key) or [], ensure_ascii=False)])
     lines.extend(["缺失欄位", json.dumps(missing, ensure_ascii=False, indent=2), "計算狀態", str(trace.get("calculation_status") or "MISSING")])
     return lines
 
 
+def _mhs_audit_lines(payload: Mapping[str, Any]) -> list[str]:
+    trace = _mapping(_mapping(payload.get("traces")).get("mhs"))
+    coverage = _mapping(trace.get("coverage"))
+    components = _mapping(trace.get("component_scores"))
+    sources = _mapping(trace.get("source_fields"))
+    evidence = _mapping(trace.get("trigger_evidence"))
+    lines = [*(_coverage_summary_lines("MHS", coverage, unit="Components") if coverage else ["■ MHS Coverage", "Coverage Status:", "INCOMPLETE", "Reason:", "coverage unavailable"]), "", "MHS Coverage Mapping"]
+    lines.extend(_mapping_table_lines(coverage.get("mapping_table"), ("component", "required_inputs", "provider", "current_availability", "missing_inputs", "diagnosis")) if coverage else [])
+    lines.extend(["", "■ MHS Audit Trace", f"Final Score: {_format_value(trace.get('final_score', payload.get('mhs')))}"])
+    for key in _MHS_COMPONENTS:
+        lines.extend([key, f"Score: {_format_value(components.get(key))}", "Source: " + json.dumps(sources.get(key) or [], ensure_ascii=False), "Trigger Evidence:"])
+        item = _mapping(evidence.get(key))
+        if item:
+            lines.extend([f"{name}: {_format_value(value)}" for name, value in item.items()])
+        else:
+            lines.append("component evidence unavailable in current implementation")
+    lines.extend(["Total:", f"{_format_value(trace.get('final_score', payload.get('mhs')))} / 100", "計算狀態", str(trace.get("calculation_status") or "MISSING")])
+    return lines
+
+
+_TAIL_RISK_COMPONENT_FIELDS: Mapping[str, tuple[str, ...]] = {
+    "derivatives": ("tail_risk", "pcr_rises", "pcr_stable", "vix_rises", "vix_stable"),
+    "fx": ("usd_twd_3d_change_pct", "usd_twd_5d_change_pct", "twd_depreciates_significantly", "twd_stable"),
+    "global_shock": ("nasdaq", "sox"),
+    "liquidity": ("foreign_spot_net_sell", "foreign_spot_net_buy", "margin_balance_5d_decline_pct"),
+    "correlation": ("main_7_symbols", "majority_main_7_assets_above_ma20"),
+}
+_TAIL_RISK_PROVIDERS = {
+    "derivatives": "options_csv",
+    "fx": "fx_csv",
+    "global_shock": "global_index_csv",
+    "liquidity": "foreign_flow_csv + margin_csv",
+    "correlation": "leadership_csv",
+}
+_MHS_COMPONENTS = ("P_MHS", "V_MHS", "M_MHS", "VAL_MHS", "T_MHS", "R_MHS", "ETF_MHS", "S_MHS")
+_MHS_COMPONENT_FIELDS: Mapping[str, tuple[str, ...]] = {
+    "P_MHS": ("mhs_p", "p_mhs", "taiex_return_pct", "one_day_return_pct", "return_60d_pct"),
+    "V_MHS": ("mhs_v", "v_mhs", "turnover_amount"),
+    "M_MHS": ("mhs_m", "m_mhs", "ma20", "ma60", "ma20_slope"),
+    "VAL_MHS": ("mhs_val", "val_mhs"),
+    "T_MHS": ("mhs_t", "t_mhs"),
+    "R_MHS": ("mhs_r", "r_mhs"),
+    "ETF_MHS": ("mhs_etf", "etf_mhs"),
+    "S_MHS": ("mhs_s", "s_mhs", "count_main_7_below_ma20", "majority_main_7_assets_above_ma20"),
+}
+_MHS_PROVIDERS = {
+    "P_MHS": "taiex_price",
+    "V_MHS": "taiex_price / turnover_csv",
+    "M_MHS": "taiex_price",
+    "VAL_MHS": "valuation_csv",
+    "T_MHS": "trend_csv",
+    "R_MHS": "risk_csv",
+    "ETF_MHS": "etf_flow_csv",
+    "S_MHS": "leadership_csv",
+}
+
+
 def _tail_risk_trace_from_snapshot(snapshot: DailyMarketSnapshot, tail_risk: float) -> dict[str, Any]:
     row = dict(snapshot.canonical_row)
     sources = dict(snapshot.field_sources)
-    def srcs(fields: Sequence[str]) -> list[str]:
-        return list(dict.fromkeys(str(sources[field]) for field in fields if sources.get(field)))
-    component_fields = {
-        "derivatives": ("tail_risk", "pcr_rises", "pcr_stable", "vix_rises", "vix_stable"),
-        "fx": ("usd_twd_3d_change_pct", "usd_twd_5d_change_pct", "twd_depreciates_significantly", "twd_stable"),
-        "global_shock": ("nasdaq", "sox"),
-        "liquidity": ("foreign_spot_net_sell", "foreign_spot_net_buy", "margin_balance_5d_decline_pct"),
-        "correlation": ("main_7_symbols", "majority_main_7_assets_above_ma20"),
-    }
-    missing = [field for fields in component_fields.values() for field in fields if field not in sources]
     component_scores = {"derivatives": round(float(tail_risk), 4) if sources.get("tail_risk") else None, "fx": None, "global_shock": None, "liquidity": None, "correlation": None}
+    coverage = _factor_coverage_table(_TAIL_RISK_COMPONENT_FIELDS, _TAIL_RISK_PROVIDERS, row, sources, component_scores=component_scores)
+    missing = [field for fields in _TAIL_RISK_COMPONENT_FIELDS.values() for field in fields if field not in sources]
     status = "FORMAL_PROVIDER_TOTAL_WITH_SOURCE_FIELDS" if sources.get("tail_risk") else "PRICE_PROXY_OR_MISSING_FORMAL_TAIL_RISK"
-    return {"final_score": round(float(tail_risk), 4), "component_scores": component_scores, "source_fields": {key: srcs(fields) for key, fields in component_fields.items()}, "raw_inputs": {field: row.get(field) for fields in component_fields.values() for field in fields if field in row}, "missing_fields": missing, "calculation_status": status}
+    return {"final_score": round(float(tail_risk), 4), "component_scores": component_scores, "source_fields": {key: _source_ids_for_fields(sources, fields) for key, fields in _TAIL_RISK_COMPONENT_FIELDS.items()}, "raw_inputs": {field: row.get(field) for fields in _TAIL_RISK_COMPONENT_FIELDS.values() for field in fields if field in row}, "missing_fields": missing, "coverage": coverage, "calculation_status": status}
 
 
 def _price_proxy_tail_risk_trace(tail_risk: float) -> dict[str, Any]:
-    return {"final_score": round(float(tail_risk), 4), "component_scores": {"derivatives": None, "fx": None, "global_shock": None, "liquidity": None, "correlation": None}, "source_fields": {}, "raw_inputs": {}, "missing_fields": ["formal_tail_risk"], "calculation_status": "PRICE_ONLY_PROXY"}
+    row: dict[str, Any] = {}
+    sources: dict[str, Any] = {}
+    component_scores = {"derivatives": None, "fx": None, "global_shock": None, "liquidity": None, "correlation": None}
+    return {"final_score": round(float(tail_risk), 4), "component_scores": component_scores, "source_fields": {}, "raw_inputs": {}, "missing_fields": ["formal_tail_risk"], "coverage": _factor_coverage_table(_TAIL_RISK_COMPONENT_FIELDS, _TAIL_RISK_PROVIDERS, row, sources, component_scores=component_scores), "calculation_status": "PRICE_ONLY_PROXY"}
+
+
+def _mhs_trace_from_snapshot(snapshot: DailyMarketSnapshot, mhs: float) -> dict[str, Any]:
+    return _mhs_trace_from_mapping(dict(snapshot.canonical_row), dict(snapshot.field_sources), final_score=mhs)
+
+
+def _mhs_trace_from_mapping(row: Mapping[str, Any], sources: Mapping[str, Any], *, final_score: float) -> dict[str, Any]:
+    component_scores: dict[str, float | None] = {}
+    source_fields: dict[str, list[str]] = {}
+    evidence: dict[str, dict[str, Any]] = {}
+    for component, fields in _MHS_COMPONENT_FIELDS.items():
+        score = _first_number(row, fields[:2])
+        component_scores[component] = score
+        source_fields[component] = _source_ids_for_fields(sources, fields)
+        raw = {field: row.get(field) for field in fields if field in row}
+        if raw:
+            evidence[component] = {**raw, "result": "TRACE_ONLY_NO_SUBCOMPONENT_SCORER"}
+    coverage = _component_coverage_table(_MHS_COMPONENT_FIELDS, _MHS_PROVIDERS, row, sources, component_scores=component_scores)
+    return {
+        "final_score": round(float(final_score), 4),
+        "component_scores": component_scores,
+        "source_fields": source_fields,
+        "trigger_evidence": evidence,
+        "raw_inputs": {field: row.get(field) for fields in _MHS_COMPONENT_FIELDS.values() for field in fields if field in row},
+        "coverage": coverage,
+        "calculation_status": "PROVIDER_TOTAL_WITH_TRACE_FIELDS" if _number(final_score) is not None else "MISSING",
+        "implementation_note": "No standalone MHS subcomponent scorer is implemented; trace exposes available source fields without changing the supplied MHS score.",
+    }
+
+
+def _source_ids_for_fields(sources: Mapping[str, Any], fields: Sequence[str]) -> list[str]:
+    values: list[str] = []
+    for field in fields:
+        value = sources.get(field)
+        if value:
+            values.append(str(value))
+    return list(dict.fromkeys(values))
+
+
+def _first_number(row: Mapping[str, Any], fields: Sequence[str]) -> float | None:
+    for field in fields:
+        value = _number(row.get(field))
+        if value is not None:
+            return value
+    return None
+
+
+def _factor_coverage_table(component_fields: Mapping[str, tuple[str, ...]], providers: Mapping[str, str], row: Mapping[str, Any], sources: Mapping[str, Any], *, component_scores: Mapping[str, Any]) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    for factor, fields in component_fields.items():
+        missing = [field for field in fields if field not in sources]
+        available = component_scores.get(factor) is not None
+        if available:
+            diagnosis = "factor sub-score populated"
+        elif missing:
+            diagnosis = "provider missing or source field not wired"
+        else:
+            diagnosis = "provider inputs present but factor sub-score is not implemented/wired"
+        rows.append({"factor": _factor_title(factor), "required_inputs": list(fields), "provider": providers.get(factor, "unknown"), "current_availability": "AVAILABLE" if available else "MISSING", "missing_inputs": [] if available else (missing or ["factor_sub_score"]), "diagnosis": diagnosis})
+    available_count = sum(1 for row_item in rows if row_item["current_availability"] == "AVAILABLE")
+    total = len(rows)
+    status = "COMPLETE" if available_count == total else ("PARTIAL" if available_count >= 3 else "INCOMPLETE")
+    unavailable = [row_item["factor"] for row_item in rows if row_item["current_availability"] != "AVAILABLE"]
+    return {"available_factors": available_count, "total_factors": total, "coverage_ratio": round(available_count / total, 4) if total else 0.0, "coverage_status": status, "reason": "all factors available" if not unavailable else f"{', '.join(unavailable)} unavailable", "unavailable_factors": unavailable, "mapping_table": rows}
+
+
+def _component_coverage_table(component_fields: Mapping[str, tuple[str, ...]], providers: Mapping[str, str], row: Mapping[str, Any], sources: Mapping[str, Any], *, component_scores: Mapping[str, Any]) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    for component, fields in component_fields.items():
+        input_available = any(field in row or field in sources for field in fields)
+        score_available = component_scores.get(component) is not None
+        missing = [field for field in fields if field not in row and field not in sources]
+        diagnosis = "component score populated" if score_available else ("source evidence present but subcomponent scorer is not implemented/wired" if input_available else "provider missing or source field not wired")
+        rows.append({"component": component, "required_inputs": list(fields), "provider": providers.get(component, "unknown"), "current_availability": "AVAILABLE" if score_available else ("PARTIAL" if input_available else "MISSING"), "missing_inputs": [] if score_available else missing, "diagnosis": diagnosis})
+    available_count = sum(1 for row_item in rows if row_item["current_availability"] == "AVAILABLE")
+    total = len(rows)
+    ratio = available_count / total if total else 0.0
+    status = "COMPLETE" if ratio >= 1.0 else ("PARTIAL" if ratio >= 0.5 else "INCOMPLETE")
+    unavailable = [row_item["component"] for row_item in rows if row_item["current_availability"] != "AVAILABLE"]
+    return {"available_components": available_count, "total_components": total, "coverage_ratio": round(ratio, 4), "coverage_status": status, "reason": "all components available" if not unavailable else f"{len(unavailable)} components unavailable", "unavailable_components": unavailable, "mapping_table": rows}
+
+
+def _factor_title(value: str) -> str:
+    return {"derivatives": "Derivatives", "fx": "FX", "global_shock": "Global Shock", "liquidity": "Liquidity", "correlation": "Correlation"}.get(value, value)
 
 def _slash_date(value: Any) -> str:
     text = str(value or "")[:10]

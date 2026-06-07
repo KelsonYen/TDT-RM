@@ -77,6 +77,7 @@ class BCDResult:
             "bcd_missing_components": list(self.missing_components),
             "bcd_source_dependencies": list(self.source_dependencies),
             "bcd_calculation_version": self.calculation_version,
+            "coverage": self.raw_inputs.get("coverage", {}),
         }
 
 
@@ -88,6 +89,21 @@ _REQUIRED_BCD_INPUTS = (
     "otc_return_pct",
     "small_mid_breadth",
     "turnover_concentration_topn",
+)
+
+BCD_COVERAGE_INPUTS: tuple[dict[str, Any], ...] = (
+    {"component": "Index Breadth Divergence", "required_inputs": ("taiex_return_pct", "advancing_issues", "declining_issues", "breadth_history"), "provider": "breadth_csv + taiex_price"},
+    {"component": "Index Breadth Current", "required_inputs": ("advancing_issues", "declining_issues"), "provider": "breadth_csv"},
+    {"component": "Index Breadth History", "required_inputs": ("breadth_history",), "provider": "breadth_csv"},
+    {"component": "Main7 Returns", "required_inputs": ("main7_returns",), "provider": "leadership_csv"},
+    {"component": "Main7 Weights", "required_inputs": ("main7_weights",), "provider": "leadership_csv"},
+    {"component": "Main7 Concentration", "required_inputs": ("main7_returns", "main7_weights"), "provider": "leadership_csv"},
+    {"component": "Sector Breadth", "required_inputs": ("sector_returns", "sector_above_ma20"), "provider": "sector_breadth_csv"},
+    {"component": "Sector Diffusion", "required_inputs": ("sector_returns", "sector_above_ma20"), "provider": "sector_breadth_csv"},
+    {"component": "OTC Return", "required_inputs": ("otc_return_pct",), "provider": "otc_csv"},
+    {"component": "Small/Mid Breadth", "required_inputs": ("small_mid_breadth",), "provider": "small_mid_breadth_csv"},
+    {"component": "Small/Mid Weakness", "required_inputs": ("small_mid_breadth", "otc_return_pct"), "provider": "small_mid_breadth_csv + otc_csv"},
+    {"component": "Turnover Concentration", "required_inputs": ("turnover_concentration_topn",), "provider": "turnover_csv"},
 )
 
 
@@ -114,6 +130,75 @@ def _bcd_completeness_score(inputs: BCDInput) -> float:
     missing = set(_missing_required_inputs(inputs))
     present = len(_REQUIRED_BCD_INPUTS) - len(missing)
     return round(present / len(_REQUIRED_BCD_INPUTS), 4)
+
+
+def bcd_coverage_table(inputs: BCDInput, source_fields: Mapping[str, str] | None = None) -> dict[str, Any]:
+    sources = dict(source_fields or {})
+    rows: list[dict[str, Any]] = []
+    for item in BCD_COVERAGE_INPUTS:
+        required = tuple(str(field) for field in item["required_inputs"])
+        missing = tuple(field for field in required if not _bcd_input_available(inputs, field))
+        providers = tuple(dict.fromkeys(str(sources.get(field) or item["provider"]) for field in required))
+        if not missing:
+            availability = "AVAILABLE"
+        elif any(_bcd_input_available(inputs, field) for field in required):
+            availability = "PARTIAL"
+        else:
+            availability = "MISSING"
+        rows.append(
+            {
+                "component": str(item["component"]),
+                "required_inputs": list(required),
+                "provider": " + ".join(providers),
+                "current_availability": availability,
+                "missing_inputs": list(missing),
+            }
+        )
+    available = sum(1 for row in rows if row["current_availability"] == "AVAILABLE")
+    total = len(rows)
+    ratio = round(available / total, 4) if total else 0.0
+    if ratio >= 1.0:
+        status = "COMPLETE"
+    elif ratio >= 0.5:
+        status = "PARTIAL"
+    else:
+        status = "INCOMPLETE"
+    unavailable = [row["component"] for row in rows if row["current_availability"] != "AVAILABLE"]
+    return {
+        "available_components": available,
+        "total_components": total,
+        "coverage_ratio": ratio,
+        "coverage_status": status,
+        "reason": "all components available" if not unavailable else f"{len(unavailable)} components unavailable",
+        "unavailable_components": unavailable,
+        "mapping_table": rows,
+    }
+
+
+def _bcd_input_available(inputs: BCDInput, field: str) -> bool:
+    if field == "taiex_return_pct":
+        return inputs.taiex_return_pct is not None and not math.isnan(float(inputs.taiex_return_pct))
+    if field == "advancing_issues":
+        return inputs.advancing_issues >= 0
+    if field == "declining_issues":
+        return inputs.declining_issues >= 0
+    if field == "breadth_history":
+        return bool(inputs.breadth_history)
+    if field == "main7_returns":
+        return bool(inputs.main7_returns)
+    if field == "main7_weights":
+        return bool(inputs.main7_weights)
+    if field == "sector_returns":
+        return bool(inputs.sector_returns)
+    if field == "sector_above_ma20":
+        return bool(inputs.sector_above_ma20)
+    if field == "otc_return_pct":
+        return inputs.otc_return_pct is not None
+    if field == "small_mid_breadth":
+        return inputs.small_mid_breadth is not None
+    if field == "turnover_concentration_topn":
+        return inputs.turnover_concentration_topn is not None
+    return False
 
 
 def _source_dependencies(source_fields: Mapping[str, str], inputs: BCDInput) -> tuple[str, ...]:
@@ -198,6 +283,8 @@ def score_bcd(inputs: BCDInput, *, source_fields: Mapping[str, str] | None = Non
     completeness = _bcd_completeness_score(inputs)
     status = "COMPLETE" if completeness >= 1.0 and not missing_tuple else "INCOMPLETE"
     final_score = round(sum(component_scores.values()), 4) if status == "COMPLETE" else None
+    coverage = bcd_coverage_table(inputs, sources)
+    raw_inputs["coverage"] = coverage
     dependencies = _source_dependencies(sources, inputs)
     forbidden = sorted({dep for dep in dependencies if dep in {"tail_risk", "options_csv.bcd", "options_csv", "options.bcd"} or "tail_risk" in dep or dep.endswith(".bcd")})
     if forbidden:
@@ -409,4 +496,4 @@ def _raw_inputs(inputs: BCDInput) -> dict[str, Any]:
     }
 
 
-__all__ = ["BreadthBar", "BCDInput", "BCDResult", "score_bcd", "assert_bcd_tail_risk_independence"]
+__all__ = ["BreadthBar", "BCDInput", "BCDResult", "score_bcd", "bcd_coverage_table", "assert_bcd_tail_risk_independence"]
