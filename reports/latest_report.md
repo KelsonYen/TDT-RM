@@ -2,8 +2,8 @@
 作者：Dr. Yen
 模型：TDT-RM V5.1.4 Backtest Calibration Patch
 資料日期：2026/06/05
-產出時間：2026/06/07 08:03
-資料狀態：正式版
+產出時間：2026/06/07 08:57
+資料狀態：稽核不完整版
 今日燈號：黃燈
 市場狀態：觀察
 TCWRS：12
@@ -19,7 +19,7 @@ Crash Probability：21.59%
 １、MHS達高檔過熱區，代表市場情緒與價格動能偏熱；這是過熱提醒，不等於崩盤訊號。
 ２、TCWRS仍低，代表目前結構性破壞尚未明確出現。
 ３、ETI-5為1，僅有早期警訊，表示風險尚未全面落地。
-４、MHS 分項資料未完整揭露，因此僅能判定為市場過熱訊號，不可單獨解讀為崩盤風險。
+４、MHS 升高代表情緒與動能偏熱，需搭配 TCWRS、ETI-5 與 Tail Risk 判讀，不可單獨解讀為崩盤風險。
 ５、Tail Risk 尚未形成可單獨升燈的極端尾部風險訊號。
 ６、今日操作應以持有、停止追價、不使用槓桿、等待風險是否擴散為主。
 
@@ -124,6 +124,81 @@ leadership_csv
 Status:
 AVAILABLE
 
+■ BCD Coverage
+Available Components:
+1 / 12
+
+Coverage Ratio:
+8.3%
+
+Coverage Status:
+INCOMPLETE
+
+Reason:
+11 components unavailable
+
+BCD Coverage Mapping
+- Index Breadth Divergence
+  required_inputs: taiex_return_pct, advancing_issues, declining_issues, breadth_history
+  provider: taiex_price + breadth_csv + breadth_csv + taiex_price
+  current_availability: PARTIAL
+  missing_inputs: breadth_history
+- Index Breadth Current
+  required_inputs: advancing_issues, declining_issues
+  provider: breadth_csv
+  current_availability: AVAILABLE
+  missing_inputs: none
+- Index Breadth History
+  required_inputs: breadth_history
+  provider: breadth_csv
+  current_availability: MISSING
+  missing_inputs: breadth_history
+- Main7 Returns
+  required_inputs: main7_returns
+  provider: leadership_csv
+  current_availability: MISSING
+  missing_inputs: main7_returns
+- Main7 Weights
+  required_inputs: main7_weights
+  provider: leadership_csv
+  current_availability: MISSING
+  missing_inputs: main7_weights
+- Main7 Concentration
+  required_inputs: main7_returns, main7_weights
+  provider: leadership_csv
+  current_availability: MISSING
+  missing_inputs: main7_returns, main7_weights
+- Sector Breadth
+  required_inputs: sector_returns, sector_above_ma20
+  provider: sector_breadth_csv
+  current_availability: MISSING
+  missing_inputs: sector_returns, sector_above_ma20
+- Sector Diffusion
+  required_inputs: sector_returns, sector_above_ma20
+  provider: sector_breadth_csv
+  current_availability: MISSING
+  missing_inputs: sector_returns, sector_above_ma20
+- OTC Return
+  required_inputs: otc_return_pct
+  provider: otc_csv
+  current_availability: MISSING
+  missing_inputs: otc_return_pct
+- Small/Mid Breadth
+  required_inputs: small_mid_breadth
+  provider: small_mid_breadth_csv
+  current_availability: MISSING
+  missing_inputs: small_mid_breadth
+- Small/Mid Weakness
+  required_inputs: small_mid_breadth, otc_return_pct
+  provider: small_mid_breadth_csv + otc_csv
+  current_availability: MISSING
+  missing_inputs: small_mid_breadth, otc_return_pct
+- Turnover Concentration
+  required_inputs: turnover_concentration_topn
+  provider: turnover_csv
+  current_availability: MISSING
+  missing_inputs: turnover_concentration_topn
+
 ■ BCD 稽核資訊
 Final Score: 資料不足
 Data Quality Status: INCOMPLETE
@@ -217,6 +292,51 @@ Source Fields
   "vix_stable": "options_csv"
 }
 
+■ Tail Risk Coverage
+Available Factors:
+1 / 5
+
+Coverage Ratio:
+20.0%
+
+Coverage Status:
+INCOMPLETE
+
+Reason:
+FX, Global Shock, Liquidity, Correlation unavailable
+
+Tail Risk Coverage Mapping
+- Derivatives
+  required_inputs: tail_risk, pcr_rises, pcr_stable, vix_rises, vix_stable
+  provider: options_csv
+  current_availability: AVAILABLE
+  missing_inputs: none
+  diagnosis: factor sub-score populated
+- FX
+  required_inputs: usd_twd_3d_change_pct, usd_twd_5d_change_pct, twd_depreciates_significantly, twd_stable
+  provider: fx_csv
+  current_availability: MISSING
+  missing_inputs: factor_sub_score
+  diagnosis: provider inputs present but factor sub-score is not implemented/wired
+- Global Shock
+  required_inputs: nasdaq, sox
+  provider: global_index_csv
+  current_availability: MISSING
+  missing_inputs: nasdaq, sox
+  diagnosis: provider missing or source field not wired
+- Liquidity
+  required_inputs: foreign_spot_net_sell, foreign_spot_net_buy, margin_balance_5d_decline_pct
+  provider: foreign_flow_csv + margin_csv
+  current_availability: MISSING
+  missing_inputs: factor_sub_score
+  diagnosis: provider inputs present but factor sub-score is not implemented/wired
+- Correlation
+  required_inputs: main_7_symbols, majority_main_7_assets_above_ma20
+  provider: leadership_csv
+  current_availability: MISSING
+  missing_inputs: factor_sub_score
+  diagnosis: provider inputs present but factor sub-score is not implemented/wired
+
 ■ Tail Risk 稽核資訊
 Final Score: 53.9456
 Derivatives
@@ -242,13 +362,135 @@ Sub Score: 資料不足
 計算狀態
 FORMAL_PROVIDER_TOTAL_WITH_SOURCE_FIELDS
 
+■ MHS Coverage
+Available Components:
+0 / 8
+
+Coverage Ratio:
+0.0%
+
+Coverage Status:
+INCOMPLETE
+
+Reason:
+8 components unavailable
+
+MHS Coverage Mapping
+- P_MHS
+  required_inputs: mhs_p, p_mhs, taiex_return_pct, one_day_return_pct, return_60d_pct
+  provider: taiex_price
+  current_availability: PARTIAL
+  missing_inputs: mhs_p, p_mhs, taiex_return_pct
+  diagnosis: source evidence present but subcomponent scorer is not implemented/wired
+- V_MHS
+  required_inputs: mhs_v, v_mhs, turnover_amount
+  provider: taiex_price / turnover_csv
+  current_availability: PARTIAL
+  missing_inputs: mhs_v, v_mhs
+  diagnosis: source evidence present but subcomponent scorer is not implemented/wired
+- M_MHS
+  required_inputs: mhs_m, m_mhs, ma20, ma60, ma20_slope
+  provider: taiex_price
+  current_availability: PARTIAL
+  missing_inputs: mhs_m, m_mhs
+  diagnosis: source evidence present but subcomponent scorer is not implemented/wired
+- VAL_MHS
+  required_inputs: mhs_val, val_mhs
+  provider: valuation_csv
+  current_availability: MISSING
+  missing_inputs: mhs_val, val_mhs
+  diagnosis: provider missing or source field not wired
+- T_MHS
+  required_inputs: mhs_t, t_mhs
+  provider: trend_csv
+  current_availability: MISSING
+  missing_inputs: mhs_t, t_mhs
+  diagnosis: provider missing or source field not wired
+- R_MHS
+  required_inputs: mhs_r, r_mhs
+  provider: risk_csv
+  current_availability: MISSING
+  missing_inputs: mhs_r, r_mhs
+  diagnosis: provider missing or source field not wired
+- ETF_MHS
+  required_inputs: mhs_etf, etf_mhs
+  provider: etf_flow_csv
+  current_availability: MISSING
+  missing_inputs: mhs_etf, etf_mhs
+  diagnosis: provider missing or source field not wired
+- S_MHS
+  required_inputs: mhs_s, s_mhs, count_main_7_below_ma20, majority_main_7_assets_above_ma20
+  provider: leadership_csv
+  current_availability: PARTIAL
+  missing_inputs: mhs_s, s_mhs
+  diagnosis: source evidence present but subcomponent scorer is not implemented/wired
+
+■ MHS Audit Trace
+Final Score: 100
+P_MHS
+Score: 資料不足
+Source: ["taiex_price"]
+Trigger Evidence:
+one_day_return_pct: -1.3278321517877676
+result: TRACE_ONLY_NO_SUBCOMPONENT_SCORER
+return_60d_pct: 37.52935062906084
+V_MHS
+Score: 資料不足
+Source: ["taiex_price"]
+Trigger Evidence:
+result: TRACE_ONLY_NO_SUBCOMPONENT_SCORER
+turnover_amount: 1319821926499
+M_MHS
+Score: 資料不足
+Source: ["taiex_price"]
+Trigger Evidence:
+ma20: 43030.505000000005
+ma20_slope: 173.35000000000582
+ma60: 38316.17783333334
+result: TRACE_ONLY_NO_SUBCOMPONENT_SCORER
+VAL_MHS
+Score: 資料不足
+Source: []
+Trigger Evidence:
+component evidence unavailable in current implementation
+T_MHS
+Score: 資料不足
+Source: []
+Trigger Evidence:
+component evidence unavailable in current implementation
+R_MHS
+Score: 資料不足
+Source: []
+Trigger Evidence:
+component evidence unavailable in current implementation
+ETF_MHS
+Score: 資料不足
+Source: []
+Trigger Evidence:
+component evidence unavailable in current implementation
+S_MHS
+Score: 資料不足
+Source: ["leadership_csv"]
+Trigger Evidence:
+count_main_7_below_ma20: 0
+majority_main_7_assets_above_ma20: True
+result: TRACE_ONLY_NO_SUBCOMPONENT_SCORER
+Total:
+100 / 100
+計算狀態
+PROVIDER_TOTAL_WITH_TRACE_FIELDS
+
 ■ Report Quality Gate
 ETI Audit Trace Available: PASS
 BCD Trace Available: PASS
+BCD Calculation Complete: MISSING
 Tail Risk Trace Available: PASS
+Tail Risk Calculation Complete: MISSING
+MHS Trace Available: PASS
+MHS Calculation Complete: PASS
 Provider Health Available: PASS
 Field Sources Available: PASS
-Result: 正式版
+Result: 稽核不完整版
 
 ■ 今日動作
 １、持股：維持核心持股，單日不因高檔震盪而情緒化出清。

@@ -1382,6 +1382,11 @@ def _bcd_result_from_snapshot(snapshot: DailyMarketSnapshot, *, taiex_return_pct
     row = dict(snapshot.canonical_row)
     source_fields = {name: snapshot.field_sources.get(name, "unavailable") for name in row}
     source_fields.setdefault("taiex_return_pct", snapshot.field_sources.get("one_day_return_pct", "price.one_day_return_pct"))
+    if "turnover_concentration_topn" not in source_fields and "turnover_concentration" in row:
+        source_fields["turnover_concentration_topn"] = snapshot.field_sources.get("turnover_concentration", "unavailable")
+    if "small_mid_breadth" in row:
+        source_fields.setdefault("small_mid_advancing_issues", snapshot.field_sources.get("small_mid_breadth", "unavailable"))
+        source_fields.setdefault("small_mid_declining_issues", snapshot.field_sources.get("small_mid_breadth", "unavailable"))
     return score_bcd(
         BCDInput(
             taiex_return_pct=taiex_return_pct,
@@ -1394,7 +1399,7 @@ def _bcd_result_from_snapshot(snapshot: DailyMarketSnapshot, *, taiex_return_pct
             sector_above_ma20=_mapping_of_bool(row.get("sector_above_ma20")),
             otc_return_pct=_optional_number(row.get("otc_return_pct")),
             small_mid_breadth=_small_mid_breadth_from_row(row),
-            turnover_concentration_topn=_optional_number(row.get("turnover_concentration_topn") or row.get("topn_turnover_concentration")),
+            turnover_concentration_topn=_optional_number(row.get("turnover_concentration_topn") or row.get("turnover_concentration") or row.get("topn_turnover_concentration")),
         ),
         source_fields=source_fields,
     )
@@ -1569,6 +1574,22 @@ def _breadth_history_from_row(row: Mapping[str, Any]) -> tuple[BreadthBar, ...]:
 
 
 def _small_mid_breadth_from_row(row: Mapping[str, Any]) -> BreadthBar | None:
+    raw = row.get("small_mid_breadth")
+    if isinstance(raw, str) and raw.strip():
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            raw = None
+    if isinstance(raw, Mapping):
+        adv = raw.get("advancing_issues") or raw.get("advancers")
+        dec = raw.get("declining_issues") or raw.get("decliners")
+        if adv not in {None, ""} and dec not in {None, ""}:
+            return BreadthBar(
+                advancing_issues=int(float(adv)),
+                declining_issues=int(float(dec)),
+                taiex_return_pct=_optional_number(raw.get("taiex_return_pct") or raw.get("return_pct") or row.get("small_mid_return_pct")),
+                trade_date=str(raw.get("trade_date") or raw.get("date") or row.get("observed_at") or row.get("trade_date") or "") or None,
+            )
     adv = row.get("small_mid_advancing_issues")
     dec = row.get("small_mid_declining_issues")
     if adv in {None, ""} or dec in {None, ""}:

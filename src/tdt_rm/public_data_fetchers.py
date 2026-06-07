@@ -41,13 +41,28 @@ _PROVIDER_CSV_NAMES = {
 }
 _PRODUCTION_PRICE_FIELDS = ("trade_date", "provider_source", "source_type", "close", "ma5", "ma20", "ma60", "ma20_slope", "one_day_return_pct", "two_day_return_pct", "close_below_ma20_consecutive_days", "index_5d_return_pct", "return_60d_pct", "previous_ma60", "turnover_amount")
 _REQUIRED_PRODUCTION_PRICE_VALUES = tuple(field for field in _PRODUCTION_PRICE_FIELDS if field not in {"trade_date", "provider_source", "source_type"})
+_BCD_RECOVERY_EXTRA_FIELDS = (
+    "breadth_history",
+    "main7_returns",
+    "main7_weights",
+    "main7_concentration",
+    "sector_returns",
+    "sector_above_ma20",
+    "sector_breadth",
+    "sector_diffusion",
+    "otc_return_pct",
+    "small_mid_breadth",
+    "small_mid_weakness",
+    "turnover_concentration_topn",
+    "turnover_concentration",
+)
 _PROVIDER_FIELDS = {
     "price": _PRODUCTION_PRICE_FIELDS,
     "foreign_flow": ("date", "foreign_spot_net_buy", "foreign_spot_net_sell", "foreign_spot_net_sell_consecutive_days", "foreign_large_sell", "foreign_spot_large_sell", "futures_hedging_increases", "futures_hedging_significant"),
     "fx": ("date", "usd_twd", "usd_twd_3d_change_pct", "usd_twd_5d_change_pct", "twd_appreciates", "twd_stable", "twd_depreciates_significantly"),
-    "breadth": ("date", "advancing_issues", "declining_issues", "index_down", "declining_issues_significantly_expand", "declining_issues_significantly_gt_advancing", "declining_gt_advancing_consecutive_days", "breadth_weakens_for_2_days"),
-    "leadership": ("date", "count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols"),
-    "margin": ("date", "margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "index_5d_return_pct", "margin_balance_5d_decline_pct", "margin_not_retreating"),
+    "breadth": ("date", "advancing_issues", "declining_issues", "index_down", "declining_issues_significantly_expand", "declining_issues_significantly_gt_advancing", "declining_gt_advancing_consecutive_days", "breadth_weakens_for_2_days", *_BCD_RECOVERY_EXTRA_FIELDS),
+    "leadership": ("date", "count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols", *_BCD_RECOVERY_EXTRA_FIELDS),
+    "margin": ("date", "margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "index_5d_return_pct", "margin_balance_5d_decline_pct", "margin_not_retreating", *_BCD_RECOVERY_EXTRA_FIELDS),
     "scores": ("date", "tail_risk", "mhs", "score_status", "score_notes"),
     "futures": ("date", "txf_close", "txf_settlement", "txf_volume", "txf_open_interest", "txf_basis", "futures_source_contract"),
     "options": ("date", "txo_put_call_ratio", "txo_put_volume", "txo_call_volume", "taifex_vix", "options_source_contract"),
@@ -1040,7 +1055,7 @@ def write_provider_csvs(fetch_results: Sequence[PublicDataFetchResult], output_d
                 continue
             _write_csv(path, _PRODUCTION_PRICE_FIELDS, production_row)
         else:
-            fields = tuple(field for field in _PROVIDER_FIELDS[result.provider_category] if field in row or field == "date")
+            fields = _PROVIDER_FIELDS[result.provider_category]
             _write_csv(path, fields, row)
         provider_paths[result.provider_category] = str(path)
 
@@ -2129,8 +2144,12 @@ def _clean_value(value: Any) -> Any:
 
 
 def _csv_value(value: Any) -> Any:
+    if value is None:
+        return ""
     if isinstance(value, bool):
         return "true" if value else "false"
+    if isinstance(value, (dict, list, tuple)):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return value
 
 

@@ -44,7 +44,9 @@ _PRICE_FIELDS = {
 }
 _TCWRS_FIELDS = {item.name for item in fields(TCWRSInput)}
 _ETI5_FIELDS = {item.name for item in fields(ETI5Input)}
-_EXTRA_PROVIDER_FIELDS = {"usd_twd", "main_7_symbols", "main_7_below_ma20_symbols", "breadth_history", "main7_returns", "main7_weights", "sector_returns", "sector_above_ma20", "otc_return_pct", "small_mid_advancing_issues", "small_mid_declining_issues", "small_mid_return_pct", "turnover_concentration_topn"}
+_BCD_JSON_FIELDS = {"breadth_history", "main7_returns", "main7_weights", "sector_returns", "sector_above_ma20", "sector_breadth", "small_mid_breadth"}
+_BCD_NUMERIC_FIELDS = {"main7_concentration", "sector_diffusion", "otc_return_pct", "small_mid_advancing_issues", "small_mid_declining_issues", "small_mid_return_pct", "small_mid_weakness", "turnover_concentration_topn", "turnover_concentration"}
+_EXTRA_PROVIDER_FIELDS = {"usd_twd", "main_7_symbols", "main_7_below_ma20_symbols", "breadth_history", "main7_returns", "main7_weights", "main7_concentration", "sector_returns", "sector_above_ma20", "sector_breadth", "sector_diffusion", "otc_return_pct", "small_mid_breadth", "small_mid_advancing_issues", "small_mid_declining_issues", "small_mid_return_pct", "small_mid_weakness", "turnover_concentration_topn", "turnover_concentration"}
 _CANONICAL_FIELDS = _TCWRS_FIELDS | _ETI5_FIELDS | _EXTRA_PROVIDER_FIELDS | {"observed_at", "tail_risk", "mhs", "return_60d_pct", "previous_ma60"}
 _DEFAULT_ALIASES: dict[str, tuple[str, ...]] = {
     "observed_at": ("observed_at", "trade_date", "date", "日期", "資料日期"),
@@ -81,11 +83,11 @@ _CATEGORY_FIELDS: dict[str, tuple[str, ...]] = {
     "price": tuple(sorted(_PRICE_FIELDS)),
     "foreign_flow": ("foreign_spot_net_buy", "foreign_spot_net_sell", "foreign_spot_net_sell_consecutive_days", "foreign_large_sell", "foreign_spot_large_sell", "futures_hedging_increases", "futures_hedging_significant"),
     "fx": ("usd_twd_3d_change_pct", "usd_twd_5d_change_pct", "twd_appreciates", "twd_stable", "twd_depreciates_significantly"),
-    "breadth": ("index_down", "advancing_issues", "declining_issues", "declining_issues_significantly_expand", "declining_issues_significantly_gt_advancing", "declining_gt_advancing_consecutive_days", "breadth_weakens_for_2_days", "breadth_history", "small_mid_advancing_issues", "small_mid_declining_issues", "small_mid_return_pct", "otc_return_pct", "count_main_7_below_ma20", "count_main_7_below_ma60"),
-    "leadership": ("count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols", "main7_returns", "main7_weights", "mhs"),
+    "breadth": ("index_down", "advancing_issues", "declining_issues", "declining_issues_significantly_expand", "declining_issues_significantly_gt_advancing", "declining_gt_advancing_consecutive_days", "breadth_weakens_for_2_days", "breadth_history", "sector_breadth", "small_mid_breadth", "small_mid_advancing_issues", "small_mid_declining_issues", "small_mid_return_pct", "small_mid_weakness", "otc_return_pct", "count_main_7_below_ma20", "count_main_7_below_ma60"),
+    "leadership": ("count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols", "main7_returns", "main7_weights", "main7_concentration", "sector_returns", "sector_above_ma20", "sector_diffusion", "mhs"),
     "futures": ("futures_hedging_increases", "futures_hedging_significant", "futures_net_short_increases", "futures_net_short_decreases"),
     "options": ("pcr_stable", "pcr_rises", "vix_stable", "vix_rises", "tail_risk"),
-    "margin": ("margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "index_5d_return_pct", "margin_balance_5d_decline_pct", "margin_not_retreating", "turnover_concentration_topn"),
+    "margin": ("margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "index_5d_return_pct", "margin_balance_5d_decline_pct", "margin_not_retreating", "turnover_concentration_topn", "turnover_concentration"),
     "scores": ("tail_risk", "mhs"),
 }
 
@@ -639,15 +641,25 @@ def _source_kind_precedence(source_kind: str) -> int:
 
 
 def _coerce_value(name: str, value: Any) -> Any:
+    if _missing(value):
+        return None
+    if name in _BCD_JSON_FIELDS and isinstance(value, str):
+        stripped = value.strip()
+        if stripped == "":
+            return None
+        try:
+            return json.loads(stripped)
+        except json.JSONDecodeError:
+            return value
     if name in _BOOL_FIELDS:
         return _coerce_bool(value)
     if name in _INT_FIELDS:
         return int(float(value))
-    if name in (_TCWRS_FIELDS | _ETI5_FIELDS | {"tail_risk", "mhs", "return_60d_pct", "previous_ma60", "otc_return_pct", "small_mid_advancing_issues", "small_mid_declining_issues", "small_mid_return_pct", "turnover_concentration_topn"}) and name != "observed_at":
+    if name in (_TCWRS_FIELDS | _ETI5_FIELDS | _BCD_NUMERIC_FIELDS | {"tail_risk", "mhs", "return_60d_pct", "previous_ma60"}) and name != "observed_at":
         if isinstance(value, str):
             stripped = value.replace(",", "").strip()
             if stripped == "":
-                return value
+                return None
             try:
                 return float(stripped)
             except ValueError:

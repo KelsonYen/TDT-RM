@@ -134,13 +134,18 @@
     "production_report_quality": "PASS",
     "report_quality_gate": {
       "checks": {
+        "BCD Calculation Complete": false,
         "BCD Trace Available": true,
         "ETI Audit Trace Available": true,
         "Field Sources Available": true,
+        "MHS Calculation Complete": true,
+        "MHS Trace Available": true,
         "Provider Health Available": true,
+        "Tail Risk Calculation Complete": false,
         "Tail Risk Trace Available": true
       },
-      "passed": true
+      "passed": false,
+      "trace_passed": true
     }
   },
   "production_report_quality": "PASS",
