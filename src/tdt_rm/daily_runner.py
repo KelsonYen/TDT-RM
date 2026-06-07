@@ -1395,6 +1395,9 @@ def _bcd_result_from_snapshot(snapshot: DailyMarketSnapshot, *, taiex_return_pct
             breadth_history=_breadth_history_from_row(row),
             main7_returns=_mapping_of_float(row.get("main7_returns") or row.get("main_7_returns")),
             main7_weights=_mapping_of_float(row.get("main7_weights") or row.get("main_7_weights")),
+            main7_closes=_nullable_mapping_of_float(row.get("main7_closes") or row.get("main_7_closes")),
+            main7_previous_closes=_nullable_mapping_of_float(row.get("main7_previous_closes") or row.get("main_7_previous_closes")),
+            main7_turnover_amounts=_nullable_mapping_of_float(row.get("main7_turnover_amounts") or row.get("main_7_turnover_amounts")),
             sector_returns=_mapping_of_float(row.get("sector_returns")),
             sector_above_ma20=_mapping_of_bool(row.get("sector_above_ma20")),
             otc_return_pct=_optional_number(row.get("otc_return_pct")),
@@ -1596,6 +1599,12 @@ def _small_mid_breadth_from_row(row: Mapping[str, Any]) -> BreadthBar | None:
         return None
     return BreadthBar(advancing_issues=int(float(adv)), declining_issues=int(float(dec)), taiex_return_pct=_optional_number(row.get("small_mid_return_pct")), trade_date=str(row.get("observed_at") or row.get("trade_date") or "") or None)
 
+
+
+def _nullable_mapping_of_float(value: Any) -> dict[str, float] | None:
+    if value is None or value == "":
+        return None
+    return _mapping_of_float(value)
 
 def _mapping_of_float(value: Any) -> dict[str, float]:
     if isinstance(value, str) and value.strip():

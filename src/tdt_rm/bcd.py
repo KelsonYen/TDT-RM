@@ -46,6 +46,9 @@ class BCDInput:
     otc_return_pct: float | None
     small_mid_breadth: BreadthBar | None
     turnover_concentration_topn: float | None
+    main7_closes: Mapping[str, float] | None = None
+    main7_previous_closes: Mapping[str, float] | None = None
+    main7_turnover_amounts: Mapping[str, float] | None = None
 
 
 @dataclass(frozen=True)
@@ -488,6 +491,9 @@ def _raw_inputs(inputs: BCDInput) -> dict[str, Any]:
         "advancing_issues": inputs.advancing_issues,
         "declining_issues": inputs.declining_issues,
         "breadth_history": [bar.__dict__ for bar in inputs.breadth_history],
+        "main7_closes": None if inputs.main7_closes is None else dict(inputs.main7_closes),
+        "main7_previous_closes": None if inputs.main7_previous_closes is None else dict(inputs.main7_previous_closes),
+        "main7_turnover_amounts": None if inputs.main7_turnover_amounts is None else dict(inputs.main7_turnover_amounts),
         "main7_returns": dict(inputs.main7_returns),
         "main7_weights": dict(inputs.main7_weights),
         "sector_returns": dict(inputs.sector_returns),

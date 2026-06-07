@@ -44,10 +44,11 @@ _PRICE_FIELDS = {
 }
 _TCWRS_FIELDS = {item.name for item in fields(TCWRSInput)}
 _ETI5_FIELDS = {item.name for item in fields(ETI5Input)}
-_BCD_JSON_FIELDS = {"breadth_history", "main7_returns", "main7_weights", "sector_returns", "sector_above_ma20", "sector_breadth", "small_mid_breadth"}
+_BCD_JSON_FIELDS = {"breadth_history", "main7_returns", "main7_weights", "main7_closes", "main7_previous_closes", "main7_turnover_amounts", "sector_returns", "sector_above_ma20", "sector_breadth", "small_mid_breadth"}
 _BCD_NUMERIC_FIELDS = {"main7_concentration", "sector_diffusion", "otc_return_pct", "small_mid_advancing_issues", "small_mid_declining_issues", "small_mid_return_pct", "small_mid_weakness", "turnover_concentration_topn", "turnover_concentration"}
-_EXTRA_PROVIDER_FIELDS = {"usd_twd", "main_7_symbols", "main_7_below_ma20_symbols", "breadth_history", "main7_returns", "main7_weights", "main7_concentration", "sector_returns", "sector_above_ma20", "sector_breadth", "sector_diffusion", "otc_return_pct", "small_mid_breadth", "small_mid_advancing_issues", "small_mid_declining_issues", "small_mid_return_pct", "small_mid_weakness", "turnover_concentration_topn", "turnover_concentration"}
+_EXTRA_PROVIDER_FIELDS = {"usd_twd", "main_7_symbols", "main_7_below_ma20_symbols", "breadth_history", "main7_closes", "main7_previous_closes", "main7_turnover_amounts", "main7_returns", "main7_weights", "main7_concentration", "sector_returns", "sector_above_ma20", "sector_breadth", "sector_diffusion", "otc_return_pct", "small_mid_breadth", "small_mid_advancing_issues", "small_mid_declining_issues", "small_mid_return_pct", "small_mid_weakness", "turnover_concentration_topn", "turnover_concentration"}
 _CANONICAL_FIELDS = _TCWRS_FIELDS | _ETI5_FIELDS | _EXTRA_PROVIDER_FIELDS | {"observed_at", "tail_risk", "mhs", "return_60d_pct", "previous_ma60"}
+_NULLABLE_LINEAGE_FIELDS = {"main7_closes", "main7_previous_closes", "main7_turnover_amounts"}
 _DEFAULT_ALIASES: dict[str, tuple[str, ...]] = {
     "observed_at": ("observed_at", "trade_date", "date", "日期", "資料日期"),
     "close": ("close", "taiex_close", "index_close", "收盤價", "closing_index"),
@@ -66,6 +67,9 @@ _DEFAULT_ALIASES: dict[str, tuple[str, ...]] = {
     "declining_issues_significantly_gt_advancing": ("declining_issues_significantly_gt_advancing",),
     "breadth_weakens_for_2_days": ("breadth_weakens_for_2_days",),
     "count_main_7_below_ma20": ("count_main_7_below_ma20",),
+    "main7_closes": ("main7_closes", "main_7_closes"),
+    "main7_previous_closes": ("main7_previous_closes", "main_7_previous_closes"),
+    "main7_turnover_amounts": ("main7_turnover_amounts", "main_7_turnover_amounts"),
 }
 _BOOL_FIELDS = {
     item.name for item in fields(TCWRSInput) if item.type in {bool, "bool"}
@@ -84,7 +88,7 @@ _CATEGORY_FIELDS: dict[str, tuple[str, ...]] = {
     "foreign_flow": ("foreign_spot_net_buy", "foreign_spot_net_sell", "foreign_spot_net_sell_consecutive_days", "foreign_large_sell", "foreign_spot_large_sell", "futures_hedging_increases", "futures_hedging_significant"),
     "fx": ("usd_twd_3d_change_pct", "usd_twd_5d_change_pct", "twd_appreciates", "twd_stable", "twd_depreciates_significantly"),
     "breadth": ("index_down", "advancing_issues", "declining_issues", "declining_issues_significantly_expand", "declining_issues_significantly_gt_advancing", "declining_gt_advancing_consecutive_days", "breadth_weakens_for_2_days", "breadth_history", "sector_breadth", "small_mid_breadth", "small_mid_advancing_issues", "small_mid_declining_issues", "small_mid_return_pct", "small_mid_weakness", "otc_return_pct", "count_main_7_below_ma20", "count_main_7_below_ma60"),
-    "leadership": ("count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols", "main7_returns", "main7_weights", "main7_concentration", "sector_returns", "sector_above_ma20", "sector_diffusion", "mhs"),
+    "leadership": ("count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols", "main7_closes", "main7_previous_closes", "main7_turnover_amounts", "main7_returns", "main7_weights", "main7_concentration", "sector_returns", "sector_above_ma20", "sector_diffusion", "mhs"),
     "futures": ("futures_hedging_increases", "futures_hedging_significant", "futures_net_short_increases", "futures_net_short_decreases"),
     "options": ("pcr_stable", "pcr_rises", "vix_stable", "vix_rises", "tail_risk"),
     "margin": ("margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "index_5d_return_pct", "margin_balance_5d_decline_pct", "margin_not_retreating", "turnover_concentration_topn", "turnover_concentration"),
@@ -422,7 +426,7 @@ class DailySnapshotAssembler:
             if result.price_bars:
                 price_bars = result.price_bars
             for field_name, value in result.canonical_fields.items():
-                if _missing(value):
+                if _missing(value) and field_name not in _NULLABLE_LINEAGE_FIELDS:
                     continue
                 priority = self.precedence_rules.get(field_name, result.precedence)
                 if field_name in canonical_row and not _same_value(canonical_row[field_name], value):
@@ -545,13 +549,13 @@ def _canonicalize_row(row: Mapping[str, Any], *, field_map: Mapping[str, str] | 
         for canonical_name, raw_name in field_map.items():
             if canonical_name == "bcd":
                 continue
-            if raw_name in row and not _missing(row[raw_name]):
+            if raw_name in row and (not _missing(row[raw_name]) or canonical_name in _NULLABLE_LINEAGE_FIELDS):
                 canonical[canonical_name] = _coerce_value(canonical_name, row[raw_name])
     for canonical_name in _CANONICAL_FIELDS:
         if canonical_name in canonical:
             continue
         for raw_name in (canonical_name, *_DEFAULT_ALIASES.get(canonical_name, ())):
-            if raw_name in row and raw_name not in claimed_raw_keys and not _missing(row[raw_name]):
+            if raw_name in row and raw_name not in claimed_raw_keys and (not _missing(row[raw_name]) or canonical_name in _NULLABLE_LINEAGE_FIELDS):
                 canonical[canonical_name] = _coerce_value(canonical_name, row[raw_name])
                 break
     return canonical

@@ -41,6 +41,7 @@ REQUIRED_PRODUCTION_FILES = (
     "twse_turnover_or_volume.csv",
     "taifex_futures_options.csv",
     "fx_usdtwd.csv",
+    "leadership.csv",
     "manifest.json",
 )
 
@@ -61,6 +62,7 @@ CSV_SPECS: dict[str, CsvSpec] = {
     "twse_turnover_or_volume.csv": CsvSpec("twse_turnover_or_volume.csv", ("trade_date", "provider_source", "source_type", "turnover_amount"), ("turnover_amount",)),
     "taifex_futures_options.csv": CsvSpec("taifex_futures_options.csv", ("trade_date", "provider_source", "source_type", "futures_hedging_increases", "futures_hedging_significant", "pcr_stable", "pcr_rises", "vix_stable", "vix_rises", "tail_risk"), ("tail_risk",), ("futures_hedging_increases", "futures_hedging_significant", "pcr_stable", "pcr_rises", "vix_stable", "vix_rises")),
     "fx_usdtwd.csv": CsvSpec("fx_usdtwd.csv", ("trade_date", "provider_source", "source_type", "usd_twd_3d_change_pct", "usd_twd_5d_change_pct"), ("usd_twd_3d_change_pct", "usd_twd_5d_change_pct")),
+    "leadership.csv": CsvSpec("leadership.csv", ("trade_date", "provider_source", "source_type", "count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols", "mhs"), ("count_main_7_below_ma20", "count_main_7_below_ma60", "mhs"), ("majority_main_7_assets_above_ma20",)),
 }
 
 
@@ -185,6 +187,7 @@ def build_production_input_directory(*, trade_date: date, staging_dir: Path, pro
         "breadth.csv": "twse_market_breadth.csv",
         "fx.csv": "fx_usdtwd.csv",
         "margin.csv": "twse_margin.csv",
+        "leadership.csv": "leadership.csv",
     }
     materialized: dict[str, str] = {}
     for source_name, dest_name in copies.items():

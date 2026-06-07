@@ -19,6 +19,9 @@ from .daily_snapshot import DailyMarketSnapshot
 
 BCD_RECOVERY_FIELDS: tuple[str, ...] = (
     "breadth_history",
+    "main7_closes",
+    "main7_previous_closes",
+    "main7_turnover_amounts",
     "main7_returns",
     "main7_weights",
     "main7_concentration",

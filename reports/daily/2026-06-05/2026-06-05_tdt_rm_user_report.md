@@ -2,7 +2,7 @@
 作者：Dr. Yen
 模型：TDT-RM V5.1.4 Backtest Calibration Patch
 資料日期：2026/06/05
-產出時間：2026/06/07 09:27
+產出時間：2026/06/07 14:09
 資料狀態：稽核不完整版
 今日燈號：黃燈
 市場狀態：觀察
@@ -240,7 +240,10 @@ Raw Inputs
     }
   ],
   "declining_issues": 9578,
+  "main7_closes": null,
+  "main7_previous_closes": null,
   "main7_returns": {},
+  "main7_turnover_amounts": null,
   "main7_weights": {},
   "otc_return_pct": null,
   "sector_above_ma20": {},
@@ -279,6 +282,9 @@ Source Fields
   "ma20_slope": "taiex_price",
   "ma5": "taiex_price",
   "ma60": "taiex_price",
+  "main7_closes": "leadership_csv",
+  "main7_previous_closes": "leadership_csv",
+  "main7_turnover_amounts": "leadership_csv",
   "main_7_symbols": "leadership_csv",
   "majority_main_7_assets_above_ma20": "leadership_csv",
   "margin_balance_5d_decline_pct": "margin_csv",
