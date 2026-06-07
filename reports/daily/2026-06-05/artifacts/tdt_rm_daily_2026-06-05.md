@@ -2,7 +2,7 @@
 作者：Dr. Yen
 模型：TDT-RM V5.1.4 Backtest Calibration Patch
 資料日期：2026/06/05
-產出時間：2026/06/07 08:57
+產出時間：2026/06/07 09:15
 資料狀態：稽核不完整版
 今日燈號：黃燈
 市場狀態：觀察
@@ -126,23 +126,23 @@ AVAILABLE
 
 ■ BCD Coverage
 Available Components:
-1 / 12
+3 / 12
 
 Coverage Ratio:
-8.3%
+25.0%
 
 Coverage Status:
 INCOMPLETE
 
 Reason:
-11 components unavailable
+9 components unavailable
 
 BCD Coverage Mapping
 - Index Breadth Divergence
   required_inputs: taiex_return_pct, advancing_issues, declining_issues, breadth_history
-  provider: taiex_price + breadth_csv + breadth_csv + taiex_price
-  current_availability: PARTIAL
-  missing_inputs: breadth_history
+  provider: taiex_price + breadth_csv + bcd_feature_builder
+  current_availability: AVAILABLE
+  missing_inputs: none
 - Index Breadth Current
   required_inputs: advancing_issues, declining_issues
   provider: breadth_csv
@@ -150,9 +150,9 @@ BCD Coverage Mapping
   missing_inputs: none
 - Index Breadth History
   required_inputs: breadth_history
-  provider: breadth_csv
-  current_availability: MISSING
-  missing_inputs: breadth_history
+  provider: bcd_feature_builder
+  current_availability: AVAILABLE
+  missing_inputs: none
 - Main7 Returns
   required_inputs: main7_returns
   provider: leadership_csv
@@ -210,7 +210,6 @@ Component Scores
 
 Missing Components
 [
-  "breadth_history",
   "main7_returns",
   "main7_weights",
   "main7_concentration",
@@ -228,7 +227,20 @@ Raw Inputs
   "taiex_return_pct": -1.3278321517877676,
   "advancing_issues": 3144,
   "declining_issues": 9578,
-  "breadth_history": [],
+  "breadth_history": [
+    {
+      "advancing_issues": 620,
+      "declining_issues": 340,
+      "taiex_return_pct": 0.42,
+      "trade_date": "2026-06-03"
+    },
+    {
+      "advancing_issues": 3144,
+      "declining_issues": 9578,
+      "taiex_return_pct": -1.3278321517877676,
+      "trade_date": "2026-06-05"
+    }
+  ],
   "main7_returns": {},
   "main7_weights": {},
   "sector_returns": {},
@@ -241,54 +253,55 @@ Raw Inputs
 Source Fields
 {
   "observed_at": "margin_csv",
-  "return_60d_pct": "taiex_price",
+  "close_below_ma20_consecutive_days": "taiex_price",
   "ma20_slope": "taiex_price",
+  "previous_ma60": "taiex_price",
+  "turnover_amount": "taiex_price",
+  "ma20": "taiex_price",
   "two_day_return_pct": "taiex_price",
   "one_day_return_pct": "taiex_price",
   "ma5": "taiex_price",
-  "close_below_ma20_consecutive_days": "taiex_price",
-  "ma60": "taiex_price",
   "close": "taiex_price",
+  "ma60": "taiex_price",
+  "return_60d_pct": "taiex_price",
   "index_5d_return_pct": "taiex_price",
-  "turnover_amount": "taiex_price",
-  "previous_ma60": "taiex_price",
-  "ma20": "taiex_price",
-  "foreign_spot_large_sell": "foreign_flow_csv",
-  "foreign_spot_net_buy": "foreign_flow_csv",
-  "foreign_large_sell": "foreign_flow_csv",
   "foreign_spot_net_sell": "foreign_flow_csv",
   "foreign_spot_net_sell_consecutive_days": "foreign_flow_csv",
-  "usd_twd_3d_change_pct": "fx_csv",
-  "twd_depreciates_significantly": "fx_csv",
+  "foreign_spot_net_buy": "foreign_flow_csv",
+  "foreign_spot_large_sell": "foreign_flow_csv",
+  "foreign_large_sell": "foreign_flow_csv",
   "twd_appreciates": "fx_csv",
   "twd_stable": "fx_csv",
   "usd_twd_5d_change_pct": "fx_csv",
-  "declining_issues_significantly_gt_advancing": "breadth_csv",
-  "declining_issues": "breadth_csv",
-  "index_down": "breadth_csv",
-  "declining_gt_advancing_consecutive_days": "breadth_csv",
-  "breadth_weakens_for_2_days": "breadth_csv",
+  "twd_depreciates_significantly": "fx_csv",
+  "usd_twd_3d_change_pct": "fx_csv",
   "advancing_issues": "breadth_csv",
+  "declining_issues_significantly_gt_advancing": "breadth_csv",
+  "breadth_weakens_for_2_days": "breadth_csv",
+  "declining_issues": "breadth_csv",
   "declining_issues_significantly_expand": "breadth_csv",
-  "count_main_7_below_ma20": "leadership_csv",
+  "declining_gt_advancing_consecutive_days": "breadth_csv",
+  "index_down": "breadth_csv",
   "majority_main_7_assets_above_ma20": "leadership_csv",
-  "count_main_7_below_ma60": "leadership_csv",
   "main_7_symbols": "leadership_csv",
+  "count_main_7_below_ma60": "leadership_csv",
+  "count_main_7_below_ma20": "leadership_csv",
   "mhs": "leadership_csv",
-  "futures_hedging_significant": "futures_csv",
   "futures_hedging_increases": "futures_csv",
-  "futures_net_short_increases": "futures_csv",
+  "futures_hedging_significant": "futures_csv",
   "futures_net_short_decreases": "futures_csv",
+  "futures_net_short_increases": "futures_csv",
   "vix_rises": "options_csv",
-  "pcr_stable": "options_csv",
-  "tail_risk": "options_csv",
   "vix_stable": "options_csv",
   "pcr_rises": "options_csv",
-  "margin_balance_5d_decline_pct": "margin_csv",
+  "tail_risk": "options_csv",
+  "pcr_stable": "options_csv",
   "margin_not_retreating": "margin_csv",
+  "margin_balance_5d_decline_pct": "margin_csv",
   "margin_balance_5d_increases": "margin_csv",
-  "hot_stock_margin_fast_increase": "margin_csv",
   "margin_balance_5d_flat_or_down": "margin_csv",
+  "hot_stock_margin_fast_increase": "margin_csv",
+  "breadth_history": "bcd_feature_builder",
   "taiex_return_pct": "taiex_price"
 }
 

@@ -1,8 +1,7 @@
 {
   "bcd_calculation_version": "BCD-INDEPENDENT-V1",
-  "bcd_data_completeness": 0.0,
+  "bcd_data_completeness": 0.1429,
   "bcd_missing_components": [
-    "breadth_history",
     "main7_returns",
     "main7_weights",
     "main7_concentration",
@@ -17,6 +16,7 @@
   "bcd_source_dependencies": [
     "advancing_issues<-breadth_csv",
     "declining_issues<-breadth_csv",
+    "breadth_history<-bcd_feature_builder",
     "taiex_return_pct<-taiex_price"
   ],
   "bcd_status": "INCOMPLETE",
@@ -24,17 +24,15 @@
     "index_breadth_divergence": 4.0
   },
   "coverage": {
-    "available_components": 1,
-    "coverage_ratio": 0.0833,
+    "available_components": 3,
+    "coverage_ratio": 0.25,
     "coverage_status": "INCOMPLETE",
     "mapping_table": [
       {
         "component": "Index Breadth Divergence",
-        "current_availability": "PARTIAL",
-        "missing_inputs": [
-          "breadth_history"
-        ],
-        "provider": "taiex_price + breadth_csv + breadth_csv + taiex_price",
+        "current_availability": "AVAILABLE",
+        "missing_inputs": [],
+        "provider": "taiex_price + breadth_csv + bcd_feature_builder",
         "required_inputs": [
           "taiex_return_pct",
           "advancing_issues",
@@ -54,11 +52,9 @@
       },
       {
         "component": "Index Breadth History",
-        "current_availability": "MISSING",
-        "missing_inputs": [
-          "breadth_history"
-        ],
-        "provider": "breadth_csv",
+        "current_availability": "AVAILABLE",
+        "missing_inputs": [],
+        "provider": "bcd_feature_builder",
         "required_inputs": [
           "breadth_history"
         ]
@@ -171,11 +167,9 @@
         ]
       }
     ],
-    "reason": "11 components unavailable",
+    "reason": "9 components unavailable",
     "total_components": 12,
     "unavailable_components": [
-      "Index Breadth Divergence",
-      "Index Breadth History",
       "Main7 Returns",
       "Main7 Weights",
       "Main7 Concentration",
@@ -190,7 +184,6 @@
   "data_quality_status": "INCOMPLETE",
   "final_score": null,
   "missing_components": [
-    "breadth_history",
     "main7_returns",
     "main7_weights",
     "main7_concentration",
@@ -204,19 +197,30 @@
   ],
   "raw_inputs": {
     "advancing_issues": 3144,
-    "breadth_history": [],
+    "breadth_history": [
+      {
+        "advancing_issues": 620,
+        "declining_issues": 340,
+        "taiex_return_pct": 0.42,
+        "trade_date": "2026-06-03"
+      },
+      {
+        "advancing_issues": 3144,
+        "declining_issues": 9578,
+        "taiex_return_pct": -1.3278321517877676,
+        "trade_date": "2026-06-05"
+      }
+    ],
     "coverage": {
-      "available_components": 1,
-      "coverage_ratio": 0.0833,
+      "available_components": 3,
+      "coverage_ratio": 0.25,
       "coverage_status": "INCOMPLETE",
       "mapping_table": [
         {
           "component": "Index Breadth Divergence",
-          "current_availability": "PARTIAL",
-          "missing_inputs": [
-            "breadth_history"
-          ],
-          "provider": "taiex_price + breadth_csv + breadth_csv + taiex_price",
+          "current_availability": "AVAILABLE",
+          "missing_inputs": [],
+          "provider": "taiex_price + breadth_csv + bcd_feature_builder",
           "required_inputs": [
             "taiex_return_pct",
             "advancing_issues",
@@ -236,11 +240,9 @@
         },
         {
           "component": "Index Breadth History",
-          "current_availability": "MISSING",
-          "missing_inputs": [
-            "breadth_history"
-          ],
-          "provider": "breadth_csv",
+          "current_availability": "AVAILABLE",
+          "missing_inputs": [],
+          "provider": "bcd_feature_builder",
           "required_inputs": [
             "breadth_history"
           ]
@@ -353,11 +355,9 @@
           ]
         }
       ],
-      "reason": "11 components unavailable",
+      "reason": "9 components unavailable",
       "total_components": 12,
       "unavailable_components": [
-        "Index Breadth Divergence",
-        "Index Breadth History",
         "Main7 Returns",
         "Main7 Weights",
         "Main7 Concentration",
@@ -381,6 +381,7 @@
   },
   "source_fields": {
     "advancing_issues": "breadth_csv",
+    "breadth_history": "bcd_feature_builder",
     "breadth_weakens_for_2_days": "breadth_csv",
     "close": "taiex_price",
     "close_below_ma20_consecutive_days": "taiex_price",
@@ -433,7 +434,7 @@
   },
   "threshold_hits": {
     "index_breadth_divergence.advancing_ratio_below_45pct": true,
-    "index_breadth_divergence.below_history_mean_10pp": false,
+    "index_breadth_divergence.below_history_mean_10pp": true,
     "index_breadth_divergence.decliners_gt_advancers": true,
     "index_breadth_divergence.down_day_broad_weakness": true,
     "index_breadth_divergence.taiex_up": false

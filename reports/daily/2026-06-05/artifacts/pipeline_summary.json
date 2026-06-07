@@ -9,6 +9,7 @@
     "assembled_snapshot": "reports/daily/2026-06-05/artifacts/assembled_daily_snapshot_2026-06-05.json",
     "bcd_audit_trace_csv": "reports/daily/2026-06-05/artifacts/bcd_audit_trace.csv",
     "bcd_audit_trace_json": "reports/daily/2026-06-05/artifacts/bcd_audit_trace.json",
+    "bcd_feature_enrichment_trace": "reports/daily/2026-06-05/artifacts/bcd_feature_enrichment_trace.json",
     "bcd_independence_audit_md": "reports/audit/bcd_independence_audit.md",
     "json": "reports/daily/2026-06-05/artifacts/tdt_rm_daily_2026-06-05.json",
     "manifest": "reports/daily/2026-06-05/artifacts/tdt_rm_daily_2026-06-05_manifest.json",
@@ -22,12 +23,44 @@
     "ETI-4",
     "ETI-5"
   ],
+  "bcd_feature_enrichment": {
+    "generated_fields": [
+      "breadth_history"
+    ],
+    "missing_reasons": {
+      "main7_concentration": "requires both main7_returns and main7_weights; no fake equal weights are used",
+      "main7_returns": "requires Main-7 symbol return fields or today's and previous trading-day closes; no previous closes found",
+      "main7_weights": "requires Main-7 market-cap or turnover weights; equal-weight fallback is forbidden",
+      "otc_return_pct": "requires OTC index return provider; no OTC source available",
+      "sector_above_ma20": "requires sector provider MA20 status; nullable interface only until real sector source is supplied",
+      "sector_breadth": "requires sector provider breadth data; no sector source available",
+      "sector_diffusion": "requires sector_returns and sector_above_ma20; no sector provider source available",
+      "sector_returns": "requires sector provider returns; nullable interface only until real sector source is supplied",
+      "small_mid_breadth": "requires small/mid breadth provider; no source available",
+      "small_mid_weakness": "requires otc_return_pct and small_mid_breadth; no source available",
+      "turnover_concentration_topn": "requires symbol-level turnover_amount rows; aggregate market turnover cannot produce Top-N concentration"
+    },
+    "status": "GENERATED",
+    "trace_path": "reports/daily/2026-06-05/artifacts/bcd_feature_enrichment_trace.json",
+    "unavailable_fields": [
+      "main7_concentration",
+      "main7_returns",
+      "main7_weights",
+      "otc_return_pct",
+      "sector_above_ma20",
+      "sector_breadth",
+      "sector_diffusion",
+      "sector_returns",
+      "small_mid_breadth",
+      "small_mid_weakness",
+      "turnover_concentration_topn"
+    ]
+  },
   "data_status": "enriched_snapshot",
   "exposure_limit": "60-80%",
   "fallback_proxies": {
     "bcd": {
       "missing_components": [
-        "breadth_history",
         "main7_returns",
         "main7_weights",
         "main7_concentration",

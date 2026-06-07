@@ -15,6 +15,11 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from .bcd_feature_builder import (
+    BCDFeatureBuilderContext,
+    enrich_bcd_features,
+    write_bcd_feature_enrichment_trace,
+)
 from .daily_providers import (
     FORBIDDEN_PROVIDER_BCD_FIELDS,
     PROVIDER_BCD_FORBIDDEN_MESSAGE,
@@ -24,7 +29,7 @@ from .daily_providers import (
     ManualScoreProvider,
     TAIEXPriceProvider,
 )
-from .daily_runner import DailyRunResult, render_user_daily_report, run_daily_production, write_bcd_audit_artifacts
+from .daily_runner import DailyRunResult, _bcd_result_from_snapshot, render_user_daily_report, run_daily_production, write_bcd_audit_artifacts
 from .daily_snapshot import DailyMarketSnapshot, load_daily_snapshot_json
 from .daily_validation import validate_daily_artifacts
 from .report_quality import assess_production_report_quality, render_operator_disclosure
@@ -137,15 +142,23 @@ def run_daily_pipeline(
 
     provider_warnings: tuple[str, ...] = ()
     assembled_snapshot_path: Path | None = None
+    bcd_enrichment_trace: dict[str, Any] | None = None
+    bcd_enrichment_path: Path | None = None
     snapshot: DailyMarketSnapshot
 
     if snapshot_path is not None:
         snapshot = load_daily_snapshot_json(snapshot_path)
+        enrichment = enrich_bcd_features(
+            snapshot,
+            BCDFeatureBuilderContext(trade_date=as_of, output_dir=destination),
+        )
+        snapshot = enrichment.snapshot
+        bcd_enrichment_trace = dict(enrichment.trace)
         assembled_snapshot_path = Path(snapshot_path)
     else:
         if price_csv is None:
             raise ValueError("--price-csv is required unless --snapshot-path is supplied")
-        snapshot, provider_warnings, assembled_snapshot_path = _assemble_snapshot(
+        snapshot, provider_warnings, assembled_snapshot_path, bcd_enrichment_trace = _assemble_snapshot(
             as_of=as_of,
             output_dir=destination,
             snapshot_out=snapshot_out,
@@ -161,6 +174,12 @@ def run_daily_pipeline(
             field_map=field_map,
         )
 
+    if bcd_enrichment_trace is not None:
+        pre_bcd = _bcd_result_from_snapshot(snapshot, taiex_return_pct=float(snapshot.canonical_row.get("one_day_return_pct") or 0.0))
+        bcd_enrichment_trace["bcd_status_after_enrichment"] = pre_bcd.data_quality_status
+        bcd_enrichment_trace["missing_components_after_enrichment"] = list(pre_bcd.missing_components)
+        bcd_enrichment_path = write_bcd_feature_enrichment_trace(bcd_enrichment_trace, destination)
+
     production = run_daily_production(
         as_of=as_of,
         output_dir=destination,
@@ -175,9 +194,18 @@ def run_daily_pipeline(
         validation=validation.as_dict(),
         provider_warnings=provider_warnings,
         assembled_snapshot_path=assembled_snapshot_path,
-        extra_artifacts=bcd_artifacts,
+        extra_artifacts={**bcd_artifacts, **({"bcd_feature_enrichment_trace": bcd_enrichment_path} if bcd_enrichment_path else {})},
     )
-    return result.as_dict()
+    summary = result.as_dict()
+    if bcd_enrichment_trace is not None:
+        summary["bcd_feature_enrichment"] = {
+            "status": bcd_enrichment_trace.get("enrichment_status"),
+            "generated_fields": list(bcd_enrichment_trace.get("generated_fields") or []),
+            "unavailable_fields": list(bcd_enrichment_trace.get("unavailable_fields") or []),
+            "missing_reasons": dict(bcd_enrichment_trace.get("missing_reasons") or {}),
+            "trace_path": str(bcd_enrichment_path) if bcd_enrichment_path else None,
+        }
+    return summary
 
 
 def render_operator_summary(result: Mapping[str, Any]) -> str:
@@ -469,7 +497,7 @@ def _assemble_snapshot(
     futures_csv: str | Path | None,
     options_csv: str | Path | None,
     field_map: str | Path | None,
-) -> tuple[DailyMarketSnapshot, tuple[str, ...], Path]:
+) -> tuple[DailyMarketSnapshot, tuple[str, ...], Path, dict[str, Any]]:
     field_map_values, provider_maps = _load_field_maps(field_map)
     providers = [TAIEXPriceProvider(source_path=price_csv)]
     if foreign_csv:
@@ -489,6 +517,17 @@ def _assemble_snapshot(
     if scores_csv:
         providers.append(ManualScoreProvider("scores_csv", "Local manual/formal scores CSV", _load_score_row(scores_csv, as_of)))
 
+    input_paths = {
+        "price": price_csv,
+        "foreign_flow": foreign_csv,
+        "fx": fx_csv,
+        "breadth": breadth_csv,
+        "leadership": leadership_csv,
+        "margin": margin_csv,
+        "scores": scores_csv,
+        "futures": futures_csv,
+        "options": options_csv,
+    }
     assembly = DailySnapshotAssembler(providers).assemble(
         DailyProviderContext(as_of=as_of, field_map=field_map_values, provider_field_maps=provider_maps)
     )
@@ -498,9 +537,16 @@ def _assemble_snapshot(
         details = "; ".join(issue.message for issue in assembly.validation.issues if issue.severity == "error")
         raise ValueError(f"daily snapshot validation failed: {details}")
 
+    enrichment = enrich_bcd_features(
+        assembly.snapshot,
+        BCDFeatureBuilderContext(trade_date=as_of, output_dir=output_dir, input_paths=input_paths),
+    )
+    snapshot = enrichment.snapshot
+    enrichment_trace = dict(enrichment.trace)
+
     snapshot_path = Path(snapshot_out) if snapshot_out is not None else output_dir / f"assembled_daily_snapshot_{as_of.isoformat()}.json"
     snapshot_path.parent.mkdir(parents=True, exist_ok=True)
-    payload = assembly.snapshot.as_dict()
+    payload = snapshot.as_dict()
     payload["assembly"] = {
         "supplied_providers": [item.provider_id for item in assembly.provider_results],
         "provider_errors": list(assembly.provider_errors),
@@ -509,7 +555,7 @@ def _assemble_snapshot(
     }
     payload["validation"] = assembly.validation.as_dict()
     snapshot_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return assembly.snapshot, tuple(assembly.warnings), snapshot_path
+    return snapshot, tuple(assembly.warnings), snapshot_path, enrichment_trace
 
 
 def _build_pipeline_result(
