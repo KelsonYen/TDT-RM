@@ -353,6 +353,8 @@ def _score_main7_concentration(inputs: BCDInput) -> tuple[float | None, dict[str
         return None, {}, tuple(missing)
 
     weighted = _weighted_average(inputs.main7_returns, inputs.main7_weights)
+    if weighted is None:
+        return None, {}, ("main7_weights",)
     advance_ratio = inputs.advancing_issues / total
     participation_weak = advance_ratio < 0.50 or inputs.declining_issues > inputs.advancing_issues
     hits = {
@@ -466,7 +468,7 @@ def _record_component(
             missing_components.append(name)
 
 
-def _weighted_average(values: Mapping[str, float], weights: Mapping[str, float]) -> float:
+def _weighted_average(values: Mapping[str, float], weights: Mapping[str, float]) -> float | None:
     numerator = 0.0
     denominator = 0.0
     for symbol, value in values.items():
@@ -476,7 +478,7 @@ def _weighted_average(values: Mapping[str, float], weights: Mapping[str, float])
         numerator += float(value) * weight
         denominator += weight
     if denominator <= 0:
-        return sum(float(value) for value in values.values()) / len(values)
+        return None
     return numerator / denominator
 
 
