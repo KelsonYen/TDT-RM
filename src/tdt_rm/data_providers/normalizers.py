@@ -3,22 +3,39 @@
 from __future__ import annotations
 
 import csv
+import json
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Mapping
 
 from .base import REAL_SOURCE_TYPE, ReconciliationCheck
 
+BCD_RECOVERY_EXTRA_COLUMNS = (
+    "breadth_history",
+    "main7_returns",
+    "main7_weights",
+    "main7_concentration",
+    "sector_returns",
+    "sector_above_ma20",
+    "sector_breadth",
+    "sector_diffusion",
+    "otc_return_pct",
+    "small_mid_breadth",
+    "small_mid_weakness",
+    "turnover_concentration_topn",
+    "turnover_concentration",
+)
 STRICT_COLUMNS: dict[str, tuple[str, ...]] = {
     "price": ("trade_date", "provider_source", "source_type", "close", "ma5", "ma20", "ma60", "ma20_slope", "one_day_return_pct", "two_day_return_pct", "close_below_ma20_consecutive_days", "index_5d_return_pct", "return_60d_pct", "previous_ma60", "turnover_amount"),
     "foreign_flow": ("trade_date", "provider_source", "source_type", "foreign_spot_net_buy", "foreign_spot_net_sell", "foreign_spot_net_sell_consecutive_days", "foreign_spot_large_sell", "foreign_large_sell"),
     "fx": ("trade_date", "provider_source", "source_type", "usd_twd_3d_change_pct", "usd_twd_5d_change_pct", "twd_appreciates", "twd_stable", "twd_depreciates_significantly"),
-    "breadth": ("trade_date", "provider_source", "source_type", "index_down", "advancing_issues", "declining_issues", "declining_issues_significantly_expand", "declining_issues_significantly_gt_advancing", "declining_gt_advancing_consecutive_days", "breadth_weakens_for_2_days"),
+    "breadth": ("trade_date", "provider_source", "source_type", "index_down", "advancing_issues", "declining_issues", "declining_issues_significantly_expand", "declining_issues_significantly_gt_advancing", "declining_gt_advancing_consecutive_days", "breadth_weakens_for_2_days", *BCD_RECOVERY_EXTRA_COLUMNS),
     "futures": ("trade_date", "provider_source", "source_type", "futures_hedging_increases", "futures_hedging_significant", "futures_net_short_increases", "futures_net_short_decreases"),
     "options": ("trade_date", "provider_source", "source_type", "pcr_stable", "pcr_rises", "vix_stable", "vix_rises", "tail_risk"),
-    "leadership": ("trade_date", "provider_source", "source_type", "count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols", "mhs"),
-    "margin": ("trade_date", "provider_source", "source_type", "margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "index_5d_return_pct", "margin_balance_5d_decline_pct", "margin_not_retreating"),
+    "leadership": ("trade_date", "provider_source", "source_type", "count_main_7_below_ma20", "count_main_7_below_ma60", "majority_main_7_assets_above_ma20", "main_7_symbols", "main_7_below_ma20_symbols", "mhs", *BCD_RECOVERY_EXTRA_COLUMNS),
+    "margin": ("trade_date", "provider_source", "source_type", "margin_balance_5d_flat_or_down", "hot_stock_margin_fast_increase", "margin_balance_5d_increases", "index_5d_return_pct", "margin_balance_5d_decline_pct", "margin_not_retreating", *BCD_RECOVERY_EXTRA_COLUMNS),
 }
+OPTIONAL_STRICT_COLUMNS = set(BCD_RECOVERY_EXTRA_COLUMNS) | {"main_7_below_ma20_symbols"}
 
 _NUMERIC_COLUMNS: dict[str, tuple[str, ...]] = {
     "price": ("close", "ma5", "ma20", "ma60", "ma20_slope", "one_day_return_pct", "two_day_return_pct", "close_below_ma20_consecutive_days", "index_5d_return_pct", "return_60d_pct", "previous_ma60", "turnover_amount"),
@@ -135,6 +152,9 @@ def normalize_public_row(dataset: str, row: Mapping[str, Any], *, trade_date: da
     else:
         raise ValueError(f"unsupported dataset: {dataset}")
     base.update(out)
+    for column in BCD_RECOVERY_EXTRA_COLUMNS:
+        if column in row:
+            base[column] = row[column]
     _ensure_complete(dataset, base)
     return base
 
@@ -157,7 +177,7 @@ def validate_strict_row(dataset: str, row: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
     for column in STRICT_COLUMNS[dataset]:
         value = row.get(column)
-        if value in {None, ""} and column not in {"main_7_below_ma20_symbols"}:
+        if (value is None or value == "") and column not in OPTIONAL_STRICT_COLUMNS:
             errors.append(f"missing required field {column}")
     if row.get("source_type") != REAL_SOURCE_TYPE:
         errors.append(f"source_type must be {REAL_SOURCE_TYPE!r}")
@@ -165,7 +185,7 @@ def validate_strict_row(dataset: str, row: Mapping[str, Any]) -> list[str]:
         errors.append("trade_date is required")
     for column in _NUMERIC_COLUMNS.get(dataset, ()):  # parseability/range, not scoring.
         value = row.get(column)
-        if value in {None, ""}:
+        if value is None or value == "":
             continue
         try:
             number = _float(value)
@@ -218,7 +238,7 @@ def reconciliation_checks(dataset: str, row: Mapping[str, Any]) -> tuple[Reconci
 
 
 def _ensure_complete(dataset: str, row: Mapping[str, Any]) -> None:
-    missing = [column for column in STRICT_COLUMNS[dataset] if row.get(column) in {None, ""} and column not in {"main_7_below_ma20_symbols"}]
+    missing = [column for column in STRICT_COLUMNS[dataset] if (row.get(column) is None or row.get(column) == "") and column not in OPTIONAL_STRICT_COLUMNS]
     if missing:
         raise ValueError(f"{dataset} normalized row missing required fields: {', '.join(missing)}")
 
@@ -237,8 +257,12 @@ def _float(value: Any) -> float:
 
 
 def _serialize(value: Any) -> Any:
+    if value is None:
+        return ""
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, datetime):
         return value.isoformat()
+    if isinstance(value, (dict, list, tuple)):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return value
