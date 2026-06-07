@@ -140,3 +140,21 @@ def test_render_user_daily_report_uses_taipei_generation_time_not_payload_timest
     assert "資料日期：2026/06/05" in report
     assert "產出時間：2026/06/06 16:34" in report
     assert "產出時間：2026/06/06 13:11" not in report
+
+
+def test_report_quality_gate_marks_missing_audit_trace_incomplete():
+    payload = {
+        "trade_date": "2026-06-05",
+        "data": {"latest_bar_date": "2026-06-05", "data_status": "official", "field_sources": {"close": {"source_id": "taiex_price"}}, "source_metadata": {"taiex_price": {}}},
+        "scores": {"TCWRS": 12, "MHS": 100, "ETI-5": 1, "Tail Risk": 53.95, "BCD": None, "CP": 21.59},
+        "traces": {"eti_5": {"trace_output": {"ETI-1": {"available": True, "triggered": False}}}, "bcd": {"data_quality_status": "INCOMPLETE"}},
+        "signal": "Yellow",
+        "market_regime": "watch",
+        "equity_exposure_limit": "60-80%",
+    }
+
+    report = render_user_daily_report(payload, generated_at="2026-06-06T08:34:00+00:00")
+
+    assert "資料狀態：稽核不完整版" in report
+    assert "Tail Risk Trace Available: MISSING" in report
+    assert "Result: 稽核不完整版" in report

@@ -131,7 +131,17 @@
       }
     ],
     "placeholder_default_like_fields": [],
-    "production_report_quality": "PASS"
+    "production_report_quality": "PASS",
+    "report_quality_gate": {
+      "checks": {
+        "BCD Trace Available": true,
+        "ETI Audit Trace Available": true,
+        "Field Sources Available": true,
+        "Provider Health Available": true,
+        "Tail Risk Trace Available": true
+      },
+      "passed": true
+    }
   },
   "production_report_quality": "PASS",
   "provider_warnings": [

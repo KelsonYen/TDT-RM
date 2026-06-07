@@ -206,8 +206,9 @@ def test_provider_fallback_warning_still_generates_report(tmp_path: Path):
 
     assert proc.returncode == 0, proc.stdout + proc.stderr
     report = (output_dir / "daily_report.md").read_text(encoding="utf-8")
-    forbidden = ["Audit", "Pipeline", "Validation", "Artifact", "canonical artifact", "source artifact"]
+    forbidden = ["Pipeline", "Validation", "Artifact", "canonical artifact", "source artifact"]
     assert all(term not in report for term in forbidden)
+    assert "■ 資料來源稽核" in report
     assert "今日動作" in report
 
 
@@ -243,7 +244,6 @@ def test_user_report_format_quality_requirements(tmp_path: Path):
     assert proc.returncode == 0, proc.stdout + proc.stderr
     report = (output_dir / "daily_report.md").read_text(encoding="utf-8")
     forbidden = [
-        "Audit",
         "Pipeline",
         "Validation",
         "Artifact",
@@ -265,15 +265,15 @@ def test_user_report_format_quality_requirements(tmp_path: Path):
     assert "股票曝險上限" in report
     assert "■ 今日動作" in report
     assert all(label in report for label in [
-        "ETI-1 加權指數跌破20日線",
-        "ETI-2 外資連續賣超",
-        "ETI-3 新台幣轉貶",
-        "ETI-4 市場廣度惡化",
-        "ETI-5 主流七標的失靈",
+        "ETI-1 價格結構",
+        "ETI-2 外資與期貨",
+        "ETI-3 匯率",
+        "ETI-4 市場廣度",
+        "ETI-5 主流股結構",
     ])
     assert "產出時間：" in report
     assert __import__("re").search(r"產出時間：\d{4}/\d{2}/\d{2} \d{2}:\d{2}", report)
-    assert __import__("re").search(r"資料狀態：(正式版|暫估版)", report)
+    assert __import__("re").search(r"資料狀態：(正式版|暫估版|稽核不完整版)", report)
 
 
 def test_incomplete_bcd_output_generates_report_without_recomputing_scores(tmp_path: Path):

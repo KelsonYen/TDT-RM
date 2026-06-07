@@ -138,7 +138,8 @@ def test_2026_06_05_canonical_regression_values_and_input_source(tmp_path: Path)
     assert report.splitlines()[0] == "2026/06/05 台股雙溫度計風控報告"
     assert "今日燈號：黃燈" in report
     assert "股票曝險上限：60–80%" in report
-    assert "Audit" not in report and "Pipeline" not in report and "Artifact" not in report
+    assert "ETI Audit Trace Available: PASS" in report
+    assert "Pipeline" not in report and "Artifact" not in report
 
 
 def test_quality_gate_freshness_uses_selected_pipeline_summary(tmp_path: Path):
@@ -170,7 +171,7 @@ def test_quality_gate_freshness_uses_selected_pipeline_summary(tmp_path: Path):
     assert paths["dated"].name == f"{trade_date}_tdt_rm_user_report.md"
     assert report.splitlines()[0] == f"{trade_date.replace('-', '/')} 台股雙溫度計風控報告"
     assert "股票曝險上限：60–80%" in report
-    assert "Source" not in report and "Manifest" not in report
+    assert "Report Quality Gate" in report and "Manifest" not in report
 
 
 def test_pipeline_runs_from_provider_fixture_csvs_and_writes_artifacts(tmp_path: Path):

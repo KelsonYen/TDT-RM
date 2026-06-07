@@ -26,6 +26,8 @@ def main() -> int:
     parser.add_argument("--leadership-csv", help="Optional local leadership/mainstream stock CSV.")
     parser.add_argument("--margin-csv", help="Optional local margin/leverage CSV.")
     parser.add_argument("--scores-csv", help="Optional local formal Tail Risk, BCD, and MHS CSV.")
+    parser.add_argument("--futures-csv", help="Optional local futures CSV.")
+    parser.add_argument("--options-csv", help="Optional local options CSV.")
     parser.add_argument("--field-map", help="Optional JSON mapping file for provider/category fields.")
     parser.add_argument("--snapshot-path", help="Existing enriched daily snapshot JSON; skips provider assembly.")
     parser.add_argument("--allow-warnings", action="store_true", help="Surface warning-only results without adding stricter blocking rules.")
@@ -45,6 +47,8 @@ def main() -> int:
             leadership_csv=args.leadership_csv,
             margin_csv=args.margin_csv,
             scores_csv=args.scores_csv,
+            futures_csv=args.futures_csv,
+            options_csv=args.options_csv,
             field_map=args.field_map,
             snapshot_path=args.snapshot_path,
             write_manifest=not args.no_manifest,
