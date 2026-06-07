@@ -158,3 +158,40 @@ def test_report_quality_gate_marks_missing_audit_trace_incomplete():
     assert "資料狀態：稽核不完整版" in report
     assert "Tail Risk Trace Available: MISSING" in report
     assert "Result: 稽核不完整版" in report
+
+
+def test_report_exposes_coverage_and_separates_trace_from_calculation():
+    payload = {
+        "trade_date": "2026-06-05",
+        "data": {
+            "latest_bar_date": "2026-06-05",
+            "data_status": "official",
+            "field_sources": {"close": {"source_id": "taiex_price"}},
+            "source_metadata": {"taiex_price": {}},
+        },
+        "scores": {"TCWRS": 12, "MHS": 100, "ETI-5": 1, "Tail Risk": 53.95, "BCD": None, "CP": 21.59},
+        "traces": {
+            "eti_5": {"trace_output": {"ETI-1": {"available": True, "triggered": False}}},
+            "bcd": {"data_quality_status": "INCOMPLETE", "coverage": {"available_components": 1, "total_components": 12, "coverage_ratio": 1 / 12, "coverage_status": "INCOMPLETE", "reason": "11 components unavailable", "mapping_table": []}},
+            "tail_risk": {"final_score": 53.95, "component_scores": {"derivatives": 53.95}, "coverage": {"available_factors": 1, "total_factors": 5, "coverage_ratio": 0.2, "coverage_status": "INCOMPLETE", "reason": "FX, Global Shock, Liquidity, Correlation unavailable", "mapping_table": []}},
+            "mhs": {"final_score": 100, "component_scores": {}, "source_fields": {}, "trigger_evidence": {}, "coverage": {"available_components": 0, "total_components": 8, "coverage_ratio": 0, "coverage_status": "INCOMPLETE", "reason": "8 components unavailable", "mapping_table": []}},
+        },
+        "signal": "Yellow",
+        "market_regime": "watch",
+        "equity_exposure_limit": "60-80%",
+        "bcd_status": "INCOMPLETE",
+    }
+
+    report = render_user_daily_report(payload, generated_at="2026-06-06T08:34:00+00:00")
+
+    assert "■ BCD Coverage" in report
+    assert "1 / 12" in report
+    assert "■ Tail Risk Coverage" in report
+    assert "1 / 5" in report
+    assert "■ MHS Audit Trace" in report
+    assert "BCD Trace Available: PASS" in report
+    assert "BCD Calculation Complete: MISSING" in report
+    assert "Tail Risk Trace Available: PASS" in report
+    assert "Tail Risk Calculation Complete: MISSING" in report
+    assert "MHS Trace Available: PASS" in report
+    assert "MHS Calculation Complete: PASS" in report
