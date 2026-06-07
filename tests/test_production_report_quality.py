@@ -51,7 +51,8 @@ def test_2026_06_05_confirmed_finmind_and_unavailable_global_risk_pass_operator_
     assert report.splitlines()[0] == "2026/06/05 台股雙溫度計風控報告"
     assert "今日燈號：黃燈" in report
     assert "股票曝險上限：60–80%" in report
-    assert "Audit" not in report and "Pipeline" not in report and "Validation" not in report
+    assert "ETI Audit Trace Available: PASS" in report
+    assert "■ 資料來源稽核" in report
     assert "field=nasdaq" not in report
     assert "field=sox" not in report
     assert "required module(s) not integrated: ETF Exit" not in report
@@ -167,5 +168,5 @@ def test_production_report_explains_bcd_or_data_limits(tmp_path: Path):
 
     assert "BCD：資料不足／INCOMPLETE" in report
     assert "BCD 資料不足，未納入升燈判斷，不影響 TCWRS、ETI-5、Tail Risk 與今日燈號。" in report
-    assert "Missing Inputs" not in report
-    assert "BCD Status" not in report
+    assert "Missing Components" in report
+    assert "Data Quality Status: INCOMPLETE" in report

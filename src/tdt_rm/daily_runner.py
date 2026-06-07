@@ -350,6 +350,7 @@ def build_daily_payload(
             "bear_trend": bear_trend.as_dict(),
             "decision_matrix": decision.as_dict(),
             "bcd": bcd_result.as_dict(),
+            "tail_risk": _price_proxy_tail_risk_trace(tail_risk),
         },
         "data": {
             "source": "TWSE TAIEX MI_5MINS_HIST public monthly index endpoint",
@@ -522,6 +523,7 @@ def build_daily_payload_from_snapshot(
             "bear_trend": bear_trend.as_dict(),
             "decision_matrix": decision.as_dict(),
             "bcd": bcd_result.as_dict(),
+            "tail_risk": _tail_risk_trace_from_snapshot(snapshot, tail_risk),
         },
         "data": {
             "source": "Daily enriched market snapshot",
@@ -619,7 +621,7 @@ def render_user_daily_report(payload: Mapping[str, Any], *, generated_at: str | 
     exposure_limit = payload.get("equity_exposure_limit") or payload.get("exposure_limit")
     report_timestamp = generated_at if generated_at is not None else datetime.now(TAIPEI_TZ)
     report_time = _display_report_time(report_timestamp)
-    data_status = _display_data_status(data.get("data_status") or data.get("status") or payload.get("data_status"))
+    data_status = _display_data_status_with_quality_gate(payload)
     tcwrs = scores.get("TCWRS", payload.get("tcwrs"))
     mhs = scores.get("MHS", payload.get("mhs"))
     eti5 = scores.get("ETI-5", payload.get("eti_5"))
@@ -658,6 +660,14 @@ def render_user_daily_report(payload: Mapping[str, Any], *, generated_at: str | 
         "■ ETI-5 明細",
         *eti_items,
         "",
+        *_data_source_audit_lines(payload),
+        "",
+        *_bcd_audit_lines(payload),
+        "",
+        *_tail_risk_audit_lines(payload),
+        "",
+        *_quality_gate_lines(payload),
+        "",
         "■ 今日動作",
         "１、持股：維持核心持股，單日不因高檔震盪而情緒化出清。",
         f"２、加碼：{('暫停追高，等待拉回或風險指標降溫' if yellow_tone else '僅在符合原有配置紀律時小幅執行')}。",
@@ -685,6 +695,160 @@ def render_user_daily_report(payload: Mapping[str, Any], *, generated_at: str | 
     ]
     return "\n".join(lines)
 
+
+def _display_data_status_with_quality_gate(payload: Mapping[str, Any]) -> str:
+    data = _mapping(payload.get("data"))
+    raw_status = data.get("data_status") or data.get("status") or payload.get("data_status")
+    base = _display_data_status(raw_status)
+    gate = _report_quality_gate(payload)
+    if base == "正式版" and not gate["passed"]:
+        return "稽核不完整版"
+    return base
+
+
+def _report_quality_gate(payload: Mapping[str, Any]) -> dict[str, Any]:
+    traces = _mapping(payload.get("traces"))
+    data = _mapping(payload.get("data"))
+    checks = {
+        "ETI Audit Trace Available": bool(_mapping(_mapping(traces.get("eti_5")).get("trace_output"))),
+        "BCD Trace Available": bool(_mapping(traces.get("bcd"))),
+        "Tail Risk Trace Available": bool(_mapping(traces.get("tail_risk"))),
+        "Provider Health Available": bool(_mapping(data.get("source_metadata")) or _mapping(data.get("provider_health"))),
+        "Field Sources Available": bool(_mapping(data.get("field_sources"))),
+    }
+    return {"passed": all(checks.values()), "checks": checks}
+
+
+def _quality_gate_lines(payload: Mapping[str, Any]) -> list[str]:
+    gate = _report_quality_gate(payload)
+    lines = ["■ Report Quality Gate"]
+    for name, passed in gate["checks"].items():
+        lines.append(f"{name}: {'PASS' if passed else 'MISSING'}")
+    lines.append(f"Result: {'正式版' if gate['passed'] else '稽核不完整版'}")
+    return lines
+
+
+_ETI_AUDIT_FIELDS: Mapping[str, tuple[str, ...]] = {
+    "ETI-1": ("close", "ma20", "close_not_back_above_ma20_for_2_days"),
+    "ETI-2": ("foreign_spot_net_sell_consecutive_days", "foreign_large_sell", "foreign_spot_large_sell", "foreign_spot_net_sell", "futures_hedging_increases"),
+    "ETI-3": ("usd_twd_3d_change_pct", "usd_twd_5d_change_pct"),
+    "ETI-4": ("advancing_issues", "declining_issues", "index_down", "declining_issues_significantly_gt_advancing", "breadth_weakens_for_2_days"),
+    "ETI-5": ("count_main_7_below_ma20",),
+}
+_ETI_TITLES = {
+    "ETI-1": "價格結構",
+    "ETI-2": "外資與期貨",
+    "ETI-3": "匯率",
+    "ETI-4": "市場廣度",
+    "ETI-5": "主流股結構",
+}
+
+
+def _field_source_id(field_sources: Mapping[str, Any], field_name: str) -> str | None:
+    item = field_sources.get(field_name)
+    if isinstance(item, Mapping):
+        value = item.get("source_id")
+    else:
+        value = item
+    return str(value) if value else None
+
+
+def _providers_for_fields(payload: Mapping[str, Any], fields: Sequence[str]) -> list[str]:
+    field_sources = _mapping(_mapping(payload.get("data")).get("field_sources"))
+    providers = [_field_source_id(field_sources, field) for field in fields]
+    return list(dict.fromkeys(provider for provider in providers if provider))
+
+
+def _data_source_audit_lines(payload: Mapping[str, Any]) -> list[str]:
+    lines = ["■ 資料來源稽核"]
+    for code in ("ETI-1", "ETI-2", "ETI-3", "ETI-4", "ETI-5"):
+        providers = _providers_for_fields(payload, _ETI_AUDIT_FIELDS[code])
+        lines.extend([code, "Provider:", *(providers or ["MISSING"]), "", "Status:", "AVAILABLE" if providers else "MISSING", ""])
+    if lines[-1] == "":
+        lines.pop()
+    return lines
+
+
+def _eti_detail_lines(payload: Mapping[str, Any]) -> list[str]:
+    trace = _mapping(_mapping(payload.get("traces")).get("eti_5"))
+    trace_output = _mapping(trace.get("trace_output"))
+    lines = ["ETI Aggregate", "", f"* eti5_total: {_format_value(trace.get('eti5_total', trace.get('eti_score', payload.get('eti_5'))))}", f"* eti_available_count: {_format_value(trace.get('eti_available_count'))}", "* triggered_signals: " + json.dumps(trace.get("triggered_signals") or [], ensure_ascii=False), ""]
+    for code in ("ETI-1", "ETI-2", "ETI-3", "ETI-4", "ETI-5"):
+        item = _mapping(trace_output.get(code))
+        conditions = _mapping(item.get("conditions") or item.get("trace_output"))
+        raw = dict(_mapping(conditions.get("raw")))
+        if code == "ETI-4":
+            inputs = _mapping(payload.get("inputs"))
+            bcd_raw = _mapping(_mapping(_mapping(payload.get("traces")).get("bcd")).get("raw_inputs"))
+            for key in ("advancing_issues", "declining_issues"):
+                if key in inputs and key not in raw:
+                    raw[key] = inputs[key]
+                if key in bcd_raw and key not in raw:
+                    raw[key] = bcd_raw[key]
+        providers = _providers_for_fields(payload, _ETI_AUDIT_FIELDS[code])
+        triggered = bool(item.get("triggered") or (_number(item.get("score")) or 0) > 0)
+        available = item.get("available") is not False and bool(item)
+        lines.extend([f"{code} {_ETI_TITLES[code]}", f"Status: {'TRIGGERED' if triggered else ('NOT_TRIGGERED' if available else 'MISSING')}", "Source: " + (", ".join(providers) if providers else "MISSING")])
+        if item.get("matched_rule"):
+            lines.append("Matched Rule: " + str(item.get("matched_rule")))
+        lines.append("Trigger Evidence:")
+        lines.extend(_eti_evidence_lines(code, raw, conditions, triggered))
+        lines.append("")
+    if lines[-1] == "":
+        lines.pop()
+    return lines
+
+
+def _eti_evidence_lines(code: str, raw: Mapping[str, Any], conditions: Mapping[str, Any], triggered: bool) -> list[str]:
+    result = "TRUE" if triggered else "FALSE"
+    if code == "ETI-1":
+        return [f"Close = {_format_value(raw.get('close'))}", f"MA20 = {_format_value(raw.get('ma20'))}", "Rule: close < ma20 OR close_not_back_above_ma20_for_2_days", f"Result: {result}"]
+    if code == "ETI-2":
+        return [f"Foreign Net Sell Consecutive Days = {_format_value(raw.get('foreign_spot_net_sell_consecutive_days'))}", f"Foreign Large Sell = {_format_value(raw.get('foreign_large_sell'))}", f"Futures Hedging Increases = {_format_value(raw.get('futures_hedging_increases'))}", "Rule: foreign_spot_net_sell_consecutive_days >= 2 OR (foreign_large_sell AND futures_hedging_increases)", f"Result: {result}"]
+    if code == "ETI-3":
+        return [f"USD/TWD 3D Change = {_format_value(raw.get('usd_twd_3d_change_pct'))}%", "Threshold: > 0.5%", f"USD/TWD 5D Change = {_format_value(raw.get('usd_twd_5d_change_pct'))}%", "Threshold: > 1.0%", "Rule: usd_twd_3d_change_pct > 0.5 OR usd_twd_5d_change_pct > 1.0", f"Result: {result}"]
+    if code == "ETI-4":
+        return [f"Advancing Issues = {_format_value(raw.get('advancing_issues'))}", f"Declining Issues = {_format_value(raw.get('declining_issues'))}", f"Index Down = {_format_value(raw.get('index_down'))}", f"Declining Issues > Advancing Issues = {_format_value(raw.get('declining_issues_significantly_gt_advancing'))}", "Rule: declining_issues > advancing_issues", f"Result: {'TRUE' if raw.get('declining_issues_significantly_gt_advancing') is True else 'FALSE'}", "Overall ETI-4 Rule: (index_down AND declining_issues > advancing_issues) OR breadth_weakens_for_2_days", f"Overall Result: {result}"]
+    return [f"Count Main 7 Below MA20 = {_format_value(raw.get('count_main_7_below_ma20'))}", "Threshold: >= 4", "Rule: count_main_7_below_ma20 >= 4", f"Result: {result}"]
+
+
+def _bcd_audit_lines(payload: Mapping[str, Any]) -> list[str]:
+    trace = _mapping(_mapping(payload.get("traces")).get("bcd"))
+    return ["■ BCD 稽核資訊", f"Final Score: {_format_value(trace.get('final_score', payload.get('bcd')))}", f"Data Quality Status: {_bcd_status(payload)}", "", "Component Scores", json.dumps(trace.get("component_scores") or {}, ensure_ascii=False, indent=2), "", "Missing Components", json.dumps(trace.get("missing_components") or payload.get("bcd_missing_components") or [], ensure_ascii=False, indent=2), "", "Raw Inputs", json.dumps(trace.get("raw_inputs") or {}, ensure_ascii=False, indent=2), "", "Source Fields", json.dumps(trace.get("source_fields") or {}, ensure_ascii=False, indent=2)]
+
+
+def _tail_risk_audit_lines(payload: Mapping[str, Any]) -> list[str]:
+    trace = _mapping(_mapping(payload.get("traces")).get("tail_risk"))
+    components = _mapping(trace.get("component_scores"))
+    sources = _mapping(trace.get("source_fields"))
+    missing = trace.get("missing_fields") or []
+    lines = ["■ Tail Risk 稽核資訊", f"Final Score: {_format_value(trace.get('final_score', payload.get('tail_risk')))}"]
+    for key, title in (("derivatives", "Derivatives"), ("fx", "FX"), ("global_shock", "Global Shock"), ("liquidity", "Liquidity"), ("correlation", "Correlation")):
+        lines.extend([title, f"Sub Score: {_format_value(components.get(key))}", "資料來源: " + json.dumps(sources.get(key) or [], ensure_ascii=False)])
+    lines.extend(["缺失欄位", json.dumps(missing, ensure_ascii=False, indent=2), "計算狀態", str(trace.get("calculation_status") or "MISSING")])
+    return lines
+
+
+def _tail_risk_trace_from_snapshot(snapshot: DailyMarketSnapshot, tail_risk: float) -> dict[str, Any]:
+    row = dict(snapshot.canonical_row)
+    sources = dict(snapshot.field_sources)
+    def srcs(fields: Sequence[str]) -> list[str]:
+        return list(dict.fromkeys(str(sources[field]) for field in fields if sources.get(field)))
+    component_fields = {
+        "derivatives": ("tail_risk", "pcr_rises", "pcr_stable", "vix_rises", "vix_stable"),
+        "fx": ("usd_twd_3d_change_pct", "usd_twd_5d_change_pct", "twd_depreciates_significantly", "twd_stable"),
+        "global_shock": ("nasdaq", "sox"),
+        "liquidity": ("foreign_spot_net_sell", "foreign_spot_net_buy", "margin_balance_5d_decline_pct"),
+        "correlation": ("main_7_symbols", "majority_main_7_assets_above_ma20"),
+    }
+    missing = [field for fields in component_fields.values() for field in fields if field not in sources]
+    component_scores = {"derivatives": round(float(tail_risk), 4) if sources.get("tail_risk") else None, "fx": None, "global_shock": None, "liquidity": None, "correlation": None}
+    status = "FORMAL_PROVIDER_TOTAL_WITH_SOURCE_FIELDS" if sources.get("tail_risk") else "PRICE_PROXY_OR_MISSING_FORMAL_TAIL_RISK"
+    return {"final_score": round(float(tail_risk), 4), "component_scores": component_scores, "source_fields": {key: srcs(fields) for key, fields in component_fields.items()}, "raw_inputs": {field: row.get(field) for fields in component_fields.values() for field in fields if field in row}, "missing_fields": missing, "calculation_status": status}
+
+
+def _price_proxy_tail_risk_trace(tail_risk: float) -> dict[str, Any]:
+    return {"final_score": round(float(tail_risk), 4), "component_scores": {"derivatives": None, "fx": None, "global_shock": None, "liquidity": None, "correlation": None}, "source_fields": {}, "raw_inputs": {}, "missing_fields": ["formal_tail_risk"], "calculation_status": "PRICE_ONLY_PROXY"}
 
 def _slash_date(value: Any) -> str:
     text = str(value or "")[:10]
@@ -883,32 +1047,6 @@ def _forced_de_risk_sentence(signal: Any) -> str:
     return "不需要強制減碼" if _normalized_signal(signal) not in {"orange", "red", "deep red"} else "需要依規則分批減碼"
 
 
-def _eti_detail_lines(payload: Mapping[str, Any]) -> list[str]:
-    trace = _mapping(_mapping(payload.get("traces")).get("eti_5"))
-    trace_output = _mapping(trace.get("trace_output"))
-    labels = [
-        ("ETI-1", "ETI-1 加權指數跌破20日線", "指數仍守在短期均線附近，價格結構尚未破壞。", "指數跌破20日線，短線價格結構轉弱。"),
-        ("ETI-2", "ETI-2 外資連續賣超", "外資賣壓尚未形成連續確認。", "外資賣超延續，籌碼壓力升高。"),
-        ("ETI-3", "ETI-3 新台幣轉貶", "匯率尚未出現明確資金外流壓力。", "新台幣轉貶，資金面壓力升高。"),
-        ("ETI-4", "ETI-4 市場廣度惡化", "市場廣度尚未全面轉弱。", "市場廣度惡化，上漲結構變窄。"),
-        ("ETI-5", "ETI-5 主流七標的失靈", "主流族群尚未同步失靈。", "主流標的轉弱，多頭領導力下降。"),
-    ]
-    lines: list[str] = []
-    for index, (code, label, normal_text, triggered_text) in enumerate(labels, start=1):
-        item = _mapping(trace_output.get(code))
-        if item and item.get("available") is False:
-            status = "資料不足"
-            explanation = "該項資料不足，暫不視為確認警訊。"
-        elif item:
-            triggered = bool(item.get("triggered") or _number(item.get("score")) and _number(item.get("score")) > 0)
-            status = "觸發" if triggered else "未觸發"
-            explanation = triggered_text if triggered else normal_text
-        else:
-            status = "資料不足"
-            explanation = "缺少足夠明細，暫以資料不足處理。"
-        lines.append(f"{_FULLWIDTH_NUMBERS[index]}、{label}：{status}，{explanation}")
-    return lines
-
 
 _FULLWIDTH_NUMBERS = {1: "１", 2: "２", 3: "３", 4: "４", 5: "５"}
 
@@ -929,8 +1067,16 @@ def _payload_with_production_quality(payload: Mapping[str, Any]) -> dict[str, An
 
     enriched = dict(payload)
     quality = assess_production_report_quality(enriched)
+    gate = _report_quality_gate(enriched)
+    quality = {**quality, "report_quality_gate": gate}
+    enriched["report_quality_gate"] = gate
     enriched["production_report_quality"] = quality["production_report_quality"]
     enriched["operator_disclosure"] = quality
+    if not gate["passed"]:
+        data = dict(_mapping(enriched.get("data")))
+        if _display_data_status(data.get("data_status") or data.get("status") or enriched.get("data_status")) == "正式版":
+            data["display_status"] = "稽核不完整版"
+        enriched["data"] = data
     return enriched
 
 def parse_twse_taiex_payload(payload: Mapping[str, Any]) -> list[MarketPriceBar]:
