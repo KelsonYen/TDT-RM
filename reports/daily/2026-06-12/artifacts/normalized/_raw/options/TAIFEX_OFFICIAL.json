@@ -1,0 +1,47 @@
+{
+  "dataset": "options",
+  "provider": "TAIFEX_OFFICIAL",
+  "raw_metadata": {
+    "endpoint": "",
+    "endpoints": [
+      {
+        "endpoint": "https://openapi.taifex.com.tw/v1/PutCallRatio",
+        "status": "success",
+        "usable_fields": [
+          "txo_call_volume",
+          "txo_put_call_ratio",
+          "txo_put_volume"
+        ]
+      },
+      {
+        "endpoint": "https://openapi.taifex.com.tw/v1/TAIFEXVIX",
+        "status": "unavailable",
+        "usable_fields": []
+      }
+    ],
+    "official_source": "TAIFEX PutCallRatio/TAIFEXVIX",
+    "source_type": "taifex_official_json",
+    "url_fetch": {
+      "attempts": 1,
+      "errors": [],
+      "final_url": "https://openapi.taifex.com.tw/v1/TAIFEXVIX",
+      "initial_url": "https://openapi.taifex.com.tw/v1/TAIFEXVIX",
+      "max_attempts": 3,
+      "redirects": [],
+      "status": 200,
+      "success": true
+    }
+  },
+  "raw_source": "taifex_txo_options",
+  "row": {
+    "pcr_rises": true,
+    "pcr_stable": false,
+    "provider_source": "TAIFEX_OFFICIAL:taifex_txo_options",
+    "source_type": "REAL_PROVIDER",
+    "tail_risk": 100.0,
+    "trade_date": "2026-06-12",
+    "vix_rises": false,
+    "vix_stable": true
+  },
+  "status": "success"
+}

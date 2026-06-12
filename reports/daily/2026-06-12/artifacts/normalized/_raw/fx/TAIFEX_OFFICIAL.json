@@ -1,0 +1,31 @@
+{
+  "dataset": "fx",
+  "provider": "TAIFEX_OFFICIAL",
+  "raw_metadata": {
+    "endpoint": "https://openapi.taifex.com.tw/v1/DailyForeignExchangeRates",
+    "official_source": "TAIFEX DailyForeignExchangeRates",
+    "source_type": "taifex_official_json",
+    "url_fetch": {
+      "attempts": 1,
+      "errors": [],
+      "final_url": "https://openapi.taifex.com.tw/v1/DailyForeignExchangeRates",
+      "initial_url": "https://openapi.taifex.com.tw/v1/DailyForeignExchangeRates",
+      "max_attempts": 3,
+      "redirects": [],
+      "status": 200,
+      "success": true
+    }
+  },
+  "raw_source": "taifex_daily_fx",
+  "row": {
+    "provider_source": "TAIFEX_OFFICIAL:taifex_daily_fx",
+    "source_type": "REAL_PROVIDER",
+    "trade_date": "2026-06-12",
+    "twd_appreciates": false,
+    "twd_depreciates_significantly": false,
+    "twd_stable": false,
+    "usd_twd_3d_change_pct": 0.16149461684611127,
+    "usd_twd_5d_change_pct": 0.543547361729178
+  },
+  "status": "success"
+}

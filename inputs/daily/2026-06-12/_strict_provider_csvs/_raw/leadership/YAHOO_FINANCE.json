@@ -1,0 +1,18 @@
+{
+  "dataset": "leadership",
+  "provider": "YAHOO_FINANCE",
+  "raw_metadata": {},
+  "raw_source": "YAHOO_FINANCE:leadership",
+  "row": {
+    "count_main_7_below_ma20": 2,
+    "count_main_7_below_ma60": 0,
+    "main_7_below_ma20_symbols": "2317,2308",
+    "main_7_symbols": "2330,0050,00878,2454,2317,2382,2308",
+    "majority_main_7_assets_above_ma20": true,
+    "mhs": 71.4286,
+    "provider_source": "YAHOO_FINANCE:leadership",
+    "source_type": "REAL_PROVIDER",
+    "trade_date": "2026-06-12"
+  },
+  "status": "success"
+}

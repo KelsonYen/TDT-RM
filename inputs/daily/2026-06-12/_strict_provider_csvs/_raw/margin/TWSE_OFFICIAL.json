@@ -1,0 +1,35 @@
+{
+  "dataset": "margin",
+  "provider": "TWSE_OFFICIAL",
+  "raw_metadata": {
+    "endpoint": "https://www.twse.com.tw/exchangeReport/MI_MARGN?date=20260612&selectType=MS&response=json",
+    "latest_margin_balance": 9088829.0,
+    "observations": 11,
+    "official_source": "TWSE MI_MARGN",
+    "prior_5_observation_date": "2026-06-05",
+    "source_type": "twse_official_json",
+    "url_fetch": {
+      "attempts": 1,
+      "errors": [],
+      "final_url": "https://www.twse.com.tw/exchangeReport/MI_MARGN?date=20260529&selectType=MS&response=json",
+      "initial_url": "https://www.twse.com.tw/exchangeReport/MI_MARGN?date=20260529&selectType=MS&response=json",
+      "max_attempts": 3,
+      "redirects": [],
+      "status": 200,
+      "success": true
+    }
+  },
+  "raw_source": "twse_margin",
+  "row": {
+    "hot_stock_margin_fast_increase": false,
+    "index_5d_return_pct": 0.0,
+    "margin_balance_5d_decline_pct": 2.164888794832607,
+    "margin_balance_5d_flat_or_down": false,
+    "margin_balance_5d_increases": true,
+    "margin_not_retreating": false,
+    "provider_source": "TWSE_OFFICIAL:twse_margin",
+    "source_type": "REAL_PROVIDER",
+    "trade_date": "2026-06-12"
+  },
+  "status": "success"
+}

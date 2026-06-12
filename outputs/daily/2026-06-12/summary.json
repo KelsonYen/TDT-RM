@@ -1,0 +1,19 @@
+{
+  "artifact_paths": {
+    "artifacts": "/home/runner/work/TDT-RM/TDT-RM/reports/daily/2026-06-12/artifacts",
+    "fetch_summary": "/home/runner/work/TDT-RM/TDT-RM/reports/daily/2026-06-12/artifacts/production_fetch_summary.json",
+    "manifest": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/manifest.json",
+    "normalized_csvs": "/home/runner/work/TDT-RM/TDT-RM/reports/daily/2026-06-12/artifacts/normalized",
+    "production_inputs": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12",
+    "production_snapshot_or_pipeline_outputs": "/home/runner/work/TDT-RM/TDT-RM/reports/daily/2026-06-12/artifacts",
+    "provider_health": "/home/runner/work/TDT-RM/TDT-RM/reports/daily/2026-06-12/artifacts/provider_health.json",
+    "raw_provider_diagnostics": "/home/runner/work/TDT-RM/TDT-RM/reports/daily/2026-06-12/artifacts/raw",
+    "reports": "/home/runner/work/TDT-RM/TDT-RM/reports/daily/2026-06-12",
+    "run_summary": "/home/runner/work/TDT-RM/TDT-RM/reports/daily/2026-06-12/artifacts/run_summary.json",
+    "validation_report": "/home/runner/work/TDT-RM/TDT-RM/reports/daily/2026-06-12/artifacts/validation_report.json"
+  },
+  "blocking_error": null,
+  "generated_at": "2026-06-12T12:44:07Z",
+  "status": "READY",
+  "trade_date": "2026-06-12"
+}

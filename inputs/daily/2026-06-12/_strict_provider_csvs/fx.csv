@@ -1,0 +1,2 @@
+trade_date,provider_source,source_type,usd_twd_3d_change_pct,usd_twd_5d_change_pct,twd_appreciates,twd_stable,twd_depreciates_significantly
+2026-06-12,TAIFEX_OFFICIAL:taifex_daily_fx,REAL_PROVIDER,0.16149461684611127,0.543547361729178,false,false,false

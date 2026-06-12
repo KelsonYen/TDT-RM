@@ -1,0 +1,2 @@
+trade_date,provider_source,source_type,futures_hedging_increases,futures_hedging_significant,pcr_stable,pcr_rises,vix_stable,vix_rises,tail_risk,futures_net_short_increases,futures_net_short_decreases
+2026-06-12,TAIFEX_OFFICIAL:taifex_txf_futures;TAIFEX_OFFICIAL:taifex_txo_options,REAL_PROVIDER,false,false,false,true,true,false,100.0,true,false

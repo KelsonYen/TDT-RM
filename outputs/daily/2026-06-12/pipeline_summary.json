@@ -1,0 +1,201 @@
+{
+  "BCD": null,
+  "CP": 22.8,
+  "ETI-5": 0,
+  "MHS": 71.4286,
+  "TCWRS": 7,
+  "Tail Risk": 100.0,
+  "artifact_paths": {
+    "assembled_snapshot": "outputs/daily/2026-06-12/assembled_daily_snapshot_2026-06-12.json",
+    "bcd_audit_trace_csv": "outputs/daily/2026-06-12/bcd_audit_trace.csv",
+    "bcd_audit_trace_json": "outputs/daily/2026-06-12/bcd_audit_trace.json",
+    "bcd_feature_enrichment_trace": "outputs/daily/2026-06-12/bcd_feature_enrichment_trace.json",
+    "bcd_independence_audit_md": "reports/audit/bcd_independence_audit.md",
+    "json": "outputs/daily/2026-06-12/tdt_rm_daily_2026-06-12.json",
+    "manifest": "outputs/daily/2026-06-12/tdt_rm_daily_2026-06-12_manifest.json",
+    "markdown": "outputs/daily/2026-06-12/tdt_rm_daily_2026-06-12.md"
+  },
+  "assembled_snapshot_path": "outputs/daily/2026-06-12/assembled_daily_snapshot_2026-06-12.json",
+  "available_eti_components": [
+    "ETI-1",
+    "ETI-2",
+    "ETI-3",
+    "ETI-4",
+    "ETI-5"
+  ],
+  "bcd_feature_enrichment": {
+    "generated_fields": [
+      "breadth_history"
+    ],
+    "missing_reasons": {
+      "main7_concentration": "requires both main7_returns and main7_weights; no fake equal weights are used",
+      "main7_returns": "requires Main-7 symbol return fields or today's and previous trading-day closes; no previous closes found",
+      "main7_weights": "requires Main-7 market-cap or turnover weights; equal-weight fallback is forbidden",
+      "otc_return_pct": "requires OTC index return provider; no OTC source available",
+      "sector_above_ma20": "requires sector provider MA20 status; nullable interface only until real sector source is supplied",
+      "sector_breadth": "requires sector provider breadth data; no sector source available",
+      "sector_diffusion": "requires sector_returns and sector_above_ma20; no sector provider source available",
+      "sector_returns": "requires sector provider returns; nullable interface only until real sector source is supplied",
+      "small_mid_breadth": "requires small/mid breadth provider; no source available",
+      "small_mid_weakness": "requires otc_return_pct and small_mid_breadth; no source available",
+      "turnover_concentration_topn": "requires symbol-level turnover_amount rows; aggregate market turnover cannot produce Top-N concentration"
+    },
+    "status": "GENERATED",
+    "trace_path": "outputs/daily/2026-06-12/bcd_feature_enrichment_trace.json",
+    "unavailable_fields": [
+      "main7_concentration",
+      "main7_returns",
+      "main7_weights",
+      "otc_return_pct",
+      "sector_above_ma20",
+      "sector_breadth",
+      "sector_diffusion",
+      "sector_returns",
+      "small_mid_breadth",
+      "small_mid_weakness",
+      "turnover_concentration_topn"
+    ]
+  },
+  "data_status": "enriched_snapshot",
+  "exposure_limit": "60-80%",
+  "fallback_proxies": {
+    "bcd": {
+      "missing_components": [
+        "main7_returns",
+        "main7_weights",
+        "main7_concentration",
+        "sector_breadth",
+        "sector_diffusion",
+        "otc_return_pct",
+        "small_mid_breadth",
+        "small_mid_weakness",
+        "turnover_concentration_topn",
+        "turnover_concentration"
+      ],
+      "reason": "Required independent BCD inputs are incomplete; BCD is null and no proxy is used",
+      "status": "incomplete_bcd"
+    }
+  },
+  "latest_bar_date": "2026-06-12",
+  "operator_disclosure": {
+    "acceptable_for_real_world_daily_use": true,
+    "bcd_provider_violations": [],
+    "blocking_reasons": [],
+    "fallback_operator_dependencies": [],
+    "fallback_provider_datasets": [],
+    "non_blocking_module_warnings": [
+      {
+        "module": "ETF Exit",
+        "notes": "Reserved for future ETF Exit integration; no ETF exit logic applied.",
+        "status": "not_integrated"
+      }
+    ],
+    "non_integrated_modules": [
+      {
+        "module": "ETF Exit",
+        "notes": "Reserved for future ETF Exit integration; no ETF exit logic applied.",
+        "status": "not_integrated"
+      }
+    ],
+    "official_provider_datasets": [
+      {
+        "category": "breadth",
+        "name": "Local breadth CSV",
+        "notes": "inputs/daily/2026-06-12/breadth.csv",
+        "provider_source": "TWSE_OFFICIAL:twse_mi_index_breadth",
+        "source_id": "breadth_csv",
+        "source_type": "REAL_PROVIDER"
+      },
+      {
+        "category": "foreign_flow",
+        "name": "Local foreign-flow CSV",
+        "notes": "inputs/daily/2026-06-12/foreign_flow.csv",
+        "provider_source": "TWSE_OFFICIAL:twse_t86_foreign_flow",
+        "source_id": "foreign_flow_csv",
+        "source_type": "REAL_PROVIDER"
+      },
+      {
+        "category": "futures",
+        "name": "Local futures CSV",
+        "notes": "inputs/daily/2026-06-12/futures.csv",
+        "provider_source": "TAIFEX_OFFICIAL:taifex_txf_futures",
+        "source_id": "futures_csv",
+        "source_type": "REAL_PROVIDER"
+      },
+      {
+        "category": "fx",
+        "name": "Local FX CSV",
+        "notes": "inputs/daily/2026-06-12/fx.csv",
+        "provider_source": "TAIFEX_OFFICIAL:taifex_daily_fx",
+        "source_id": "fx_csv",
+        "source_type": "REAL_PROVIDER"
+      },
+      {
+        "category": "margin",
+        "name": "Local margin CSV",
+        "notes": "inputs/daily/2026-06-12/margin.csv",
+        "provider_source": "TWSE_OFFICIAL:twse_margin",
+        "source_id": "margin_csv",
+        "source_type": "REAL_PROVIDER"
+      },
+      {
+        "category": "options",
+        "name": "Local options CSV",
+        "notes": "inputs/daily/2026-06-12/options.csv",
+        "provider_source": "TAIFEX_OFFICIAL:taifex_txo_options",
+        "source_id": "options_csv",
+        "source_type": "REAL_PROVIDER"
+      },
+      {
+        "category": "price",
+        "name": "TAIEX price provider",
+        "notes": "inputs/daily/2026-06-12/price.csv",
+        "provider_source": "TWSE_OFFICIAL:twse_fmtqik_price",
+        "source_id": "taiex_price",
+        "source_type": "REAL_PROVIDER"
+      }
+    ],
+    "placeholder_default_like_fields": [],
+    "production_report_quality": "PASS",
+    "report_quality_gate": {
+      "checks": {
+        "BCD Calculation Complete": false,
+        "BCD Trace Available": true,
+        "ETI Audit Trace Available": true,
+        "Field Sources Available": true,
+        "MHS Calculation Complete": true,
+        "MHS Trace Available": true,
+        "Provider Health Available": true,
+        "Tail Risk Calculation Complete": false,
+        "Tail Risk Trace Available": true
+      },
+      "passed": false,
+      "trace_passed": true
+    }
+  },
+  "production_report_quality": "PASS",
+  "provider_warnings": [
+    "field conflict for index_5d_return_pct: kept/updated between taiex_price=-2.001067650242039 and margin_csv=0.0; kept taiex_price by precedence rule"
+  ],
+  "regime_state": "watch",
+  "scores": {
+    "BCD": null,
+    "CP": 22.8,
+    "ETI-5": 0,
+    "MHS": 71.4286,
+    "TCWRS": 7,
+    "Tail Risk": 100.0
+  },
+  "signal": "Yellow",
+  "trade_date": "2026-06-12",
+  "validation": {
+    "error_count": 0,
+    "errors": [],
+    "issues": [],
+    "passed": true,
+    "status": "passed",
+    "warning_count": 0,
+    "warnings": []
+  },
+  "validation_status": "passed"
+}

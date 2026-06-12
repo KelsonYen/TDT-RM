@@ -1,0 +1,681 @@
+{
+  "artifact_digest": "not available before upload",
+  "artifact_name": "tdt-rm-production-fetch-2026-06-12",
+  "as_of": "2026-06-12",
+  "commit_sha": "553d1c260c5af9ee1addecdc509cd7d2a2f551ad",
+  "dataset_audit_matrix": [
+    {
+      "dataset": "price",
+      "endpoint_attempted": "https://www.twse.com.tw/exchangeReport/FMTQIK?date=20260612&response=json",
+      "exception_message": "none",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TWSE_OFFICIAL",
+      "provider_chain": "TWSE_OFFICIAL",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    },
+    {
+      "dataset": "foreign_flow",
+      "endpoint_attempted": "https://www.twse.com.tw/fund/T86?date=20260612&selectType=ALL&response=json",
+      "exception_message": "none",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TWSE_OFFICIAL",
+      "provider_chain": "TWSE_OFFICIAL",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    },
+    {
+      "dataset": "fx",
+      "endpoint_attempted": "https://openapi.taifex.com.tw/v1/DailyForeignExchangeRates",
+      "exception_message": "none",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TAIFEX_OFFICIAL",
+      "provider_chain": "TAIFEX_OFFICIAL",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    },
+    {
+      "dataset": "breadth",
+      "endpoint_attempted": "https://www.twse.com.tw/exchangeReport/MI_INDEX?date=20260612&type=ALLBUT0999&response=json",
+      "exception_message": "none",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TWSE_OFFICIAL",
+      "provider_chain": "TWSE_OFFICIAL",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    },
+    {
+      "dataset": "futures",
+      "endpoint_attempted": "https://openapi.taifex.com.tw/v1/DailyMarketReportFut",
+      "exception_message": "none",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TAIFEX_OFFICIAL",
+      "provider_chain": "TAIFEX_OFFICIAL",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    },
+    {
+      "dataset": "options",
+      "endpoint_attempted": "https://openapi.taifex.com.tw/v1/TAIFEXVIX",
+      "exception_message": "none",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TAIFEX_OFFICIAL",
+      "provider_chain": "TAIFEX_OFFICIAL",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    },
+    {
+      "dataset": "leadership",
+      "endpoint_attempted": "https://www.twse.com.tw/exchangeReport/STOCK_DAY?date=20260301&stockNo=2308&response=json -> not captured by provider adapter",
+      "exception_message": "status=missing_fields; missing 60-day TWSE stock history for: 2454",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TWSE_OFFICIAL -> YAHOO_FINANCE",
+      "provider_chain": "TWSE_OFFICIAL -> YAHOO_FINANCE",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    }
+  ],
+  "datasets": {
+    "breadth": {
+      "failed_providers": [],
+      "output_path": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/_strict_provider_csvs/breadth.csv",
+      "provider_health": [
+        {
+          "attempted": true,
+          "checks": [
+            {
+              "details": {},
+              "message": "",
+              "name": "strict_schema",
+              "status": "passed"
+            },
+            {
+              "details": {},
+              "message": "no extra invariants configured",
+              "name": "dataset_invariants",
+              "status": "passed"
+            }
+          ],
+          "dataset": "breadth",
+          "failure_reason": "",
+          "metadata": {
+            "endpoint": "https://www.twse.com.tw/exchangeReport/MI_INDEX?date=20260612&type=ALLBUT0999&response=json",
+            "official_source": "TWSE MI_INDEX",
+            "source_type": "twse_official_json",
+            "url_fetch": {
+              "attempts": 1,
+              "errors": [],
+              "final_url": "https://www.twse.com.tw/exchangeReport/MI_INDEX?date=20260612&type=ALLBUT0999&response=json",
+              "initial_url": "https://www.twse.com.tw/exchangeReport/MI_INDEX?date=20260612&type=ALLBUT0999&response=json",
+              "max_attempts": 3,
+              "redirects": [],
+              "status": 200,
+              "success": true
+            }
+          },
+          "output_path": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/_strict_provider_csvs/breadth.csv",
+          "provider": "TWSE_OFFICIAL",
+          "selected": true,
+          "status": "healthy"
+        }
+      ],
+      "provider_used": "TWSE_OFFICIAL:twse_mi_index_breadth",
+      "reconciliation_checks": [
+        {
+          "details": {},
+          "message": "",
+          "name": "strict_schema",
+          "status": "passed"
+        },
+        {
+          "details": {},
+          "message": "no extra invariants configured",
+          "name": "dataset_invariants",
+          "status": "passed"
+        }
+      ],
+      "status": "success",
+      "validation_errors": []
+    },
+    "foreign_flow": {
+      "failed_providers": [],
+      "output_path": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/_strict_provider_csvs/foreign_flow.csv",
+      "provider_health": [
+        {
+          "attempted": true,
+          "checks": [
+            {
+              "details": {},
+              "message": "",
+              "name": "strict_schema",
+              "status": "passed"
+            },
+            {
+              "details": {},
+              "message": "net sell must reconcile with net buy sign",
+              "name": "foreign_buy_sell_sign",
+              "status": "passed"
+            }
+          ],
+          "dataset": "foreign_flow",
+          "failure_reason": "",
+          "metadata": {
+            "endpoint": "https://www.twse.com.tw/fund/T86?date=20260612&selectType=ALL&response=json",
+            "official_source": "TWSE T86",
+            "source_type": "twse_official_json",
+            "url_fetch": {
+              "attempts": 1,
+              "errors": [],
+              "final_url": "https://www.twse.com.tw/fund/T86?date=20260612&selectType=ALL&response=json",
+              "initial_url": "https://www.twse.com.tw/fund/T86?date=20260612&selectType=ALL&response=json",
+              "max_attempts": 3,
+              "redirects": [],
+              "status": 200,
+              "success": true
+            }
+          },
+          "output_path": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/_strict_provider_csvs/foreign_flow.csv",
+          "provider": "TWSE_OFFICIAL",
+          "selected": true,
+          "status": "healthy"
+        }
+      ],
+      "provider_used": "TWSE_OFFICIAL:twse_t86_foreign_flow",
+      "reconciliation_checks": [
+        {
+          "details": {},
+          "message": "",
+          "name": "strict_schema",
+          "status": "passed"
+        },
+        {
+          "details": {},
+          "message": "net sell must reconcile with net buy sign",
+          "name": "foreign_buy_sell_sign",
+          "status": "passed"
+        }
+      ],
+      "status": "success",
+      "validation_errors": []
+    },
+    "futures": {
+      "failed_providers": [],
+      "output_path": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/_strict_provider_csvs/futures.csv",
+      "provider_health": [
+        {
+          "attempted": true,
+          "checks": [
+            {
+              "details": {},
+              "message": "",
+              "name": "strict_schema",
+              "status": "passed"
+            },
+            {
+              "details": {},
+              "message": "no extra invariants configured",
+              "name": "dataset_invariants",
+              "status": "passed"
+            }
+          ],
+          "dataset": "futures",
+          "failure_reason": "",
+          "metadata": {
+            "endpoint": "https://openapi.taifex.com.tw/v1/DailyMarketReportFut",
+            "official_source": "TAIFEX DailyMarketReportFut",
+            "source_type": "taifex_official_json",
+            "url_fetch": {
+              "attempts": 1,
+              "errors": [],
+              "final_url": "https://openapi.taifex.com.tw/v1/DailyMarketReportFut",
+              "initial_url": "https://openapi.taifex.com.tw/v1/DailyMarketReportFut",
+              "max_attempts": 3,
+              "redirects": [],
+              "status": 200,
+              "success": true
+            }
+          },
+          "output_path": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/_strict_provider_csvs/futures.csv",
+          "provider": "TAIFEX_OFFICIAL",
+          "selected": true,
+          "status": "healthy"
+        }
+      ],
+      "provider_used": "TAIFEX_OFFICIAL:taifex_txf_futures",
+      "reconciliation_checks": [
+        {
+          "details": {},
+          "message": "",
+          "name": "strict_schema",
+          "status": "passed"
+        },
+        {
+          "details": {},
+          "message": "no extra invariants configured",
+          "name": "dataset_invariants",
+          "status": "passed"
+        }
+      ],
+      "status": "success",
+      "validation_errors": []
+    },
+    "fx": {
+      "failed_providers": [],
+      "output_path": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/_strict_provider_csvs/fx.csv",
+      "provider_health": [
+        {
+          "attempted": true,
+          "checks": [
+            {
+              "details": {},
+              "message": "",
+              "name": "strict_schema",
+              "status": "passed"
+            },
+            {
+              "details": {},
+              "message": "USD/TWD percentage change outside sanity bounds",
+              "name": "fx_change_sanity",
+              "status": "passed"
+            }
+          ],
+          "dataset": "fx",
+          "failure_reason": "",
+          "metadata": {
+            "endpoint": "https://openapi.taifex.com.tw/v1/DailyForeignExchangeRates",
+            "official_source": "TAIFEX DailyForeignExchangeRates",
+            "source_type": "taifex_official_json",
+            "url_fetch": {
+              "attempts": 1,
+              "errors": [],
+              "final_url": "https://openapi.taifex.com.tw/v1/DailyForeignExchangeRates",
+              "initial_url": "https://openapi.taifex.com.tw/v1/DailyForeignExchangeRates",
+              "max_attempts": 3,
+              "redirects": [],
+              "status": 200,
+              "success": true
+            }
+          },
+          "output_path": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/_strict_provider_csvs/fx.csv",
+          "provider": "TAIFEX_OFFICIAL",
+          "selected": true,
+          "status": "healthy"
+        }
+      ],
+      "provider_used": "TAIFEX_OFFICIAL:taifex_daily_fx",
+      "reconciliation_checks": [
+        {
+          "details": {},
+          "message": "",
+          "name": "strict_schema",
+          "status": "passed"
+        },
+        {
+          "details": {},
+          "message": "USD/TWD percentage change outside sanity bounds",
+          "name": "fx_change_sanity",
+          "status": "passed"
+        }
+      ],
+      "status": "success",
+      "validation_errors": []
+    },
+    "leadership": {
+      "failed_providers": [
+        {
+          "message": "status=missing_fields; missing 60-day TWSE stock history for: 2454",
+          "provider": "TWSE_OFFICIAL"
+        }
+      ],
+      "output_path": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/_strict_provider_csvs/leadership.csv",
+      "provider_health": [
+        {
+          "attempted": true,
+          "checks": [],
+          "dataset": "leadership",
+          "failure_reason": "status=missing_fields; missing 60-day TWSE stock history for: 2454",
+          "metadata": {
+            "error": "status=missing_fields; missing 60-day TWSE stock history for: 2454",
+            "exception_class": "ProviderFetchError",
+            "source_type": "twse_official_json",
+            "traceback": "Traceback (most recent call last):\n  File \"/home/runner/work/TDT-RM/TDT-RM/scripts/fetch_daily_data_multi_provider.py\", line 183, in _fetch_dataset\n    result = provider.fetch(dataset, context)  # type: ignore[attr-defined]\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/runner/work/TDT-RM/TDT-RM/src/tdt_rm/data_providers/twse.py\", line 46, in fetch\n    raise ProviderFetchError(_failure_message(result.status, result.issues), result.raw_metadata)\ntdt_rm.data_providers.base.ProviderFetchError: status=missing_fields; missing 60-day TWSE stock history for: 2454\n",
+            "url_fetch": {
+              "attempts": 1,
+              "errors": [],
+              "final_url": "https://www.twse.com.tw/exchangeReport/STOCK_DAY?date=20260301&stockNo=2308&response=json",
+              "initial_url": "https://www.twse.com.tw/exchangeReport/STOCK_DAY?date=20260301&stockNo=2308&response=json",
+              "max_attempts": 3,
+              "redirects": [],
+              "status": 200,
+              "success": true
+            }
+          },
+          "output_path": null,
+          "provider": "TWSE_OFFICIAL",
+          "selected": false,
+          "status": "failed"
+        },
+        {
+          "attempted": true,
+          "checks": [
+            {
+              "details": {},
+              "message": "",
+              "name": "strict_schema",
+              "status": "passed"
+            },
+            {
+              "details": {},
+              "message": "Main-7 below-MA counts exceed configured symbol count",
+              "name": "leadership_counts",
+              "status": "passed"
+            }
+          ],
+          "dataset": "leadership",
+          "failure_reason": "",
+          "metadata": {},
+          "output_path": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/_strict_provider_csvs/leadership.csv",
+          "provider": "YAHOO_FINANCE",
+          "selected": true,
+          "status": "healthy"
+        }
+      ],
+      "provider_used": "YAHOO_FINANCE:leadership",
+      "reconciliation_checks": [
+        {
+          "details": {},
+          "message": "",
+          "name": "strict_schema",
+          "status": "passed"
+        },
+        {
+          "details": {},
+          "message": "Main-7 below-MA counts exceed configured symbol count",
+          "name": "leadership_counts",
+          "status": "passed"
+        }
+      ],
+      "status": "success",
+      "validation_errors": []
+    },
+    "margin": {
+      "failed_providers": [],
+      "output_path": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/_strict_provider_csvs/margin.csv",
+      "provider_health": [
+        {
+          "attempted": true,
+          "checks": [
+            {
+              "details": {},
+              "message": "",
+              "name": "strict_schema",
+              "status": "passed"
+            },
+            {
+              "details": {},
+              "message": "no extra invariants configured",
+              "name": "dataset_invariants",
+              "status": "passed"
+            }
+          ],
+          "dataset": "margin",
+          "failure_reason": "",
+          "metadata": {
+            "endpoint": "https://www.twse.com.tw/exchangeReport/MI_MARGN?date=20260612&selectType=MS&response=json",
+            "latest_margin_balance": 9088829.0,
+            "observations": 11,
+            "official_source": "TWSE MI_MARGN",
+            "prior_5_observation_date": "2026-06-05",
+            "source_type": "twse_official_json",
+            "url_fetch": {
+              "attempts": 1,
+              "errors": [],
+              "final_url": "https://www.twse.com.tw/exchangeReport/MI_MARGN?date=20260529&selectType=MS&response=json",
+              "initial_url": "https://www.twse.com.tw/exchangeReport/MI_MARGN?date=20260529&selectType=MS&response=json",
+              "max_attempts": 3,
+              "redirects": [],
+              "status": 200,
+              "success": true
+            }
+          },
+          "output_path": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/_strict_provider_csvs/margin.csv",
+          "provider": "TWSE_OFFICIAL",
+          "selected": true,
+          "status": "healthy"
+        }
+      ],
+      "provider_used": "TWSE_OFFICIAL:twse_margin",
+      "reconciliation_checks": [
+        {
+          "details": {},
+          "message": "",
+          "name": "strict_schema",
+          "status": "passed"
+        },
+        {
+          "details": {},
+          "message": "no extra invariants configured",
+          "name": "dataset_invariants",
+          "status": "passed"
+        }
+      ],
+      "status": "success",
+      "validation_errors": []
+    },
+    "options": {
+      "failed_providers": [],
+      "output_path": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/_strict_provider_csvs/options.csv",
+      "provider_health": [
+        {
+          "attempted": true,
+          "checks": [
+            {
+              "details": {},
+              "message": "",
+              "name": "strict_schema",
+              "status": "passed"
+            },
+            {
+              "details": {},
+              "message": "tail_risk must be in [0, 100]; provider BCD is forbidden",
+              "name": "scores_range",
+              "status": "passed"
+            }
+          ],
+          "dataset": "options",
+          "failure_reason": "",
+          "metadata": {
+            "endpoint": "",
+            "endpoints": [
+              {
+                "endpoint": "https://openapi.taifex.com.tw/v1/PutCallRatio",
+                "status": "success",
+                "usable_fields": [
+                  "txo_call_volume",
+                  "txo_put_call_ratio",
+                  "txo_put_volume"
+                ]
+              },
+              {
+                "endpoint": "https://openapi.taifex.com.tw/v1/TAIFEXVIX",
+                "status": "unavailable",
+                "usable_fields": []
+              }
+            ],
+            "official_source": "TAIFEX PutCallRatio/TAIFEXVIX",
+            "source_type": "taifex_official_json",
+            "url_fetch": {
+              "attempts": 1,
+              "errors": [],
+              "final_url": "https://openapi.taifex.com.tw/v1/TAIFEXVIX",
+              "initial_url": "https://openapi.taifex.com.tw/v1/TAIFEXVIX",
+              "max_attempts": 3,
+              "redirects": [],
+              "status": 200,
+              "success": true
+            }
+          },
+          "output_path": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/_strict_provider_csvs/options.csv",
+          "provider": "TAIFEX_OFFICIAL",
+          "selected": true,
+          "status": "healthy"
+        }
+      ],
+      "provider_used": "TAIFEX_OFFICIAL:taifex_txo_options",
+      "reconciliation_checks": [
+        {
+          "details": {},
+          "message": "",
+          "name": "strict_schema",
+          "status": "passed"
+        },
+        {
+          "details": {},
+          "message": "tail_risk must be in [0, 100]; provider BCD is forbidden",
+          "name": "scores_range",
+          "status": "passed"
+        }
+      ],
+      "status": "success",
+      "validation_errors": []
+    },
+    "price": {
+      "failed_providers": [],
+      "output_path": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/_strict_provider_csvs/price.csv",
+      "provider_health": [
+        {
+          "attempted": true,
+          "checks": [
+            {
+              "details": {},
+              "message": "",
+              "name": "strict_schema",
+              "status": "passed"
+            },
+            {
+              "details": {},
+              "message": "close/MA values must be positive",
+              "name": "price_positive",
+              "status": "passed"
+            },
+            {
+              "details": {},
+              "message": "TAIEX close diverges too far from moving averages",
+              "name": "ma_ratio_sanity",
+              "status": "passed"
+            }
+          ],
+          "dataset": "price",
+          "failure_reason": "",
+          "metadata": {
+            "bar_count": 72,
+            "endpoint": "https://www.twse.com.tw/exchangeReport/FMTQIK?date=20260612&response=json",
+            "official_source": "TWSE FMTQIK",
+            "source_type": "twse_official_json",
+            "url_fetch": {
+              "attempts": 1,
+              "errors": [],
+              "final_url": "https://www.twse.com.tw/exchangeReport/FMTQIK?date=20260301&response=json",
+              "initial_url": "https://www.twse.com.tw/exchangeReport/FMTQIK?date=20260301&response=json",
+              "max_attempts": 3,
+              "redirects": [],
+              "status": 200,
+              "success": true
+            }
+          },
+          "output_path": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/_strict_provider_csvs/price.csv",
+          "provider": "TWSE_OFFICIAL",
+          "selected": true,
+          "status": "healthy"
+        }
+      ],
+      "provider_used": "TWSE_OFFICIAL:twse_fmtqik_price",
+      "reconciliation_checks": [
+        {
+          "details": {},
+          "message": "",
+          "name": "strict_schema",
+          "status": "passed"
+        },
+        {
+          "details": {},
+          "message": "close/MA values must be positive",
+          "name": "price_positive",
+          "status": "passed"
+        },
+        {
+          "details": {},
+          "message": "TAIEX close diverges too far from moving averages",
+          "name": "ma_ratio_sanity",
+          "status": "passed"
+        }
+      ],
+      "status": "success",
+      "validation_errors": []
+    }
+  },
+  "fetched_at": "2026-06-12T12:43:00Z",
+  "finmind_fallback": {
+    "allow_finmind": false,
+    "finmind_api_token_present": false,
+    "finmind_token_present": true,
+    "skip_reason": "allow_finmind false",
+    "skipped": true,
+    "token_present": true
+  },
+  "finmind_live_enabled": false,
+  "input_dir": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/_strict_provider_csvs",
+  "missing_datasets": [],
+  "overall_status": "READY",
+  "production_ready": true,
+  "provider_health_path": "/home/runner/work/TDT-RM/TDT-RM/reports/daily/2026-06-12/artifacts/provider_health.json",
+  "provider_health_summary": {
+    "fail_closed": false,
+    "failed_providers": [],
+    "healthy_providers": [
+      "breadth_provider",
+      "foreign_flow_provider",
+      "futures_provider",
+      "fx_provider",
+      "leadership_provider",
+      "margin_provider",
+      "options_provider",
+      "price_provider"
+    ],
+    "total_providers": 8,
+    "validation_failed": false
+  },
+  "provider_priority": [
+    "TWSE_OFFICIAL",
+    "TAIFEX_OFFICIAL",
+    "CBC_OFFICIAL",
+    "TAIWAN_INDEX_PLUS_OFFICIAL",
+    "YAHOO_FINANCE",
+    "STOOQ",
+    "FINMIND_FALLBACK"
+  ],
+  "run_id": "27416354654",
+  "trade_date": "2026-06-12",
+  "validation_errors": []
+}

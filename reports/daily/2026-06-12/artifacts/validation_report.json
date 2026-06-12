@@ -1,0 +1,14 @@
+{
+  "fail_closed": false,
+  "generated_at": "2026-06-12T12:44:07Z",
+  "overall_status": "passed",
+  "production_validation": {
+    "errors": [],
+    "status": "passed"
+  },
+  "staging_validation": {
+    "errors": [],
+    "status": "passed"
+  },
+  "trade_date": "2026-06-12"
+}

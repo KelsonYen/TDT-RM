@@ -1,0 +1,2 @@
+trade_date,provider_source,source_type,foreign_spot_net_buy,foreign_spot_net_sell,foreign_spot_net_sell_consecutive_days,foreign_spot_large_sell,foreign_large_sell
+2026-06-12,TWSE_OFFICIAL:twse_t86_foreign_flow,REAL_PROVIDER,1037774607.0,0.0,0,false,false

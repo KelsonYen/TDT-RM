@@ -1,0 +1,115 @@
+{
+  "artifact_digest": "not available before upload",
+  "artifact_name": "tdt-rm-production-fetch-2026-06-12",
+  "artifacts": {
+    "fetch_manifest": "outputs/daily/2026-06-12/fetch_manifest.json",
+    "production_fetch_summary": "reports/daily/2026-06-12/artifacts/production_fetch_summary.json",
+    "provider_connectivity_summary": "outputs/daily/2026-06-12/provider_connectivity_summary.json",
+    "provider_csvs": "inputs/daily/2026-06-12/_strict_provider_csvs",
+    "provider_health": "reports/daily/2026-06-12/artifacts/provider_health.json"
+  },
+  "as_of": "2026-06-12",
+  "commit_sha": "553d1c260c5af9ee1addecdc509cd7d2a2f551ad",
+  "dataset_audit_matrix": [
+    {
+      "dataset": "price",
+      "endpoint_attempted": "https://www.twse.com.tw/exchangeReport/FMTQIK?date=20260612&response=json",
+      "exception_message": "none",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TWSE_OFFICIAL",
+      "provider_chain": "TWSE_OFFICIAL",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    },
+    {
+      "dataset": "foreign_flow",
+      "endpoint_attempted": "https://www.twse.com.tw/fund/T86?date=20260612&selectType=ALL&response=json",
+      "exception_message": "none",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TWSE_OFFICIAL",
+      "provider_chain": "TWSE_OFFICIAL",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    },
+    {
+      "dataset": "fx",
+      "endpoint_attempted": "https://openapi.taifex.com.tw/v1/DailyForeignExchangeRates",
+      "exception_message": "none",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TAIFEX_OFFICIAL",
+      "provider_chain": "TAIFEX_OFFICIAL",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    },
+    {
+      "dataset": "breadth",
+      "endpoint_attempted": "https://www.twse.com.tw/exchangeReport/MI_INDEX?date=20260612&type=ALLBUT0999&response=json",
+      "exception_message": "none",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TWSE_OFFICIAL",
+      "provider_chain": "TWSE_OFFICIAL",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    },
+    {
+      "dataset": "futures",
+      "endpoint_attempted": "https://openapi.taifex.com.tw/v1/DailyMarketReportFut",
+      "exception_message": "none",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TAIFEX_OFFICIAL",
+      "provider_chain": "TAIFEX_OFFICIAL",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    },
+    {
+      "dataset": "options",
+      "endpoint_attempted": "https://openapi.taifex.com.tw/v1/TAIFEXVIX",
+      "exception_message": "none",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TAIFEX_OFFICIAL",
+      "provider_chain": "TAIFEX_OFFICIAL",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    },
+    {
+      "dataset": "leadership",
+      "endpoint_attempted": "https://www.twse.com.tw/exchangeReport/STOCK_DAY?date=20260301&stockNo=2308&response=json -> not captured by provider adapter",
+      "exception_message": "status=missing_fields; missing 60-day TWSE stock history for: 2454",
+      "failure_happened_at": "unknown",
+      "http_status": "200",
+      "output_csv_written": "YES",
+      "parser_executed": "YES",
+      "provider_attempted": "TWSE_OFFICIAL -> YAHOO_FINANCE",
+      "provider_chain": "TWSE_OFFICIAL -> YAHOO_FINANCE",
+      "root_cause_classification": "none",
+      "validation_executed": "YES"
+    }
+  ],
+  "failure_classes": {
+    "no-row": 1,
+    "none": 8
+  },
+  "manifest_status": "READY",
+  "missing_datasets": [],
+  "production_ready": true,
+  "run_id": "27416354654",
+  "trade_date": "2026-06-12"
+}

@@ -1,0 +1,40 @@
+{
+  "fetch_summary_path": "/home/runner/work/TDT-RM/TDT-RM/reports/daily/2026-06-12/artifacts/production_fetch_summary.json",
+  "forbidden_source_types": [
+    "demo",
+    "fixture",
+    "local_csv_fallback",
+    "local_json_fallback",
+    "mock",
+    "sample",
+    "stale",
+    "synthetic",
+    "test"
+  ],
+  "generated_at": "2026-06-12T12:44:07Z",
+  "materialized_files": {
+    "fx_usdtwd.csv": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/fx_usdtwd.csv",
+    "leadership.csv": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/leadership.csv",
+    "taiex_price.csv": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/taiex_price.csv",
+    "taifex_futures_options.csv": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/taifex_futures_options.csv",
+    "twse_foreign_investor.csv": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/twse_foreign_investor.csv",
+    "twse_margin.csv": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/twse_margin.csv",
+    "twse_market_breadth.csv": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/twse_market_breadth.csv",
+    "twse_turnover_or_volume.csv": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/twse_turnover_or_volume.csv"
+  },
+  "production_validity_rule": "fail_closed_required_csvs_schema_trade_date_source_type_no_stale_no_demo_mock_synthetic",
+  "provider_health_path": "/home/runner/work/TDT-RM/TDT-RM/reports/daily/2026-06-12/artifacts/provider_health.json",
+  "required_files": [
+    "taiex_price.csv",
+    "twse_foreign_investor.csv",
+    "twse_margin.csv",
+    "twse_market_breadth.csv",
+    "twse_turnover_or_volume.csv",
+    "taifex_futures_options.csv",
+    "fx_usdtwd.csv",
+    "leadership.csv",
+    "manifest.json"
+  ],
+  "staging_dir": "/home/runner/work/TDT-RM/TDT-RM/inputs/daily/2026-06-12/_strict_provider_csvs",
+  "trade_date": "2026-06-12"
+}
