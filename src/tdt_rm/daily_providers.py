@@ -426,10 +426,15 @@ class DailySnapshotAssembler:
             if result.price_bars:
                 price_bars = result.price_bars
             for field_name, value in result.canonical_fields.items():
-                if _missing(value) and field_name not in _NULLABLE_LINEAGE_FIELDS:
+                # Keep explicit lineage absence for auditing, but never let it
+                # compete with data or erase an existing value/source.
+                is_lineage = field_name in _NULLABLE_LINEAGE_FIELDS
+                value_missing = _missing_lineage(value) if is_lineage else _missing(value)
+                if value_missing and (not is_lineage or field_name in canonical_row):
                     continue
                 priority = self.precedence_rules.get(field_name, result.precedence)
-                if field_name in canonical_row and not _same_value(canonical_row[field_name], value):
+                fills_missing_lineage = is_lineage and _missing_lineage(canonical_row.get(field_name))
+                if field_name in canonical_row and not fills_missing_lineage and not _same_value(canonical_row[field_name], value):
                     previous_source = field_sources.get(field_name, "unknown")
                     previous_priority = priorities.get(field_name, 0)
                     conflict = (
@@ -709,6 +714,11 @@ def _optional_float(value: Any) -> float | None:
 
 def _missing(value: Any) -> bool:
     return value is None or value == ""
+
+
+def _missing_lineage(value: Any) -> bool:
+    """Treat empty Main7 containers as absent without changing other fields."""
+    return _missing(value) or (isinstance(value, (Mapping, Sequence)) and not value)
 
 
 def _same_value(left: Any, right: Any) -> bool:
