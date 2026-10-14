@@ -1,0 +1,40 @@
+Main7 空值合併技術驗證
+產出日期：2026 年 10 月 15 日（台北）
+作者：Codex
+
+一、結論與範圍
+缺陷成立。驗證基準為 main 9f1fb0c8c073aa6c66cd8320605da0c5b5381308。PR #122 合併後，DailySnapshotAssembler 允許空白 Main7 lineage 欄位以 None 進入快照，同優先權後續實值無法覆蓋；較高優先權後續空值也可能抹掉實值。
+本次僅修改 src/tdt_rm/daily_providers.py 的合併條件，另新增 tests/test_main7_null_merge.py。未修改評分、門檻、CP 公式、燈號或曝險規則。
+
+二、最小重現與修補
+1. 前序 breadth_csv 提供 main7_closes、main7_previous_closes、main7_turnover_amounts 空欄；後序 leadership_csv 提供 JSON 實值，兩者均為 auto 來源、優先權 50。
+2. 修補前快照保留 None，來源仍指向 breadth_csv。針對原始程式執行新增的 31 個案例，15 個失敗、16 個通過；失敗包括兩個完整每日流程案例。
+3. 修補後允許實值填補空值，且隨之更新來源與優先權；後續空值不覆蓋既有欄位。全無資料時仍保留明確 None 與來源。
+4. 兩個實值衝突時仍使用原優先權；同優先權仍保留先到實值。修補未擴張為欄內股票資料的局部合併，也未改變資料數值合法性判斷。
+
+三、實際程式路徑與下游實驗
+測試價格與其他基礎欄位取自儲存庫 2026-06-05 fixture；Main7 與其他完整性欄位為合成輸入，不是實際市場觀測。
+Main7 測試輸入：收盤 2330=110、2454=190；前收盤 2330=100、2454=200；成交金額 2330=30、2454=70。預期報酬 10%、-5%，權重 0.3、0.7。
+1. 完整 CSV 路徑：run_daily_pipeline 會讓 BCD 特徵建構器重新讀取 leadership 原檔。因此本例修補前後均可生成報酬與權重，BCD 均為 26.33、COMPLETE，CP 均為 24.22。修補前 lineage 三欄仍在快照與 BCD 稽核輸入中遺失；修補後恢復實值及 leadership_csv 來源。
+2. 僅快照重算路徑：從上述組裝快照移除已衍生報酬、權重與集中度，以無原始檔、無歷史檔環境重算。修補前 Main7 原始值已遺失，BCD=None、INCOMPLETE，CP=21.59；修補後可從快照生成 Main7，BCD=26.33、COMPLETE，CP=24.22。兩者 TCWRS=12、Tail Risk=53.95、燈號 Yellow、曝險上限 60-80%。本例沒有跨越燈號門檻，不能推論所有輸入均不會改變燈號。
+3. 其他 BCD 必要輸入不足時，即使 Main7 已恢復，仍為 BCD=None、INCOMPLETE，CP 的 BCD 貢獻為 0。全空值 Main7 亦維持 INCOMPLETE。
+4. 既有 2026-06-05 生產回歸案例仍檢查報告揭露資料不足、不納入升燈判斷，以及 CP 排除缺失 BCD。
+
+四、驗證與重跑
+1. 修補前：python -m pytest -q tests/test_main7_null_merge.py --tb=no
+結果：15 failed, 16 passed。當時已含 31 個案例；其後在兩個既有每日流程案例內另加入僅快照重跑一致性斷言。
+2. 修補後全套：python -m pytest -q --tb=short
+結果：加入快照重播斷言後，全套再次執行，361 passed（7.17 秒）；新增測試檔單獨執行為 31 passed。
+3. 新增測試涵蓋 None、空字串、空白字串、JSON null，來源順序反轉、同／高／低優先權、實值衝突、全缺值、CSV 正規化、特徵衍生、BCD 原始輸入與來源、完整／不完整 BCD、CP 排除機制，以及每日流程與快照重播結果一致。
+4. git diff --check 通過。測試可能重寫既有 reports/audit/bcd_independence_audit.md；該生成檔已還原，不列入修補。
+
+五、限制與後續
+未取得線上最新輸入、每日工作執行環境或歷史完整來源，不能證實實際每日風控燈號受影響。已證實的是資料合併缺陷及其可達下游計算路徑。
+另觀察到特徵建構器在相同日期有多份 leadership 記錄時，依路徑排序選最後一份；儲存庫舊 fixture 可能遮蔽另外指定的測試輸入。整合測試將工作目錄隔離，以避免此干擾。本次不修改該獨立行為。
+建議合併後在正式資料環境重跑受影響日期，核對快照、BCD 原始輸入與來源、報酬、權重、CP、燈號及曝險上限。本 PR 不自行合併或重跑正式工作。
+
+六、來源
+https://github.com/KelsonYen/TDT-RM/pull/122
+https://github.com/KelsonYen/TDT-RM/pull/122#discussion_r3368853684
+https://github.com/KelsonYen/TDT-RM/blob/9f1fb0c8c073aa6c66cd8320605da0c5b5381308/src/tdt_rm/daily_providers.py
+相關路徑：src/tdt_rm/bcd_feature_builder.py、src/tdt_rm/daily_pipeline.py、src/tdt_rm/daily_runner.py、tests/test_main7_lineage_regression.py。

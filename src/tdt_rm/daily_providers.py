@@ -426,10 +426,13 @@ class DailySnapshotAssembler:
             if result.price_bars:
                 price_bars = result.price_bars
             for field_name, value in result.canonical_fields.items():
-                if _missing(value) and field_name not in _NULLABLE_LINEAGE_FIELDS:
+                # Keep explicit lineage absence for auditing, but never let it
+                # compete with data or erase an existing value/source.
+                if _missing(value) and (field_name not in _NULLABLE_LINEAGE_FIELDS or field_name in canonical_row):
                     continue
                 priority = self.precedence_rules.get(field_name, result.precedence)
-                if field_name in canonical_row and not _same_value(canonical_row[field_name], value):
+                fills_missing_lineage = field_name in _NULLABLE_LINEAGE_FIELDS and _missing(canonical_row.get(field_name))
+                if field_name in canonical_row and not fills_missing_lineage and not _same_value(canonical_row[field_name], value):
                     previous_source = field_sources.get(field_name, "unknown")
                     previous_priority = priorities.get(field_name, 0)
                     conflict = (
