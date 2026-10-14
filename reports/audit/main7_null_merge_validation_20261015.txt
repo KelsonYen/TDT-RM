@@ -24,7 +24,7 @@ Main7 測試輸入：收盤 2330=110、2454=190；前收盤 2330=100、2454=200�
 1. 修補前：python -m pytest -q tests/test_main7_null_merge.py --tb=no
 結果：15 failed, 16 passed。當時已含 31 個案例；其後在兩個既有每日流程案例內另加入僅快照重跑一致性斷言。
 2. 修補後全套：python -m pytest -q --tb=short
-結果：加入快照重播斷言後，全套再次執行，361 passed（7.17 秒）；新增測試檔單獨執行為 31 passed。
+結果：361 passed。其後新增上述重跑斷言，對受影響檔重跑：31 passed。
 3. 新增測試涵蓋 None、空字串、空白字串、JSON null，來源順序反轉、同／高／低優先權、實值衝突、全缺值、CSV 正規化、特徵衍生、BCD 原始輸入與來源、完整／不完整 BCD、CP 排除機制，以及每日流程與快照重播結果一致。
 4. git diff --check 通過。測試可能重寫既有 reports/audit/bcd_independence_audit.md；該生成檔已還原，不列入修補。
 
@@ -38,3 +38,8 @@ https://github.com/KelsonYen/TDT-RM/pull/122
 https://github.com/KelsonYen/TDT-RM/pull/122#discussion_r3368853684
 https://github.com/KelsonYen/TDT-RM/blob/9f1fb0c8c073aa6c66cd8320605da0c5b5381308/src/tdt_rm/daily_providers.py
 相關路徑：src/tdt_rm/bcd_feature_builder.py、src/tdt_rm/daily_pipeline.py、src/tdt_rm/daily_runner.py、tests/test_main7_lineage_regression.py。
+
+七、合併前補充驗證
+PR #124 的新 P1 審查指出空字典、空陣列及其 JSON 表示亦須視為缺值。已先重現：擴充後 55 個案例中有 12 個失敗、43 個通過。
+新增僅用於 Main7 lineage 的缺值判斷，涵蓋空 mapping 與 sequence，不改動其他欄位的缺值語意。來源優先權與 INCOMPLETE 機制沿用。
+最終新增測試為 55 個，全套 385 passed（7.56 秒），git diff --check 通過。

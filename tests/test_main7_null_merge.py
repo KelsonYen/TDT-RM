@@ -30,7 +30,7 @@ def _assemble(*providers):
     return result.snapshot
 
 
-@pytest.mark.parametrize("blank", [None, "", "  ", "null"])
+@pytest.mark.parametrize("blank", [None, "", "  ", "null", {}, [], "{}", "[]"])
 @pytest.mark.parametrize("blank_kind,real_kind", [("auto", "auto"), ("manual", "auto"), ("auto", "manual")])
 @pytest.mark.parametrize("blank_first", [True, False])
 def test_only_non_missing_lineage_values_compete_by_precedence(blank, blank_kind, real_kind, blank_first):
